@@ -1,0 +1,170 @@
+{
+  "config": "/home/lzc/workspace/fenge/config/dual_region_augmented_tta_1024.json",
+  "manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+  "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+  "selection_manifest": "/home/lzc/workspace/fenge/result/selections/train8000_seed42_20261111.json",
+  "augmentation_groups": [
+    "crater",
+    "mountain_rock"
+  ],
+  "train_source": "combined",
+  "decoder": "region",
+  "backbone": "dual",
+  "input_size": 1024,
+  "num_queries": 32,
+  "decoder_layers": 4,
+  "weight_dir": "/home/lzc/workspace/fenge/model",
+  "convnext_checkpoint": null,
+  "output": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8",
+  "epochs": 30,
+  "freeze_epochs": 3,
+  "batch_size": 8,
+  "val_batch_size": 2,
+  "accumulation": 1,
+  "head_lr": 0.0001,
+  "backbone_lr": 1e-05,
+  "weight_decay": 0.01,
+  "gradient_clip": 1.0,
+  "workers": 4,
+  "seed": 42,
+  "amp": "bf16",
+  "val_tta": "hflip",
+  "device": "cuda:0",
+  "horizontal_flip": true,
+  "resume": null,
+  "max_train_samples": null,
+  "max_val_samples": null,
+  "num_points": 4096,
+  "hard_pixel_weight": 0.0,
+  "hard_pixel_quota": 256,
+  "pretrained": true,
+  "initial_model_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+  "initial_model_tensor_hashes": {
+    "algorithm": "sha256_sorted_state_dict_name_dtype_shape_raw_bytes_v1",
+    "tensor_count": 628,
+    "model_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+    "backbones_sha256": "78c71a948dc7212357be9c1836d80545954f61f1f5ceb53b74803520c280c790",
+    "heads_sha256": "9e0e0634054c1250c574624398c1a572c6d9b59a96fecff76277ace2d3aac1f9"
+  },
+  "pretrained_report": {
+    "backbones": {
+      "convnext": {
+        "loaded": true,
+        "path": "/home/lzc/workspace/fenge/model/dinov3_convnext_tiny/model.safetensors",
+        "tensor_count": 180,
+        "strict": true,
+        "source_format": "timm_dinov3",
+        "sha256": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f"
+      },
+      "mobile": {
+        "loaded": true,
+        "path": "/home/lzc/workspace/fenge/model/mobilenet_v3_large-5c1a4163.pth",
+        "tensor_count": 312,
+        "strict": true,
+        "sha256": "5c1a416349c4cf298f2a6a5e2600ed0ee55e604713578f5e74e6bc8bcaef7997"
+      }
+    },
+    "manifest.json": {
+      "content": {
+        "schema": "lunarseg_pretrained_backbones_v1",
+        "state": "verified",
+        "created_at_utc": "2026-11-11T12:59:41Z",
+        "convnext": {
+          "source_repository": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m",
+          "revision": "7acfec1",
+          "format": "timm",
+          "pretraining": "DINOv3 self-supervised LVD-1689M",
+          "lunar_finetuning": false,
+          "license": "dinov3-license",
+          "hash_source": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m/blob/main/model.safetensors"
+        },
+        "mobilenet": {
+          "source": "torchvision MobileNet_V3_Large_Weights.IMAGENET1K_V2",
+          "format": "torchvision_state_dict",
+          "pretraining": "supervised ImageNet-1K",
+          "lunar_finetuning": false,
+          "source_code": "https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv3.py"
+        },
+        "files": [
+          {
+            "path": "model/dinov3_convnext_tiny/config.json",
+            "sha256": "ca74f08faca70799f011184069ced874174e99cd9a83da966fbc8f176c04498b",
+            "size_bytes": 594,
+            "source_url": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m/resolve/7acfec1/config.json",
+            "tls_certificate_fallback": true
+          },
+          {
+            "path": "model/dinov3_convnext_tiny/model.safetensors",
+            "sha256": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f",
+            "size_bytes": 111298008,
+            "source_url": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m/resolve/7acfec1/model.safetensors",
+            "tls_certificate_fallback": true
+          },
+          {
+            "path": "model/mobilenet_v3_large-5c1a4163.pth",
+            "sha256": "5c1a416349c4cf298f2a6a5e2600ed0ee55e604713578f5e74e6bc8bcaef7997",
+            "size_bytes": 22132113,
+            "source_url": "https://download.pytorch.org/models/mobilenet_v3_large-5c1a4163.pth",
+            "tls_certificate_fallback": false
+          }
+        ]
+      },
+      "sha256": "0eff0dded1295ec5108267da6e4b3e97b16bea1073383caa2af924cfe5821729"
+    }
+  },
+  "initial_hash_available": true,
+  "model_config": {
+    "decoder": "region",
+    "backbone": "dual",
+    "input_size": 1024,
+    "num_classes": 5,
+    "num_queries": 32,
+    "decoder_layers": 4,
+    "width": 128,
+    "branch_width": 64,
+    "attention_heads": 8,
+    "dropout": 0.0,
+    "weight_dir": "/home/lzc/workspace/fenge/model",
+    "convnext_checkpoint": null
+  },
+  "data_identity": {
+    "train": {
+      "manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+      "manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+      "split": "train",
+      "train_source": "combined",
+      "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+      "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+      "augmentation_groups": [
+        "crater",
+        "mountain_rock"
+      ],
+      "selection_manifest": "/home/lzc/workspace/fenge/result/selections/train8000_seed42_20261111.json",
+      "selection_manifest_sha256": "e0f402ff6cc738b8450e0d9877124643d849d3a857f4f21c9b31c04d3d2be815",
+      "selection_seed": 42,
+      "selection_counts": {
+        "original": 5000,
+        "crater": 1500,
+        "mountain_rock": 1500
+      },
+      "candidate_image_count": 10403,
+      "image_count": 8000,
+      "complete_image_count": 8000,
+      "partial": false,
+      "unique_source_count": 5492,
+      "ordered_samples_sha256": "7c8a78fda6d04a37542ff4929e5e4f42b33990cd204aae0c801a753248990196"
+    },
+    "val": {
+      "manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+      "manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+      "split": "val",
+      "train_source": null,
+      "image_count": 1599,
+      "complete_image_count": 1599,
+      "partial": false,
+      "unique_source_count": 1599,
+      "ordered_samples_sha256": "7ca2b3f8e5095f7c8418b0c142b41fb09e96920c5610ee9ab51d6911ef2d7725"
+    }
+  },
+  "partial": false
+}

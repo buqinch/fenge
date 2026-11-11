@@ -122,7 +122,9 @@ python code/train.py --config config/dual_region_augmented_tta_1024.json --resum
 
 ### 困难像素完整训练对照
 
-下一轮从**原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 预训练**重新训练两组，融合层和区域头以相同 seed 42 初始化；不从已有第 12 轮权重微调。两组固定使用上述同一份 8000 张训练清单、1024 整图、batch 8、累积 1、前 3 轮冻结骨干、最多 30 轮、相同学习率和 Moon_5 水平翻转 TTA 验证。只改变训练损失中的困难像素辅助权重，推理保留山体系数 α=1。
+本轮从**原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 预训练**重新训练两组，融合层和区域头以相同 seed 42 初始化；不从已有第 12 轮权重微调。两组固定使用上述同一份 8000 张训练清单、1024 整图、batch 8、累积 1、前 3 轮冻结骨干、最多 30 轮、相同学习率和 Moon_5 水平翻转 TTA 验证。只改变训练损失中的困难像素辅助权重，推理保留山体系数 α=1。
+
+已于 **2026-11-12 00:04（北京时间）**在 GPU 3/4 启动原损失对照和困难像素实验。两份实际 `run_config.json` 仅输出目录及 λ 不同，初始全模型 SHA256 都是 `48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`；核对记录在 `result/hard_pixel_monitor/initialization_check.json`。训练和自动后续流程仍在运行，当前不能据运行检查或训练损失判断分割收益。
 
 ```bash
 python code/train.py --config config/dual_region_augmented_tta_1024.json \
@@ -140,6 +142,8 @@ python code/train.py --config config/dual_region_augmented_tta_1024.json \
 每组 `run_config.json` 保存完整初始模型、两骨干和解码头的张量 SHA256，以及预训练文件来源哈希，用于确认两组从完全相同的状态开始。续训要求困难项权重和每方向限额与检查点一致，不能在同一历史中悄悄更换目标函数。
 
 训练每 25 批更新 `hard_pixel_diagnostics_current.json`，逐轮保存 `hard_pixel_diagnostics_epoch_NNN.json`：各方向候选数、选中数、平均 CE、边界占比，以及每方向最多 8 个高损失训练样本的坐标。边界指 7×7 GT 邻域存在其他类别，默认只检查、不剔除。坐标同时保留训练图位置和撤销随机翻转、尺寸变换后的数据文件位置；增强样本的位置对应其增强文件，并记录来源原图 ID。高损失或处于边界本身不证明错标，需结合原图和 GT 审查，避免用验证或测试样本生成训练困难点。
+
+已抽查第 1 轮第 275 批的启动快照（2200 张，`partial_epoch=true`）：选中点边界率 **73.53%**，候选点为 **21.60%**，表明最高 CE 选点明显偏向边界。六方向共 6 例、12 个点的原标签、翻转坐标和边界标记全部核对一致；实际图像未确认明显错标，但山体与岩石、月壤交界应继续按类别定义复核，不能将高损失直接当成标签错误。加权辅助损失约为原损失的 16.22%（该启动快照的累计值）。[启动检查 JSON](result/dual_region_hardpixel_8000_bs8/hard_pixel_startup_review.json) 保存统计与逐例观察，图库位于 `/home/lzc/workspace/fenge_result/dual_region_hardpixel_8000_bs8/training_diagnostics/`；这些诊断不代表完整验证精度。
 
 CPU 损失与梯度验证使用现有入口 `python code/verify.py --hard-pixel-only`。GPU 的真实 1024、batch 8、全骨干解冻检查可使用 `python code/verify.py --device cuda:3 --size 1024 --batch-size 8 --decoder region --hard-pixel-weight 0.2 --output result/verification_hard_pixel_batch8.json`。
 
