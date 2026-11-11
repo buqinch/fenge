@@ -94,7 +94,7 @@ python code/select_training_data.py --config config/train_selection_8000.json
 | `config/dual_region_augmented_1024.json` | 原图单视图 | `result/dual_region_balanced8000_bs8` | GPU 3 |
 | `config/dual_region_augmented_tta_1024.json` | 原图＋水平翻转，2 视图 | `result/dual_region_balanced8000_bs8_tta` | GPU 4 |
 
-无 TTA 组已按要求在完成第 9 轮后停止，第 10 轮未完成部分不计入完成轮数；最佳检查点为第 5 轮，完整 Moon_5 mIoU 为 87.7176%。已在 GPU 3 完成其完整 Moon_2/4/9 的 `none`、`hflip` 测试，各 5004 张，两次均未保存图片。单视图加权 S 为 **87.0732%**，同一权重加水平翻转 TTA 后为 **87.2468%**；逐场景、逐类结果及混淆分析见 [测试分析](result/dual_region_balanced8000_bs8/test_comparison_zh.md)。TTA 训练组继续运行，并采用下述 0.05 个百分点、patience 5 的监控策略；两组联合报告将在剩余测试完成后生成。
+无 TTA 组已按要求在完成第 9 轮后停止，第 10 轮未完成部分不计入完成轮数；最佳检查点为第 5 轮，完整 Moon_5 mIoU 为 87.7176%。已在 GPU 3 完成其完整 Moon_2/4/9 的 `none`、`hflip` 测试，各 5004 张，两次均未保存图片。单视图加权 S 为 **87.0732%**，同一权重加水平翻转 TTA 后为 **87.2468%**；逐场景、逐类结果及混淆分析见 [测试分析](result/dual_region_balanced8000_bs8/test_comparison_zh.md)。TTA 训练组也已按要求在完成第 14 轮后停止，最佳第 12 轮 Moon_5 mIoU 为 **88.4815%**；其最终测试和两组联合报告由后台流程继续完成，状态记录在 `result/experiment_monitor/state.json`。
 
 重新开展同配置实验时，在两个终端分别运行，并为新实验指定新的结果目录：
 
@@ -192,7 +192,7 @@ TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`�
 
 ### 可选保存评估图片
 
-`evaluate.py` 默认不保存图片。未来需要逐图查看时，可单独开启 `--save-images`；本次完整 Moon_2/4/9 测试均保持关闭。
+`evaluate.py` 默认不保存图片，需要逐图查看时开启 `--save-images`。常规两视角测试使用默认关闭选项；按后续要求，已额外完成一次无 TTA 组第 5 轮最佳权重的完整单视图图片导出。
 
 ```bash
 python code/evaluate.py \
@@ -220,6 +220,20 @@ python code/evaluate.py \
 `prediction_ids.png`、`ground_truth_ids.png` 都是单通道类别 ID（0–4）；彩图使用固定五类调色板。对照 JPG 并排显示原图 RGB、真值和预测，使用实际评估输入反归一化还原的 RGB，以及评分时已经解码的 GT ID，三者空间位置和尺寸一致。原始 LuSNAR 的每一幅图和掩码均为 1024×1024。图片导出发生在预测和混淆矩阵累积之后，不改变 TTA、连续分数插值、argmax 或评分口径。
 
 开启后保存本次评估的全部图片，`index.json` 记录保存数量、相对路径及检查点来源，指标 JSON 的 `saved_images` 记录目录与索引。可用 `--image-output-root /your/image/root` 更换根目录；不传 `--save-images` 时不会创建图片目录。图片保留在独立目录，不作为本次 Git 结果发布内容。
+
+本次已保存完整 5004 张的三联对照图及 ID/彩色掩码，位于 `/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/`，约 2.7 GiB。重新读取保存的 ID 图得到的混淆矩阵，与评估及先前不保存图片时的结果逐项相同，S 仍为 87.0732%。逐图指标、17 个精选案例和实际图像审查建议见 [图片分析报告](result/dual_region_balanced8000_bs8/visual_analysis/report_zh.md)。三个场景的精选图库与重点六图位于同一实验图片目录下的 `visual_review/`。
+
+导出与全量图片核验可复现：
+
+```bash
+CUDA_VISIBLE_DEVICES=3 python code/evaluate.py --config config/evaluate_baseline_save_images.json
+python code/analyze_saved_images.py \
+  --image-index ../fenge_result/dual_region_balanced8000_bs8/test_none/index.json \
+  --metrics result/dual_region_balanced8000_bs8/test_with_images_metrics.json \
+  --output result/dual_region_balanced8000_bs8/visual_analysis
+```
+
+统计入口校验完整数量、来源权重及像素矩阵，输出逐图 CSV、自动选例 JSON 和本地图库；人工图像观察与建议记录在报告及 `manual_review_cases.json` 中。选例是诊断用途，不代表随机抽样的错误发生率。
 
 单图或目录推理：
 

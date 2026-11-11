@@ -1,0 +1,693 @@
+{
+  "review_type": "Actual comparison image inspection plus exact saved-mask measurements; selected diagnostic cases, not prevalence estimates",
+  "cases": [
+    {
+      "case": "A",
+      "scene": "Moon_9",
+      "sample_id": "1692602044090230272",
+      "title": "Crater interior breaks apart",
+      "observed": "GT连续紫色大坑被预测中的大片月壤切开，夹杂局部山体斑块。",
+      "files": {
+        "ground_truth_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692602044090230272/ground_truth_ids.png",
+        "prediction_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692602044090230272/prediction_ids.png",
+        "comparison": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692602044090230272/comparison.jpg"
+      },
+      "metrics": {
+        "miou": 0.7329203086225227,
+        "class_iou": {
+          "regolith": 0.8603960142733749,
+          "rock": 0.716818782960798,
+          "crater": 0.36075036075036077,
+          "mountain": null,
+          "sky": 0.993716076505557
+        },
+        "class_precision": {
+          "regolith": 0.8823001033167551,
+          "rock": 0.9447600602539272,
+          "crater": 0.9222801603348586,
+          "mountain": 0.0,
+          "sky": 0.9976483944210185
+        },
+        "class_recall": {
+          "regolith": 0.9719549252975437,
+          "rock": 0.7481765507839128,
+          "crater": 0.3720610752565075,
+          "mountain": null,
+          "sky": 0.9960491588270536
+        },
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            706238,
+            462,
+            4357,
+            15269,
+            290
+          ],
+          [
+            14693,
+            43903,
+            25,
+            59,
+            0
+          ],
+          [
+            79482,
+            2105,
+            52000,
+            6175,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            38,
+            0,
+            0,
+            450,
+            123030
+          ]
+        ]
+      },
+      "crater_diagnostics": {
+        "erosion_pixels": 8,
+        "gt_crater_pixels": 139762,
+        "interior_pixels": 110147,
+        "boundary_pixels": 29615,
+        "whole_crater_recall": 0.3720610752565075,
+        "interior_recall": 0.4077641697004912,
+        "boundary_recall": 0.23927063987843997,
+        "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."
+      },
+      "gt_sha256": "a1b4d901aaa94fc8262e90f56dab68c1ab74b167d2c31d2f9cad037ff4bfa4ce",
+      "prediction_sha256": "7fcf3da0ddd7867d0be406df21f666faa0fdc7c9576da13a7e1253364c366465",
+      "rock_pixels_enclosed_by_crater": {
+        "definition": "GT rock pixels enclosed by the semantic crater mask under 8-connected background fill; not physical instance labels",
+        "gt_pixels": 719,
+        "predicted_class_counts": [
+          190,
+          529,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "case": "B",
+      "scene": "Moon_9",
+      "sample_id": "1692602039678208000",
+      "title": "Crater / mountain confusion",
+      "observed": "大坑中部和右侧出现月壤缺口及山体斑块，远处GT月壤脊线也被误判为山体。",
+      "files": {
+        "ground_truth_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692602039678208000/ground_truth_ids.png",
+        "prediction_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692602039678208000/prediction_ids.png",
+        "comparison": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692602039678208000/comparison.jpg"
+      },
+      "metrics": {
+        "miou": 0.8399832880892563,
+        "class_iou": {
+          "regolith": 0.9350391331255798,
+          "rock": 0.793710138552892,
+          "crater": 0.638345390530575,
+          "mountain": null,
+          "sky": 0.9928384901479782
+        },
+        "class_precision": {
+          "regolith": 0.9709481435093532,
+          "rock": 0.8921684959952536,
+          "crater": 0.8622994652406417,
+          "mountain": 0.0,
+          "sky": 0.9974083996470335
+        },
+        "class_recall": {
+          "regolith": 0.961952068888308,
+          "rock": 0.8779313029094094,
+          "crater": 0.7108027189654668,
+          "mountain": null,
+          "sky": 0.9954063660309098
+        },
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            769022,
+            393,
+            11430,
+            18268,
+            326
+          ],
+          [
+            2263,
+            18045,
+            209,
+            37,
+            0
+          ],
+          [
+            20738,
+            1784,
+            72885,
+            7132,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            9,
+            4,
+            0,
+            566,
+            125465
+          ]
+        ]
+      },
+      "crater_diagnostics": {
+        "erosion_pixels": 8,
+        "gt_crater_pixels": 102539,
+        "interior_pixels": 75369,
+        "boundary_pixels": 27170,
+        "whole_crater_recall": 0.7108027189654668,
+        "interior_recall": 0.7894625111119956,
+        "boundary_recall": 0.4926021347073979,
+        "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."
+      },
+      "gt_sha256": "59f1bcb81f7a9b77c82c7636069bb2485b818c627cd688a4c7ef4b82f50d123f",
+      "prediction_sha256": "3dada917127caf530b18b531a1263bb5b5fb110bb0aa4c749db2fb98f1953ada",
+      "rock_pixels_enclosed_by_crater": {
+        "definition": "GT rock pixels enclosed by the semantic crater mask under 8-connected background fill; not physical instance labels",
+        "gt_pixels": 728,
+        "predicted_class_counts": [
+          198,
+          519,
+          8,
+          3,
+          0
+        ]
+      }
+    },
+    {
+      "case": "C",
+      "scene": "Moon_9",
+      "sample_id": "1692601824140114944",
+      "title": "Crater over-expansion",
+      "observed": "预测坑区向右伸长、向下外扩，覆盖了GT月壤。",
+      "files": {
+        "ground_truth_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601824140114944/ground_truth_ids.png",
+        "prediction_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601824140114944/prediction_ids.png",
+        "comparison": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601824140114944/comparison.jpg"
+      },
+      "metrics": {
+        "miou": 0.8441501681653623,
+        "class_iou": {
+          "regolith": 0.962806890538655,
+          "rock": 0.7652766017499294,
+          "crater": 0.6104531522067606,
+          "mountain": 0.892486359100656,
+          "sky": 0.9897278372308099
+        },
+        "class_precision": {
+          "regolith": 0.9978328479419659,
+          "rock": 0.8207893442312786,
+          "crater": 0.6112712181907259,
+          "mountain": 0.962958720850323,
+          "sky": 0.9984755462625893
+        },
+        "class_recall": {
+          "regolith": 0.9648244161808911,
+          "rock": 0.9187987123009149,
+          "crater": 0.9978124852989604,
+          "mountain": 0.924215108609621,
+          "sky": 0.9912256762679766
+        },
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            787344,
+            1606,
+            26977,
+            122,
+            0
+          ],
+          [
+            1456,
+            21691,
+            0,
+            461,
+            0
+          ],
+          [
+            93,
+            0,
+            42421,
+            0,
+            0
+          ],
+          [
+            146,
+            3118,
+            0,
+            42037,
+            183
+          ],
+          [
+            15,
+            12,
+            0,
+            1034,
+            119860
+          ]
+        ]
+      },
+      "crater_diagnostics": {
+        "erosion_pixels": 8,
+        "gt_crater_pixels": 42514,
+        "interior_pixels": 34439,
+        "boundary_pixels": 8075,
+        "whole_crater_recall": 0.9978124852989604,
+        "interior_recall": 1.0,
+        "boundary_recall": 0.9884829721362229,
+        "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."
+      },
+      "gt_sha256": "e50d6dcb5320e404a6f69c959c44ff013b92d46fbae45d8349dd91206054fcf9",
+      "prediction_sha256": "13a90e1cb551f023872a56bdffa45fb9596d8933fee4daa791fb2644797c6d92",
+      "rock_pixels_enclosed_by_crater": {
+        "definition": "GT rock pixels enclosed by the semantic crater mask under 8-connected background fill; not physical instance labels",
+        "gt_pixels": 0,
+        "predicted_class_counts": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "case": "D",
+      "scene": "Moon_9",
+      "sample_id": "1692601861743213824",
+      "title": "Isolated rock omitted",
+      "observed": "GT中下部独立岩石区域在预测中消失，变成月壤。",
+      "files": {
+        "ground_truth_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601861743213824/ground_truth_ids.png",
+        "prediction_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601861743213824/prediction_ids.png",
+        "comparison": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601861743213824/comparison.jpg"
+      },
+      "metrics": {
+        "miou": 0.8972231985658621,
+        "class_iou": {
+          "regolith": 0.9667532512788048,
+          "rock": 0.7489553161528157,
+          "crater": null,
+          "mountain": 0.8767234975449786,
+          "sky": 0.9964607292868493
+        },
+        "class_precision": {
+          "regolith": 0.9756080049466797,
+          "rock": 0.9353722529632966,
+          "crater": null,
+          "mountain": 0.9115896160657097,
+          "sky": 0.9984120258189791
+        },
+        "class_recall": {
+          "regolith": 0.9906990516038221,
+          "rock": 0.7898269887838507,
+          "crater": null,
+          "mountain": 0.9581980198019802,
+          "sky": 0.9980424975428409
+        },
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            665831,
+            2780,
+            0,
+            3447,
+            24
+          ],
+          [
+            16526,
+            65419,
+            0,
+            864,
+            18
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            94,
+            1673,
+            0,
+            48389,
+            344
+          ],
+          [
+            27,
+            67,
+            0,
+            382,
+            242691
+          ]
+        ]
+      },
+      "crater_diagnostics": {
+        "erosion_pixels": 8,
+        "gt_crater_pixels": 0,
+        "interior_pixels": 0,
+        "boundary_pixels": 0,
+        "whole_crater_recall": null,
+        "interior_recall": null,
+        "boundary_recall": null,
+        "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."
+      },
+      "gt_sha256": "33c283f2ef08d4007f4616ab0534eea1a07aef09cc102495cd04f3d9ed2d83d5",
+      "prediction_sha256": "b3b6321739e4f645f2b6ce7ec0e2d9edce9e7d8f98eedda2e2508ed140d30312",
+      "rock_pixels_enclosed_by_crater": {
+        "definition": "GT rock pixels enclosed by the semantic crater mask under 8-connected background fill; not physical instance labels",
+        "gt_pixels": 0,
+        "predicted_class_counts": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "lower_central_gt_rock_component": {
+        "pixels": 9973,
+        "bbox_xyxy": [
+          488,
+          672,
+          623,
+          768
+        ],
+        "predicted_class_counts": [
+          9973,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "case": "E",
+      "scene": "Moon_2",
+      "sample_id": "1693278849315322880",
+      "title": "Crater contour shrinks",
+      "observed": "大坑下缘和右端预测向内收缩，主要变成月壤。",
+      "files": {
+        "ground_truth_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_2/1693278849315322880/ground_truth_ids.png",
+        "prediction_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_2/1693278849315322880/prediction_ids.png",
+        "comparison": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_2/1693278849315322880/comparison.jpg"
+      },
+      "metrics": {
+        "miou": 0.8603362560230593,
+        "class_iou": {
+          "regolith": 0.962711142758565,
+          "rock": 0.6352265043948614,
+          "crater": 0.751238967544963,
+          "mountain": 0.9548592877841959,
+          "sky": 0.9976453776327114
+        },
+        "class_precision": {
+          "regolith": 0.9657952101805756,
+          "rock": 0.6710714285714285,
+          "crater": 0.9958672386028417,
+          "mountain": 0.9673326240296332,
+          "sky": 0.9993208925180248
+        },
+        "class_recall": {
+          "regolith": 0.9966939862469828,
+          "rock": 0.9224349533627885,
+          "crater": 0.7535883361551153,
+          "mountain": 0.9866757772463273,
+          "sky": 0.9983222089966972
+        },
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            655717,
+            619,
+            290,
+            1240,
+            26
+          ],
+          [
+            139,
+            1879,
+            0,
+            19,
+            0
+          ],
+          [
+            22850,
+            0,
+            69881,
+            0,
+            0
+          ],
+          [
+            220,
+            302,
+            0,
+            49096,
+            141
+          ],
+          [
+            14,
+            0,
+            0,
+            399,
+            245744
+          ]
+        ]
+      },
+      "crater_diagnostics": {
+        "erosion_pixels": 8,
+        "gt_crater_pixels": 92731,
+        "interior_pixels": 75485,
+        "boundary_pixels": 17246,
+        "whole_crater_recall": 0.7535883361551153,
+        "interior_recall": 0.8256474796317149,
+        "boundary_recall": 0.4381885654644555,
+        "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."
+      },
+      "gt_sha256": "0d0a4ffc43874ea65a464611806d90558f0bf45999dc80964149cf3289193e04",
+      "prediction_sha256": "7d2e1b63f666c5d6b85da3c896dfd458e84cf6b41c57cfe83ceb040075b4d8a9",
+      "rock_pixels_enclosed_by_crater": {
+        "definition": "GT rock pixels enclosed by the semantic crater mask under 8-connected background fill; not physical instance labels",
+        "gt_pixels": 0,
+        "predicted_class_counts": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "case": "F",
+      "scene": "Moon_9",
+      "sample_id": "1692601829673615616",
+      "title": "Crater predicted with no GT crater",
+      "observed": "GT无撞击坑，但预测左侧中部出现紫色坑斑。",
+      "files": {
+        "ground_truth_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601829673615616/ground_truth_ids.png",
+        "prediction_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601829673615616/prediction_ids.png",
+        "comparison": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_9/1692601829673615616/comparison.jpg"
+      },
+      "metrics": {
+        "miou": 0.9033385826910195,
+        "class_iou": {
+          "regolith": 0.9757079658100986,
+          "rock": 0.7981885136140455,
+          "crater": null,
+          "mountain": 0.8476540418315432,
+          "sky": 0.9918038095083904
+        },
+        "class_precision": {
+          "regolith": 0.9960691878691235,
+          "rock": 0.8571742430294799,
+          "crater": 0.0,
+          "mountain": 0.9026675194702585,
+          "sky": 0.9984353672201284
+        },
+        "class_recall": {
+          "regolith": 0.9794794122484786,
+          "rock": 0.9206298131582898,
+          "crater": null,
+          "mountain": 0.9329237469378232,
+          "sky": 0.9933477108179761
+        },
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            714589,
+            5809,
+            9095,
+            67,
+            0
+          ],
+          [
+            2567,
+            42917,
+            0,
+            1064,
+            69
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            120,
+            1290,
+            0,
+            23992,
+            315
+          ],
+          [
+            133,
+            52,
+            0,
+            1456,
+            245041
+          ]
+        ]
+      },
+      "crater_diagnostics": {
+        "erosion_pixels": 8,
+        "gt_crater_pixels": 0,
+        "interior_pixels": 0,
+        "boundary_pixels": 0,
+        "whole_crater_recall": null,
+        "interior_recall": null,
+        "boundary_recall": null,
+        "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."
+      },
+      "gt_sha256": "69e091c21b1ab7b2ee4e24cd5182737d28903056b283151c8ac9d2379fd91ba5",
+      "prediction_sha256": "6c98f4723f69ee968a865eebe6ac60fcaa54657ea9fb291d5ae0dd34bd24bf0b",
+      "rock_pixels_enclosed_by_crater": {
+        "definition": "GT rock pixels enclosed by the semantic crater mask under 8-connected background fill; not physical instance labels",
+        "gt_pixels": 0,
+        "predicted_class_counts": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "case": "G",
+      "scene": "Moon_2",
+      "sample_id": "1693278895085803520",
+      "title": "Mostly correct reference",
+      "observed": "主要山体轮廓、岩石群及天空与GT吻合，仅剩局部边缘差异。",
+      "files": {
+        "ground_truth_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_2/1693278895085803520/ground_truth_ids.png",
+        "prediction_ids": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_2/1693278895085803520/prediction_ids.png",
+        "comparison": "/home/lzc/workspace/fenge_result/dual_region_balanced8000_bs8/test_none/Moon_2/1693278895085803520/comparison.jpg"
+      },
+      "metrics": {
+        "miou": 0.9673393191390729,
+        "class_iou": {
+          "regolith": 0.9964743369638369,
+          "rock": 0.8983157563355895,
+          "crater": null,
+          "mountain": 0.9774192224001313,
+          "sky": 0.9971479608567336
+        },
+        "class_precision": {
+          "regolith": 0.9983267720598454,
+          "rock": 0.9432538152167924,
+          "crater": null,
+          "mountain": 0.9869413813116656,
+          "sky": 0.9990619055853364
+        },
+        "class_recall": {
+          "regolith": 0.9981413559984261,
+          "rock": 0.9496366964335238,
+          "crater": null,
+          "mountain": 0.9902254388154064,
+          "sky": 0.9980824627397461
+        },
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            725523,
+            885,
+            0,
+            466,
+            0
+          ],
+          [
+            873,
+            17121,
+            0,
+            35,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            343,
+            145,
+            0,
+            71421,
+            217
+          ],
+          [
+            0,
+            0,
+            0,
+            444,
+            231103
+          ]
+        ]
+      },
+      "crater_diagnostics": {
+        "erosion_pixels": 8,
+        "gt_crater_pixels": 0,
+        "interior_pixels": 0,
+        "boundary_pixels": 0,
+        "whole_crater_recall": null,
+        "interior_recall": null,
+        "boundary_recall": null,
+        "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."
+      },
+      "gt_sha256": "2331b6e321066d62ab1e181b55aff6e01964f9cd14cc222397922e330e746be8",
+      "prediction_sha256": "5bb773156ce441ebc80935593491221486739a3eb3e94faca8d351515620aaef",
+      "rock_pixels_enclosed_by_crater": {
+        "definition": "GT rock pixels enclosed by the semantic crater mask under 8-connected background fill; not physical instance labels",
+        "gt_pixels": 0,
+        "predicted_class_counts": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ]
+}
