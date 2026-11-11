@@ -1,0 +1,206 @@
+{
+  "name": "hflip_tta",
+  "output": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta",
+  "launch_sha256": "ee96e497ac6dcf86d5b03c986a22021a28c7251985585ec8984649b0ee6a026e",
+  "primary_tta": "hflip",
+  "training_process_identity": {
+    "pid": 189646,
+    "starttime_ticks": 7635180,
+    "command": [
+      "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+      "-B",
+      "-u",
+      "code/train.py",
+      "--config",
+      "config/dual_region_augmented_tta_1024.json",
+      "--device",
+      "cuda:0"
+    ],
+    "cwd": "/home/lzc/workspace/fenge",
+    "pgid": 189646
+  },
+  "completed_epochs": 14,
+  "best_epoch": 12,
+  "best_validation_miou": 0.8848151766391142,
+  "early_stopping": {
+    "schema": "lusnar_patience_tracker_v1",
+    "policy": {
+      "patience": 5,
+      "min_delta": 0.0005,
+      "start_epoch": 4,
+      "metric": "Moon_5_miou",
+      "threshold_comparison": "score >= anchor + min_delta"
+    },
+    "anchor_score": 0.8848151766391142,
+    "anchor_epoch": 12,
+    "bad_epochs": 2,
+    "last_epoch": 14,
+    "stopped": false,
+    "stop_epoch": null,
+    "stop_reason": null,
+    "last_event": "no_significant_improvement",
+    "observations": [
+      {
+        "epoch": 1,
+        "miou": 0.7936450063145457
+      },
+      {
+        "epoch": 2,
+        "miou": 0.8077356111707082
+      },
+      {
+        "epoch": 3,
+        "miou": 0.8243019555905395
+      },
+      {
+        "epoch": 4,
+        "miou": 0.8621196429702515
+      },
+      {
+        "epoch": 5,
+        "miou": 0.8710238173799765
+      },
+      {
+        "epoch": 6,
+        "miou": 0.8674007369523142
+      },
+      {
+        "epoch": 7,
+        "miou": 0.8818918723473763
+      },
+      {
+        "epoch": 8,
+        "miou": 0.866274090745559
+      },
+      {
+        "epoch": 9,
+        "miou": 0.8770810382067007
+      },
+      {
+        "epoch": 10,
+        "miou": 0.8820352587648482
+      },
+      {
+        "epoch": 11,
+        "miou": 0.8784324396893706
+      },
+      {
+        "epoch": 12,
+        "miou": 0.8848151766391142
+      },
+      {
+        "epoch": 13,
+        "miou": 0.8520400998148447
+      },
+      {
+        "epoch": 14,
+        "miou": 0.8598830472314825
+      }
+    ]
+  },
+  "phase": "evaluated",
+  "best_checkpoint_sha256": "ff4d8f32a91c1d6dce06b0f06e482c2aa246a18eda2995b452b4f0c878c33eb2",
+  "stopped_at": "2026-11-11T15:17:14.701957+00:00",
+  "best_checkpoint_epoch": 12,
+  "best_checkpoint_fingerprint": [
+    2065,
+    235358020,
+    395334106,
+    1794409087149054754,
+    1794409089755013330
+  ],
+  "evaluations": {
+    "hflip": {
+      "launch_id": "079de3b6f95f4a3cb33e27ed4f0ad0e4",
+      "tta": "hflip",
+      "output": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_hflip_metrics.json",
+      "log": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_hflip.log",
+      "started_at": "2026-11-11T15:17:35.245195+00:00",
+      "checkpoint_sha256": "ff4d8f32a91c1d6dce06b0f06e482c2aa246a18eda2995b452b4f0c878c33eb2",
+      "checkpoint_epoch": 12,
+      "command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "-u",
+        "/home/lzc/workspace/fenge/code/evaluate.py",
+        "--checkpoint",
+        "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/best.pt",
+        "--split",
+        "test",
+        "--batch-size",
+        "2",
+        "--workers",
+        "4",
+        "--device",
+        "cuda:0",
+        "--amp",
+        "bf16",
+        "--tta",
+        "hflip",
+        "--output",
+        "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_hflip_metrics.json"
+      ],
+      "gpu_uuid": "GPU-8d434121-b643-9338-c35e-fdfc76bf8052",
+      "registration": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/evaluation_hflip_launch.json",
+      "pid": 374308,
+      "starttime_ticks": 8305294,
+      "worker_command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "/home/lzc/workspace/fenge/code/monitor_experiments.py",
+        "--evaluation-worker",
+        "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/evaluation_hflip_intent.json"
+      ],
+      "cwd": "/home/lzc/workspace/fenge",
+      "registered_at": "2026-11-11T15:17:37.198401+00:00",
+      "completed_at": "2026-11-11T15:22:41.086500+00:00",
+      "weighted_score": 0.8830443668934227
+    },
+    "none": {
+      "launch_id": "a151372bc5e94e8bbc15ea4173dbac62",
+      "tta": "none",
+      "output": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_metrics.json",
+      "log": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test.log",
+      "started_at": "2026-11-11T15:22:41.087211+00:00",
+      "checkpoint_sha256": "ff4d8f32a91c1d6dce06b0f06e482c2aa246a18eda2995b452b4f0c878c33eb2",
+      "checkpoint_epoch": 12,
+      "command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "-u",
+        "/home/lzc/workspace/fenge/code/evaluate.py",
+        "--checkpoint",
+        "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/best.pt",
+        "--split",
+        "test",
+        "--batch-size",
+        "2",
+        "--workers",
+        "4",
+        "--device",
+        "cuda:0",
+        "--amp",
+        "bf16",
+        "--tta",
+        "none",
+        "--output",
+        "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_metrics.json"
+      ],
+      "gpu_uuid": "GPU-8d434121-b643-9338-c35e-fdfc76bf8052",
+      "registration": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/evaluation_none_launch.json",
+      "pid": 384507,
+      "starttime_ticks": 8335878,
+      "worker_command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "/home/lzc/workspace/fenge/code/monitor_experiments.py",
+        "--evaluation-worker",
+        "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/evaluation_none_intent.json"
+      ],
+      "cwd": "/home/lzc/workspace/fenge",
+      "registered_at": "2026-11-11T15:22:42.756762+00:00",
+      "completed_at": "2026-11-11T15:27:41.996710+00:00",
+      "weighted_score": 0.8824244465052578
+    }
+  }
+}
