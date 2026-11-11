@@ -276,7 +276,7 @@ def advance_run(run, policy, previous):
         if not identity_alive(training_identity):
             raise RuntimeError(f"Trainer exited unexpectedly before a completed/early_stopped summary: {output}")
         state["phase"] = "training"
-    elif summary["status"] in ("complete", "early_stopped"):
+    elif summary["status"] in ("complete", "early_stopped", "stopped"):
         if identity_alive(training_identity):
             state["phase"] = "waiting_for_trainer_exit"
             return state

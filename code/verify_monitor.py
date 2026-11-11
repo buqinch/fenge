@@ -25,6 +25,15 @@ def expect_error(call):
 def main():
     policy = {"patience": 5, "min_delta": 0.0005, "start_epoch": 4}
     assert PatienceTracker().min_delta == 0.0005
+    tracker = PatienceTracker(**policy)
+    assert not tracker.update(4, 0.8)
+    assert not tracker.update(5, 0.8002) and tracker.bad_epochs == 1
+    assert not tracker.update(6, 0.8005) and tracker.bad_epochs == 0
+    for epoch in range(7, 11):
+        assert not tracker.update(epoch, 0.8008)
+    assert tracker.update(11, 0.8008) and tracker.bad_epochs == 5
+    assert tracker.update(11, 0.8008) and tracker.bad_epochs == 5
+    print("PASS 0.05 percentage point threshold, cumulative gains, five-epoch patience, duplicate observations")
     with tempfile.TemporaryDirectory(prefix="lusnar-monitor-check-") as directory:
         output = Path(directory)
         summary = {"status": "running", "completed_epochs": 8, "best_epoch": 4,
