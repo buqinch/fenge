@@ -120,9 +120,36 @@ python code/train.py --config config/dual_region_augmented_tta_1024.json --resum
 
 单 ConvNeXt 对照可用 `--backbone convnext` 并指定新的输出目录；其余配置保持一致。
 
+### 困难像素完整训练对照
+
+下一轮从**原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 预训练**重新训练两组，融合层和区域头以相同 seed 42 初始化；不从已有第 12 轮权重微调。两组固定使用上述同一份 8000 张训练清单、1024 整图、batch 8、累积 1、前 3 轮冻结骨干、最多 30 轮、相同学习率和 Moon_5 水平翻转 TTA 验证。只改变训练损失中的困难像素辅助权重，推理保留山体系数 α=1。
+
+```bash
+python code/train.py --config config/dual_region_augmented_tta_1024.json \
+  --output result/dual_region_hardpixel_control_8000_bs8 --hard-pixel-weight 0 --device cuda:3
+python code/train.py --config config/dual_region_augmented_tta_1024.json \
+  --output result/dual_region_hardpixel_8000_bs8 --hard-pixel-weight 0.2 --hard-pixel-quota 256 --device cuda:4
+```
+
+实现直接扩展现有 `losses.py` 和 `train.py`，保留全部原有 CE、Dice、区域匹配和辅助层监督。当前 argmax 相对 GT 的六个混淆方向分别为：月壤→山体、山体→月壤、撞击坑→月壤、月壤→撞击坑、山体→岩石、岩石→山体。每张图、每个方向最多选 **256 个实际误分且 CE 最高的像素**，不额外裁图，也不把各方向候选合在一起竞争名额。
+
+每个非空“图像×方向”计算所选 CE 均值，空方向贡献 0，再除以固定的 `batch×6`，得到 `L_hard`；最终 `L_total=L_existing+0.2×L_hard`。固定分母使已纠正的方向逐渐减少辅助损失，不会因剩余一个困难点而把整项重新放大。λ 是损失权重，不是增强数据比例；日志同时保存原损失、困难项原值、加权值和二者比值，以确认实际量纲。λ=0 时不执行困难选点，模型和原损失路径不变。
+
+区域头的五类合成证据先归一化为 `p` 再取 `log(p)`；语义 CE 等价于 `-log(p_GT)`，Dice 的 softmax 恢复 `p`，辅助项直接使用同一语义输出。仅 argmax、方向筛选及 top-k 排序脱离梯度，所选原 CE 保留梯度并回传到区域类别、掩码及编码器；训练不使用 TTA 或山体分数压低。这借鉴 [HRNet 的 OHEM 语义分割损失](https://github.com/HRNet/HRNet-Semantic-Segmentation/blob/pytorch-v1.1/lib/core/criterion.py) 的在线困难点思想，六方向分别限额与固定归一化是本任务的适配。
+
+每组 `run_config.json` 保存完整初始模型、两骨干和解码头的张量 SHA256，以及预训练文件来源哈希，用于确认两组从完全相同的状态开始。续训要求困难项权重和每方向限额与检查点一致，不能在同一历史中悄悄更换目标函数。
+
+训练每 25 批更新 `hard_pixel_diagnostics_current.json`，逐轮保存 `hard_pixel_diagnostics_epoch_NNN.json`：各方向候选数、选中数、平均 CE、边界占比，以及每方向最多 8 个高损失训练样本的坐标。边界指 7×7 GT 邻域存在其他类别，默认只检查、不剔除。坐标同时保留训练图位置和撤销随机翻转、尺寸变换后的数据文件位置；增强样本的位置对应其增强文件，并记录来源原图 ID。高损失或处于边界本身不证明错标，需结合原图和 GT 审查，避免用验证或测试样本生成训练困难点。
+
+CPU 损失与梯度验证使用现有入口 `python code/verify.py --hard-pixel-only`。GPU 的真实 1024、batch 8、全骨干解冻检查可使用 `python code/verify.py --device cuda:3 --size 1024 --batch-size 8 --decoder region --hard-pixel-weight 0.2 --output result/verification_hard_pixel_batch8.json`。
+
+上述 CPU 检查已通过，包括 λ=0 与旧实现的损失、梯度、RNG 精确一致；真实 GPU 检查也已通过，两骨干梯度有限非零，峰值分配显存约 **19.67 GiB**，并完成优化器更新与检查点严格重载。对应报告为 `result/hard_pixel_verification.json` 和 `result/verification_hard_pixel_batch8.json`。
+
+当前 `config/early_stopping_monitor.json` 指向这两组新对照，仍按完整 Moon_5 连续 5 轮没有增加 0.05 个百分点早停；训练停止后自动测试最佳权重的完整 Moon_2/4/9，并按相同 TTA 协议生成 `result/hard_pixel_analysis/`。监控记录位于 `result/hard_pixel_monitor/`，先前实验和分析保留原目录。
+
 ## 外部 JSON 监控、早停与最终分析
 
-监控不修改训练循环，通过已完成轮次的 JSON 指标决定早停。使用现有两个实验的配置启动：
+监控不修改训练循环，通过已完成轮次的 JSON 指标决定早停。使用当前两个实验的配置启动：
 
 ```bash
 python code/monitor_experiments.py --config config/early_stopping_monitor.json
@@ -146,7 +173,7 @@ python code/monitor_experiments.py --config config/early_stopping_monitor.json -
 
 第 4 轮分数建立参考值 anchor。后续分数达到 `anchor + min_delta` 时更新 anchor 并清零计数；小幅增长继续相对原 anchor 累计判断，不会因为某一轮略有增长就清零。监控启动或重启时会重放已经完成的轮次，避免丢掉已有等待计数。早停计数与最佳模型保存分别处理：`best.pt` 仍由完整 Moon_5 的任何严格 mIoU 新高决定，即使提升小于早停门槛也会保留。
 
-两组独立判断并停止各自的训练进程，保留已完成验证记录和最佳检查点，`summary.json` 标记 `early_stopped`。监控总状态记录在 `result/experiment_monitor/state.json`，每组的判断和评估进展记录在对应结果目录的 `early_stopping_monitor.json`。
+两组独立判断并停止各自的训练进程，保留已完成验证记录和最佳检查点，`summary.json` 标记 `early_stopped`。当前监控总状态记录在 `result/hard_pixel_monitor/state.json`（上一轮为 `result/experiment_monitor/state.json`），每组的判断和评估进展记录在对应结果目录的 `early_stopping_monitor.json`。
 
 每组停止或完成最多 30 轮之后，监控在该实验原 GPU 上用固定 `best.pt` 评估完整 **Moon_2/4/9，共 5004 张**。每个检查点分别运行 `none` 和 `hflip` 两种测试，共 **4 次完整评估**；同一实验的两个模式依次运行，不同实验可以各用自己的显卡推进。结果分别写为：
 
@@ -169,6 +196,8 @@ python code/analyze_experiments.py \
 ```bash
 python code/publish_results.py
 ```
+
+上述不带参数入口保留上一轮发布目录。当前困难像素对照使用显式配置：`python code/publish_results.py --config config/early_stopping_monitor.json`，仅提交配置指定的两组结果、对应分析和监控文件，发布状态保存在 `result/hard_pixel_monitor/publication.json`。相同配置追加 `--once` 可在分析就绪后重试。
 
 仅检查一次，结果未就绪时立即返回：
 

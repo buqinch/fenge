@@ -1,0 +1,219 @@
+{
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "device": "cuda:0",
+  "input_size": 1024,
+  "batch_size": 8,
+  "matching": {
+    "query_permutation_invariant": true,
+    "semantic_class_mask_gradients": true
+  },
+  "data": {
+    "manifest": "/media/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "scenes": {
+      "train": [
+        "Moon_1",
+        "Moon_3",
+        "Moon_6",
+        "Moon_7",
+        "Moon_8"
+      ],
+      "val": [
+        "Moon_5"
+      ]
+    },
+    "counts": {
+      "train": 6403,
+      "val": 1599
+    },
+    "id_mask_samples_checked": 2
+  },
+  "models": [
+    {
+      "decoder": "region",
+      "config": {
+        "decoder": "region",
+        "backbone": "dual",
+        "input_size": 1024,
+        "num_classes": 5,
+        "num_queries": 32,
+        "decoder_layers": 4,
+        "width": 128,
+        "branch_width": 64,
+        "attention_heads": 8,
+        "dropout": 0.0,
+        "weight_dir": "/home/lzc/workspace/fenge/model",
+        "convnext_checkpoint": null
+      },
+      "input_shapes": {
+        "convnext": [
+          8,
+          3,
+          1024,
+          1024
+        ],
+        "mobile": [
+          8,
+          3,
+          1024,
+          1024
+        ]
+      },
+      "semantic_shape": [
+        8,
+        5,
+        1024,
+        1024
+      ],
+      "parameter_count": 32880918,
+      "branch_gradient_l1": {
+        "convnext": 38415.48533457145,
+        "mobile": 371.59138801100926
+      },
+      "hard_pixel_weight": 0.2,
+      "hard_pixel_quota": 256,
+      "losses": {
+        "loss_semantic_ce": 1.6339808702468872,
+        "loss_semantic_dice": 0.8023719191551208,
+        "loss_region_class": 1.558510661125183,
+        "loss_region_mask": 0.5672186017036438,
+        "loss_region_dice": 0.7821195721626282,
+        "loss_auxiliary": 20.005386352539062,
+        "loss_hard_pixels": 1.0829486846923828,
+        "loss_hard_pixels_weighted": 0.21658973395824432,
+        "loss_total": 19.390869140625
+      },
+      "checkpoint_strict_roundtrip": true,
+      "optimizer_step": true,
+      "seconds": 3.549,
+      "hard_pixel_stats": {
+        "0->3": {
+          "candidate_count": 23,
+          "selected_count": 23,
+          "selected_ce_sum": 42.151485443115234,
+          "candidate_boundary_count": 23,
+          "selected_boundary_count": 23
+        },
+        "3->0": {
+          "candidate_count": 0,
+          "selected_count": 0,
+          "selected_ce_sum": 0.0,
+          "candidate_boundary_count": 0,
+          "selected_boundary_count": 0
+        },
+        "2->0": {
+          "candidate_count": 0,
+          "selected_count": 0,
+          "selected_ce_sum": 0.0,
+          "candidate_boundary_count": 0,
+          "selected_boundary_count": 0
+        },
+        "0->2": {
+          "candidate_count": 632,
+          "selected_count": 632,
+          "selected_ce_sum": 1231.647216796875,
+          "candidate_boundary_count": 632,
+          "selected_boundary_count": 632
+        },
+        "3->1": {
+          "candidate_count": 1677553,
+          "selected_count": 2048,
+          "selected_ce_sum": 3313.711181640625,
+          "candidate_boundary_count": 1677553,
+          "selected_boundary_count": 2048
+        },
+        "1->3": {
+          "candidate_count": 20,
+          "selected_count": 20,
+          "selected_ce_sum": 29.095935821533203,
+          "candidate_boundary_count": 20,
+          "selected_boundary_count": 20
+        }
+      },
+      "hard_pixel_examples": [
+        {
+          "direction": "0->3",
+          "batch_index": 1,
+          "y": 1005,
+          "x": 1023,
+          "gt": 0,
+          "pred": 3,
+          "ce": 1.985050082206726,
+          "boundary": true
+        },
+        {
+          "direction": "0->3",
+          "batch_index": 3,
+          "y": 834,
+          "x": 1022,
+          "gt": 0,
+          "pred": 3,
+          "ce": 1.9119181632995605,
+          "boundary": true
+        },
+        {
+          "direction": "0->2",
+          "batch_index": 3,
+          "y": 1022,
+          "x": 1023,
+          "gt": 0,
+          "pred": 2,
+          "ce": 2.1916534900665283,
+          "boundary": true
+        },
+        {
+          "direction": "0->2",
+          "batch_index": 3,
+          "y": 1022,
+          "x": 1022,
+          "gt": 0,
+          "pred": 2,
+          "ce": 2.1916534900665283,
+          "boundary": true
+        },
+        {
+          "direction": "3->1",
+          "batch_index": 3,
+          "y": 798,
+          "x": 10,
+          "gt": 3,
+          "pred": 1,
+          "ce": 1.715025782585144,
+          "boundary": true
+        },
+        {
+          "direction": "3->1",
+          "batch_index": 6,
+          "y": 789,
+          "x": 599,
+          "gt": 3,
+          "pred": 1,
+          "ce": 1.6903510093688965,
+          "boundary": true
+        },
+        {
+          "direction": "1->3",
+          "batch_index": 0,
+          "y": 1022,
+          "x": 615,
+          "gt": 1,
+          "pred": 3,
+          "ce": 1.483437418937683,
+          "boundary": true
+        },
+        {
+          "direction": "1->3",
+          "batch_index": 4,
+          "y": 1023,
+          "x": 538,
+          "gt": 1,
+          "pred": 3,
+          "ce": 1.478424310684204,
+          "boundary": true
+        }
+      ],
+      "peak_cuda_allocated_bytes": 21117974016
+    }
+  ],
+  "status": "passed"
+}

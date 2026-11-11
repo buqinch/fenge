@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
+import hashlib
 import json
 import math
 import random
@@ -11,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader
 
 from lunarseg.data import DEFAULT_MANIFEST, LunarDataset, sha256_file
@@ -66,6 +69,10 @@ def parse_args(argv=None):
     parser.add_argument("--max-train-samples", type=int, default=None)
     parser.add_argument("--max-val-samples", type=int, default=None)
     parser.add_argument("--num-points", type=int, default=4096)
+    parser.add_argument("--hard-pixel-weight", type=float, default=0.0,
+                        help="Weight of the additional direction-balanced hard-pixel CE; zero preserves the base objective")
+    parser.add_argument("--hard-pixel-quota", type=int, default=256,
+                        help="Maximum hard pixels per image and confusion direction")
     parser.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
     allowed = {action.dest for action in parser._actions}
     unknown = set(defaults) - allowed
@@ -80,6 +87,12 @@ def parse_args(argv=None):
         parser.error("freeze_epochs must be between zero and epochs")
     if args.workers < 0 or min(args.head_lr, args.backbone_lr) <= 0:
         parser.error("workers must be nonnegative and learning rates positive")
+    if (isinstance(args.hard_pixel_weight, bool) or not isinstance(args.hard_pixel_weight, (int, float))
+            or not math.isfinite(args.hard_pixel_weight) or args.hard_pixel_weight < 0):
+        parser.error("hard_pixel_weight must be finite and nonnegative")
+    if (isinstance(args.hard_pixel_quota, bool) or not isinstance(args.hard_pixel_quota, int)
+            or args.hard_pixel_quota < 0):
+        parser.error("hard_pixel_quota must be a nonnegative integer")
     for key in ("manifest", "augmented_manifest", "selection_manifest", "weight_dir", "convnext_checkpoint", "output", "resume"):
         value = getattr(args, key)
         if value:
@@ -140,6 +153,126 @@ def save_checkpoint(path, checkpoint):
     temporary.replace(path)
 
 
+def model_tensor_hashes(model):
+    """Hash canonical tensor names, shapes, dtypes and bytes without using RNG."""
+    digests = {name: hashlib.sha256() for name in ("model", "backbones", "heads")}
+    count = 0
+    for name, tensor in sorted(model.state_dict().items()):
+        value = tensor.detach().cpu().contiguous()
+        header = json.dumps([name, str(value.dtype), list(value.shape)], separators=(",", ":")).encode() + b"\n"
+        raw = memoryview(value.reshape(-1).view(torch.uint8).numpy())
+        for group in ("model", "backbones" if name.startswith("encoder.") else "heads"):
+            digests[group].update(header)
+            digests[group].update(raw)
+        count += 1
+    return {"algorithm": "sha256_sorted_state_dict_name_dtype_shape_raw_bytes_v1",
+            "tensor_count": count, **{name + "_sha256": digest.hexdigest() for name, digest in digests.items()}}
+
+
+def pretrained_provenance(model, weight_dir):
+    provenance = {"backbones": model.pretrained_report}
+    for report in provenance["backbones"].values():
+        if report and report.get("loaded") and report.get("path"):
+            report["sha256"] = sha256_file(report["path"])
+    for weight_manifest in sorted(Path(weight_dir).glob("*manifest*.json")):
+        provenance[weight_manifest.name] = {"content": json.loads(weight_manifest.read_text()),
+                                             "sha256": sha256_file(weight_manifest)}
+    return provenance
+
+
+def training_loss_means(sums, seen):
+    means = {name: value / seen for name, value in sums.items()}
+    means["hard_to_base_ratio"] = means["loss_hard_pixels_weighted"] / max(means["loss_base"], 1e-12)
+    return means
+
+
+HARD_DIRECTIONS = ("0->3", "3->0", "2->0", "0->2", "3->1", "1->3")
+HARD_COUNT_FIELDS = ("candidate_count", "selected_count", "selected_ce_sum",
+                     "candidate_boundary_count", "selected_boundary_count")
+
+
+class HardPixelDiagnostics:
+    """Bounded, detached training examples for examining labels; no re-mining."""
+
+    def __init__(self, dataset, weight, quota):
+        self.dataset, self.weight, self.quota = dataset, weight, quota
+        self.enabled = weight > 0 and quota > 0
+        self.records = {(row["scene"], str(row["sample_id"])): row for row in dataset.records}
+        self.stats = {direction: {name: 0 for name in HARD_COUNT_FIELDS} for direction in HARD_DIRECTIONS}
+        self.examples = {direction: {} for direction in HARD_DIRECTIONS}
+        self.batch_count = 0
+        self.source_counts = dict(Counter(self.source_group(row) for row in dataset.records))
+
+    @staticmethod
+    def source_group(row):
+        return "augmented/" + row["augmentation_group"] if row.get("augmentation_group") else "original"
+
+    def update(self, criterion, batch, step):
+        self.batch_count += 1
+        if not self.enabled:
+            return
+        for direction, values in criterion.latest_hard_pixel_stats.items():
+            for name in HARD_COUNT_FIELDS:
+                self.stats[direction][name] += values[name]
+        for point in criterion.latest_hard_examples:
+            direction, index = point["direction"], int(point["batch_index"])
+            scene, sample_id = batch["scene"][index], str(batch["sample_id"][index])
+            row = self.records[(scene, sample_id)]
+            flipped = bool(batch["horizontal_flipped"][index])
+            key = (scene, sample_id)
+            height, width = batch["mask"].shape[-2:]
+            x, y = int(point["x"]), int(point["y"])
+            entry = self.examples[direction].setdefault(key, {
+                "scene": scene, "sample_id": sample_id, "source_id": row["source_id"],
+                "source_kind": row.get("source_kind", "augmented" if row.get("augmentation_group") else "original"),
+                "augmentation_group": row.get("augmentation_group"),
+                "image": str(Path(row["image"]).resolve()), "mask": str(Path(row["mask"]).resolve()),
+                "horizontal_flipped": flipped, "input_height": height, "input_width": width,
+                "batch_number": step + 1, "points": []})
+            entry["points"].append({"training_x": x, "training_y": y,
+                                    "unflipped_input_x": width - 1 - x if flipped else x,
+                                    "unflipped_input_y": y, "gt": int(point["gt"]),
+                                    "pred": int(point["pred"]), "ce": float(point["ce"]),
+                                    "gt_boundary": bool(point["boundary"])})
+            entry["points"] = sorted(entry["points"], key=lambda p: (-p["ce"], p["training_y"], p["training_x"]))[:4]
+            ordered = sorted(self.examples[direction].items(),
+                             key=lambda pair: (-pair[1]["points"][0]["ce"], pair[0]))
+            self.examples[direction] = dict(ordered[:8])
+
+    def result(self, epoch, losses):
+        directions = {}
+        for direction in HARD_DIRECTIONS:
+            values = dict(self.stats[direction])
+            values["candidate_boundary_fraction"] = (values["candidate_boundary_count"] / values["candidate_count"]
+                                                     if values["candidate_count"] else None)
+            values["selected_boundary_fraction"] = (values["selected_boundary_count"] / values["selected_count"]
+                                                    if values["selected_count"] else None)
+            values["selected_mean_ce"] = (values["selected_ce_sum"] / values["selected_count"]
+                                          if values["selected_count"] else None)
+            examples = list(self.examples[direction].values())
+            for example in examples:
+                if "native_width" not in example:
+                    with Image.open(example["mask"]) as source:
+                        example.update(native_width=source.width, native_height=source.height)
+                native_width, native_height = example["native_width"], example["native_height"]
+                for point in example["points"]:
+                    point["source_x"] = min(native_width - 1, int((point["unflipped_input_x"] + 0.5)
+                                                                 * native_width / example["input_width"]))
+                    point["source_y"] = min(native_height - 1, int((point["unflipped_input_y"] + 0.5)
+                                                                  * native_height / example["input_height"]))
+            directions[direction] = {**values, "highest_ce_examples": examples}
+        return {"schema": "lusnar_hard_pixel_diagnostics_v1", "epoch": epoch, "enabled": self.enabled,
+                "hard_pixel_weight": self.weight, "hard_pixel_quota": self.quota,
+                "training_data_identity": self.dataset.identity, "training_source_counts": self.source_counts,
+                "training_batches": self.batch_count,
+                "direction_definition": "GT class ID -> current predicted class ID; training data only",
+                "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
+                "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
+                "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
+                "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
+                "training_loss": losses, "directions": directions}
+
+
 def main(argv=None):
     args = parse_args(argv)
     device = torch.device(args.device)
@@ -188,8 +321,16 @@ def main(argv=None):
                 raise ValueError(f"Resume setting {field} differs; exact continuation requires the saved training schedule")
         if previous.get("val_tta", "none") != args.val_tta:
             raise ValueError("Resume setting val_tta differs; preserve the checkpoint selection protocol")
+        for field, default in (("hard_pixel_weight", 0.0), ("hard_pixel_quota", 256)):
+            if previous.get(field, default) != getattr(args, field):
+                raise ValueError(f"Resume setting {field} differs; changing the objective requires a new run")
     model = build_model(config, pretrained=args.pretrained and saved is None).to(device)
-    criterion = SegmentationCriterion(num_classes=5, num_points=args.num_points).to(device)
+    initialization = saved["run_config"].get("initial_model_tensor_hashes") if saved else model_tensor_hashes(model)
+    initial_model_sha256 = (saved["run_config"].get("initial_model_sha256") if saved
+                            else initialization["model_sha256"])
+    criterion = SegmentationCriterion(num_classes=5, num_points=args.num_points,
+                                      hard_pixel_weight=args.hard_pixel_weight,
+                                      hard_pixel_quota=args.hard_pixel_quota).to(device)
     optimizer = torch.optim.AdamW([
         {"params": list(model.backbone_parameters()), "lr": args.backbone_lr, "group_name": "backbone"},
         {"params": list(model.head_parameters()), "lr": args.head_lr, "group_name": "head"},
@@ -210,18 +351,19 @@ def main(argv=None):
         return
     run_config = vars(args).copy()
     data_identity = {"train": train_data.identity, "val": val_data.identity}
-    provenance = saved.get("pretrained_report") if saved else {"backbones": model.pretrained_report}
-    if not saved:
-        for weight_manifest in sorted(Path(args.weight_dir).glob("*manifest*.json")):
-            provenance[weight_manifest.name] = {"content": json.loads(weight_manifest.read_text()),
-                                                "sha256": sha256_file(weight_manifest)}
+    provenance = saved.get("pretrained_report") if saved else pretrained_provenance(model, args.weight_dir)
+    run_config.update(initial_model_sha256=initial_model_sha256,
+                      initial_model_tensor_hashes=initialization, pretrained_report=provenance,
+                      initial_hash_available=initial_model_sha256 is not None)
     write_json(output / "run_config.json", {**run_config, "model_config": config.to_dict(),
                                              "pretrained_report": provenance,
                                              "data_identity": data_identity, "partial": partial})
     total_updates = math.ceil(len(train_loader) / args.accumulation) * args.epochs
     print(json.dumps({"device": str(device), "training_images": len(train_data), "validation_images": len(val_data),
                       "partial": partial, "decoder": args.decoder, "backbone": args.backbone,
-                      "val_tta": args.val_tta}), flush=True)
+                      "val_tta": args.val_tta, "hard_pixel_weight": args.hard_pixel_weight,
+                      "hard_pixel_quota": args.hard_pixel_quota,
+                      "initial_model_sha256": initial_model_sha256}), flush=True)
     for epoch in range(start_epoch, args.epochs):
         started = time.monotonic()
         frozen = epoch < args.freeze_epochs
@@ -229,6 +371,7 @@ def main(argv=None):
         model.train()
         optimizer.zero_grad(set_to_none=True)
         loss_sums, seen = {}, 0
+        hard_diagnostics = HardPixelDiagnostics(train_data, args.hard_pixel_weight, args.hard_pixel_quota)
         for step, batch in enumerate(train_loader):
             # The final, shorter accumulation window must not be divided by the
             # nominal accumulation count. Weight by actual images, including a
@@ -248,8 +391,15 @@ def main(argv=None):
             if not torch.isfinite(loss):
                 raise FloatingPointError(f"Non-finite loss at epoch {epoch + 1}, batch {step + 1}")
             scaler.scale(loss).backward()
-            for name, value in losses.items():
-                loss_sums[name] = loss_sums.get(name, 0.0) + float(value.detach()) * len(images)
+            hard_diagnostics.update(criterion, batch, step)
+            logged_losses = {name: float(value.detach()) for name, value in losses.items()}
+            logged_losses.setdefault("loss_hard_pixels", 0.0)
+            logged_losses.setdefault("loss_hard_pixels_weighted", 0.0)
+            logged_losses["loss_base"] = logged_losses["loss_total"] - logged_losses["loss_hard_pixels_weighted"]
+            logged_losses["hard_to_base_ratio"] = (logged_losses["loss_hard_pixels_weighted"] /
+                                                    max(logged_losses["loss_base"], 1e-12))
+            for name, value in logged_losses.items():
+                loss_sums[name] = loss_sums.get(name, 0.0) + value * len(images)
             seen += len(images)
             if step + 1 == window_end:
                 scaler.unscale_(optimizer)
@@ -261,13 +411,26 @@ def main(argv=None):
                 update += 1
             if step == 0 or (step + 1) % 25 == 0 or step + 1 == len(train_loader):
                 print(f"epoch {epoch + 1}/{args.epochs} batch {step + 1}/{len(train_loader)} "
-                      f"loss={float(losses['loss_total'].detach()):.5f} frozen={frozen}", flush=True)
+                      f"loss={logged_losses['loss_total']:.5f} base={logged_losses['loss_base']:.5f} "
+                      f"hard_raw={logged_losses['loss_hard_pixels']:.5f} "
+                      f"hard_weighted={logged_losses['loss_hard_pixels_weighted']:.5f} "
+                      f"hard/base={logged_losses['hard_to_base_ratio']:.5f} frozen={frozen}", flush=True)
+                current_diagnostics = hard_diagnostics.result(epoch + 1, training_loss_means(loss_sums, seen))
+                current_diagnostics.update(partial_epoch=True, images_seen=seen)
+                write_json(output / "hard_pixel_diagnostics_current.json", current_diagnostics)
+        mean_losses = training_loss_means(loss_sums, seen)
+        diagnostics_path = output / f"hard_pixel_diagnostics_epoch_{epoch + 1:03d}.json"
+        final_diagnostics = hard_diagnostics.result(epoch + 1, mean_losses)
+        final_diagnostics.update(partial_epoch=False, images_seen=seen)
+        write_json(diagnostics_path, final_diagnostics)
+        write_json(output / "hard_pixel_diagnostics_current.json", final_diagnostics)
         metrics = evaluate_loader(model, val_loader, device, args.amp, tta=args.val_tta)
         score = metrics["scenes"]["Moon_5"]["miou"]
         improved = score > best
         if improved:
             best, best_epoch = score, epoch + 1
-        record = {"epoch": epoch + 1, "training_loss": {k: v / seen for k, v in loss_sums.items()},
+        record = {"epoch": epoch + 1, "training_loss": mean_losses,
+                  "hard_pixel_diagnostics": str(diagnostics_path.resolve()),
                   "validation": metrics, "best_miou": best, "best_epoch": best_epoch,
                   "backbones_frozen": frozen, "seconds": time.monotonic() - started,
                   "partial": partial, "global_update": update}

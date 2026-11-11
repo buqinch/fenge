@@ -249,6 +249,13 @@ def advance_run(run, policy, previous):
     if previous and any(previous.get(key) != value for key, value in binding.items()):
         raise RuntimeError("Monitor state belongs to another config/output/training launch")
     training_identity = capture_training_identity(launch, previous.get("training_process_identity"))
+    if not (output / "summary.json").exists():
+        if not identity_alive(training_identity):
+            raise RuntimeError(f"Trainer exited before completing its first epoch: {output}")
+        state = {**previous, **binding, "training_process_identity": training_identity,
+                 "completed_epochs": 0, "phase": "training_first_epoch"}
+        write_json(output / "early_stopping_monitor.json", state)
+        return state
     summary, tracker = completed_tracker(output, policy)
     state = {**previous, **binding, "training_process_identity": training_identity,
              "completed_epochs": summary["completed_epochs"], "best_epoch": summary["best_epoch"],
@@ -345,7 +352,16 @@ def main():
     config = read_json(args.config)
     if args.inspect:
         for run in config["runs"]:
-            summary, tracker = completed_tracker(resolve(run["output"]), config["policy"])
+            run_output = resolve(run["output"])
+            if not (run_output / "summary.json").exists():
+                launch_path = run_output / "launch.json"
+                launch = read_json(launch_path) if launch_path.exists() else None
+                identity = capture_training_identity(launch) if launch else None
+                print(json.dumps({"run": run["name"], "completed_epochs": 0,
+                                  "status": "training_first_epoch" if identity_alive(identity) else "not_running",
+                                  "policy": config["policy"]}, ensure_ascii=False))
+                continue
+            summary, tracker = completed_tracker(run_output, config["policy"])
             print(json.dumps({"run": run["name"], "status": summary["status"], **tracker.state_dict()}, ensure_ascii=False))
         return
     output = resolve(config["output"])
@@ -370,7 +386,8 @@ def main():
                 command = [sys.executable, "-B", str(PROJECT / "code/analyze_experiments.py"),
                            "--run-off", str(resolve(config["runs"][0]["output"])),
                            "--run-on", str(resolve(config["runs"][1]["output"])),
-                           "--output", str(resolve(config["analysis_output"]))]
+                           "--output", str(resolve(config["analysis_output"])),
+                           "--comparison", config.get("comparison", "tta")]
                 subprocess.run(command, cwd=PROJECT, check=True)
                 state.update(status="ready_to_publish", analysis_output=str(resolve(config["analysis_output"])), completed_at=now())
                 write_json(path, state)

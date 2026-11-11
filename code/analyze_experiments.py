@@ -226,7 +226,7 @@ def plot_curves(runs, output):
     figure, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
     for run in runs:
         epochs = [row["epoch"] for row in run["history"]]
-        label = "val TTA off" if run["val_tta"] == "none" else "val TTA hflip"
+        label = run.get("plot_label", "val TTA off" if run["val_tta"] == "none" else "val TTA hflip")
         line = axes[0].plot(epochs, [row["training_loss"]["loss_total"] for row in run["history"]], label=label)[0]
         values = [row["validation"]["scenes"]["Moon_5"]["miou"] * 100 for row in run["history"]]
         axes[1].plot(epochs, values, label=label, color=line.get_color())
@@ -257,9 +257,9 @@ def reference_result(path):
             "scenes": scenes, "name": path.parent.name}
 
 
-def report(runs, output, curves, curve_note, reference):
+def report(runs, output, curves, curve_note, reference, comparison="tta"):
     left, right = runs
-    a, b = left["tests"]["none"], right["tests"]["hflip"]
+    a, b = left["tests"][left["val_tta"]], right["tests"][right["val_tta"]]
     lines = ["# 双 CNN 区域分割：完整测试分析", "",
              "本报告只使用已停止训练后的 Moon_5 最佳检查点及完整 Moon_2/4/9 测试结果。"
              "所有场景 IoU、精确率、召回率和加权分数均由保存的整数混淆矩阵独立重算并核对。", "",
@@ -269,10 +269,12 @@ def report(runs, output, curves, curve_note, reference):
              "完整 Moon_5 共 1599 张用于验证和选轮；Moon_2/4/9 共 5004 张只用于最终评估。", "",
              f"训练清单：[固定选择 JSON]({relative_link(left['selection']['path'], output)})；"
              f"SHA256：`{left['selection']['sha256']}`。", "",
-             "|设置|验证 TTA 关闭组|验证 TTA 开启组|", "|---|---|---|"]
+             f"|设置|{left['label']}|{right['label']}|", "|---|---|---|"]
     fields = [("输入尺寸", "input_size"), ("训练 batch", "batch_size"), ("梯度累积", "accumulation"),
               ("冻结骨干轮数", "freeze_epochs"), ("骨干学习率", "backbone_lr"), ("融合/解码器学习率", "head_lr"),
               ("权重衰减", "weight_decay"), ("AMP", "amp"), ("随机种子", "seed"), ("训练随机水平翻转", "horizontal_flip")]
+    if comparison == "hard-pixels":
+        fields += [("困难像素权重 λ", "hard_pixel_weight"), ("每图每方向最多选点", "hard_pixel_quota")]
     for title, field in fields:
         lines.append(f"|{title}|{left['run_config'].get(field)}|{right['run_config'].get(field)}|")
     lines += ["", "两组架构均为 DINOv3 ConvNeXt-Tiny + MobileNetV3-Large 双 CNN，"
@@ -299,9 +301,13 @@ def report(runs, output, curves, curve_note, reference):
                          + f"|{percent(result['weighted_score'])}|")
     delta = b["weighted_score"] - a["weighted_score"]
     checkpoint_note = "不同" if left["checkpoint_sha256"] != right["checkpoint_sha256"] else "相同"
-    lines += ["", f"主要比较（关闭组单视角 → 开启组双视角）：加权 S 变化 **{delta * 100:+.4f} 个百分点**。"
+    comparison_note = ("两组验证和测试均使用相同水平翻转 TTA，从同一原始预训练初始化重新训练。"
+                       "新增困难像素辅助损失是预设训练变量；这是一次固定种子的对照，不代表跨种子普适提升。"
+                       if comparison == "hard-pixels" else
+                       "这一比较同时包含训练轨迹、检查点选择和测试视角的差异，不能把全部变化归因于 TTA。")
+    lines += ["", f"主要比较（{left['label']}/{left['val_tta']} → {right['label']}/{right['val_tta']}）：加权 S 变化 **{delta * 100:+.4f} 个百分点**。"
               f"两组采用{checkpoint_note}的最佳检查点，并分别按各自验证协议选轮。"
-              "这一比较同时包含训练轨迹、检查点选择和测试视角的差异，不能把全部变化归因于 TTA。", "",
+              + comparison_note, "",
               "|场景|mIoU 变化/百分点|月壤 IoU 变化|岩石 IoU 变化|撞击坑 IoU 变化|山体 IoU 变化|天空 IoU 变化|",
               "|---|---:|---:|---:|---:|---:|---:|"]
     for name in SCENES:
@@ -355,6 +361,9 @@ def report(runs, output, curves, curve_note, reference):
               "## 训练与验证曲线", ""]
     if curves:
         lines += [f"![训练损失与完整 Moon_5 验证曲线]({curves})", "", "星号表示各组按 Moon_5 选中的最佳轮次。训练损失与验证 mIoU 是不同量纲，不能直接相减推断过拟合。"]
+        if comparison == "hard-pixels":
+            lines += ["困难像素组的总损失额外包含辅助项，两组总损失值不能直接据大小比较优劣；主要比较完整 Moon_5 与测试指标。"
+                      "每轮训练点选取、边界比例和高损失点证据保存于该组 hard_pixel_diagnostics_epoch_NNN.json，边界集中或高损失不自动等于错标。"]
     else:
         lines.append(curve_note)
     lines += ["", "|组|轮次|训练总损失|Moon_5 mIoU|骨干冻结|", "|---|---:|---:|---:|---|"]
@@ -381,9 +390,25 @@ def main(argv=None):
     parser.add_argument("--run-on", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=PROJECT / "result" / "analysis")
     parser.add_argument("--reference", type=Path, default=None, help="Optional historical full-test summary JSON")
+    parser.add_argument("--comparison", choices=("tta", "hard-pixels"), default="tta")
     args = parser.parse_args(argv)
     try:
-        runs = [load_run(args.run_off, "验证 TTA 关闭组", "none"), load_run(args.run_on, "验证 TTA 开启组", "hflip")]
+        if args.comparison == "hard-pixels":
+            runs = [load_run(args.run_off, "原损失对照组", "hflip"), load_run(args.run_on, "困难像素辅助组", "hflip")]
+            left, right = (r["run_config"] for r in runs)
+            require(left.get("hard_pixel_weight", 0) == 0 and right.get("hard_pixel_weight", 0) > 0,
+                    "Hard-pixel comparison requires weight=0 versus weight>0")
+            for key in ("input_size", "batch_size", "accumulation", "epochs", "freeze_epochs", "head_lr",
+                        "backbone_lr", "weight_decay", "gradient_clip", "amp", "seed", "horizontal_flip",
+                        "num_points", "hard_pixel_quota", "val_batch_size", "val_tta", "pretrained", "workers",
+                        "initial_model_sha256"):
+                require(left.get(key) == right.get(key), f"Hard-pixel comparison changed {key}")
+            require(bool(left.get("initial_model_sha256")) and left.get("pretrained") is True
+                    and not left.get("convnext_checkpoint") and not right.get("convnext_checkpoint"),
+                    "Expected identical original pretrained initialization, without lunar checkpoint transfer")
+            runs[0]["plot_label"], runs[1]["plot_label"] = "Original loss", "Directional hard pixels"
+        else:
+            runs = [load_run(args.run_off, "验证 TTA 关闭组", "none"), load_run(args.run_on, "验证 TTA 开启组", "hflip")]
         require(runs[0]["run_dir"] != runs[1]["run_dir"], "Expected two different run directories")
         require(runs[0]["selection"]["sha256"] == runs[1]["selection"]["sha256"], "Runs use different fixed training selections")
         reference = reference_result(args.reference)
@@ -416,8 +441,8 @@ def main(argv=None):
                "created_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
                "protocol": {"test_images": 5004, "scene_image_counts": SCENES,
                             "weighted_score": "(Moon_2 + Moon_4 + 2*Moon_9)/4", "official_platform_score": False},
-               "runs": runs, "reference": reference,
-               "between_run_weighted_score_change": runs[1]["tests"]["hflip"]["weighted_score"] - runs[0]["tests"]["none"]["weighted_score"],
+               "runs": runs, "reference": reference, "comparison": args.comparison,
+               "between_run_weighted_score_change": runs[1]["tests"][runs[1]["val_tta"]]["weighted_score"] - runs[0]["tests"][runs[0]["val_tta"]]["weighted_score"],
                "different_checkpoints": runs[0]["checkpoint_sha256"] != runs[1]["checkpoint_sha256"],
                "causal_tta_effect_established": False, "statistical_significance_tested": False,
                "curves": curves, "curve_note": curve_note}
@@ -425,7 +450,7 @@ def main(argv=None):
     temporary.write_text(json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
     temporary.replace(output / "summary.json")
     temporary = output / "report_zh.md.tmp"
-    temporary.write_text(report(runs, output, curves, curve_note, reference))
+    temporary.write_text(report(runs, output, curves, curve_note, reference, comparison=args.comparison))
     temporary.replace(output / "report_zh.md")
     print(json.dumps({"state": "complete", "report": str(output / "report_zh.md"),
                       "metrics": str(output / "metrics.csv"), "summary": str(output / "summary.json")}, ensure_ascii=False))

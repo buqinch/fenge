@@ -1,0 +1,62 @@
+{
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "device": "cpu",
+  "hard_pixel_only": true,
+  "hard_pixel_checks": {
+    "directions": [
+      "0->3",
+      "3->0",
+      "2->0",
+      "0->2",
+      "3->1",
+      "1->3"
+    ],
+    "numerical_reduction_and_selected_gradients": {
+      "batch_size": 2,
+      "quota": 2,
+      "raw_loss": 2.801410675048828,
+      "independent_nll_expectation": 2.8014108932659485,
+      "selected_pixels": 17,
+      "empty_image_direction_groups": 2,
+      "fixed_image_direction_mean_including_empty_groups": true,
+      "analytical_selected_ce_gradients_match": true,
+      "unselected_pixel_gradients_exactly_zero": true,
+      "torch_and_python_rng_unchanged": true
+    },
+    "majority_candidates": 1024,
+    "independent_quota": 256,
+    "selected_per_direction_under_majority_crowding": [
+      256,
+      256,
+      256,
+      256,
+      256,
+      256
+    ],
+    "region_log_probabilities_match_ce_and_nll": true,
+    "region_query_class_and_mask_gradients_match_independent_nll": true,
+    "region_gradient_l1": {
+      "query_class": 0.09338529407978058,
+      "query_mask": 0.9653631448745728
+    },
+    "boundary_counts_match_independent_geometry": [
+      {
+        "radius": 1,
+        "expected_boundary_count_per_active_direction": 1
+      },
+      {
+        "radius": 3,
+        "expected_boundary_count_per_active_direction": 2
+      }
+    ],
+    "homogeneous_gt_image_edges_are_not_boundaries": true,
+    "empty_mistakes_and_zero_quota_have_graph_connected_zero": true,
+    "lambda_zero_exact_legacy_loss_gradient_and_rng_fixture": true,
+    "legacy_fixture_torch_version": "2.1.1+cu121",
+    "legacy_loss_total": 14.784954071044922,
+    "lambda_point_two_only_adds_weighted_hard_loss": true,
+    "invalid_parameters_and_tensor_cases_rejected": 21
+  },
+  "status": "passed"
+}

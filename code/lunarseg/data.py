@@ -271,10 +271,12 @@ class LunarDataset(Dataset):
         if image.size != size:
             image = image.resize(size, Image.Resampling.BILINEAR)
             mask = mask.resize(size, Image.Resampling.NEAREST)
-        if self.horizontal_flip and random.random() < 0.5:
+        horizontal_flipped = self.horizontal_flip and random.random() < 0.5
+        if horizontal_flipped:
             image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
             mask = mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
         image_array = np.asarray(image, dtype=np.float32).transpose(2, 0, 1) / 255.0
         image_tensor = torch.from_numpy(((image_array - _MEAN) / _STD).copy())
         return {"image": image_tensor, "mask": torch.from_numpy(np.asarray(mask, dtype=np.int64).copy()),
-                "scene": row["scene"], "sample_id": row["sample_id"], "source_id": row["source_id"]}
+                "scene": row["scene"], "sample_id": row["sample_id"], "source_id": row["source_id"],
+                "horizontal_flipped": horizontal_flipped}

@@ -1,6 +1,6 @@
 """Wait for completed experiment analysis, commit result records, and push main.
 
-Only the fixed result directories below enter the commit. Training checkpoints,
+Only the explicitly configured result directories enter the commit. Training checkpoints,
 source files, existing staged work, credentials, and Git's global settings are
 never changed by this publisher.
 """
@@ -19,7 +19,6 @@ import time
 
 PROJECT = Path(__file__).resolve().parents[1]
 RUN_NAMES = ("dual_region_balanced8000_bs8", "dual_region_balanced8000_bs8_tta")
-RESULT_DIRECTORIES = tuple("result/" + name for name in RUN_NAMES) + ("result/analysis", "result/experiment_monitor")
 MONITOR_FILES = {"state.json", "launch.json", "monitor.log"}
 SMALL_SUFFIXES = {".json", ".jsonl", ".log", ".csv", ".md", ".txt", ".png", ".svg"}
 MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -93,22 +92,46 @@ def verify_git(project):
         raise RuntimeError("Existing staged content detected; refusing to mix another change into the results commit")
 
 
-def verify_artifacts(project, monitor):
-    analysis = project / "result/analysis"
+def publication_layout(project, config_path=None):
+    if config_path is None:
+        return {"runs": [project / "result" / name for name in RUN_NAMES],
+                "analysis": project / "result/analysis", "monitor": project / "result/experiment_monitor"}
+    config = read_json(config_path)
+    def directory(value):
+        raw = Path(value)
+        path = raw if raw.is_absolute() else project / raw
+        resolved = path.resolve()
+        if (not resolved.is_relative_to((project / "result").resolve()) or resolved == (project / "result").resolve()
+                or any(parent.is_symlink() for parent in (path, *path.parents) if parent != project)):
+            raise ValueError("Publication paths must be ordinary experiment directories inside this project's result/")
+        return resolved
+    layout = {"runs": [directory(row["output"]) for row in config["runs"]],
+              "analysis": directory(config["analysis_output"]), "monitor": directory(config["output"])}
+    paths = [*layout["runs"], layout["analysis"], layout["monitor"]]
+    if len(layout["runs"]) != 2 or len(set(paths)) != len(paths):
+        raise ValueError("Publication needs two distinct experiment, analysis and monitor directories")
+    if any(a != b and a.is_relative_to(b) for a in paths for b in paths):
+        raise ValueError("Publication directories must not contain each other")
+    return layout
+
+
+def verify_artifacts(project, monitor, layout=None):
+    layout = layout or publication_layout(project)
+    analysis = layout["analysis"]
     for name in ("report_zh.md", "summary.json", "metrics.csv", "confusion_matrices.csv", "history.csv"):
         path = analysis / name
         if not path.is_file() or path.is_symlink() or path.stat().st_size == 0:
-            raise RuntimeError(f"Final analysis artifact is missing: result/analysis/{name}")
+            raise RuntimeError(f"Final analysis artifact is missing: {analysis / name}")
     summary = read_json(analysis / "summary.json")
     if summary.get("state") != "complete" or summary.get("schema") != "lusnar_experiment_analysis_v1":
         raise RuntimeError("Final analysis summary is incomplete")
-    expected = {(project / "result" / name).resolve() for name in RUN_NAMES}
+    expected = {path.resolve() for path in layout["runs"]}
     if {Path(row["run_dir"]).resolve() for row in summary.get("runs", [])} != expected:
         raise RuntimeError("Final analysis does not identify exactly the two authorized runs")
     if monitor.get("analysis_output") and Path(monitor["analysis_output"]).resolve() != analysis.resolve():
         raise RuntimeError("Monitor analysis output differs from the fixed publication directory")
-    for name in RUN_NAMES:
-        run = project / "result" / name
+    for run in layout["runs"]:
+        name = run.name
         training = read_json(run / "summary.json")
         if training.get("status") not in ("complete", "early_stopped", "stopped") or training.get("partial") is not False:
             raise RuntimeError(f"Experiment is not fully finalized: {name}")
@@ -120,10 +143,10 @@ def verify_artifacts(project, monitor):
                 raise RuntimeError(f"Final test metrics are incomplete: {name}/{filename}")
 
 
-def selected_files(project):
+def selected_files(project, layout=None):
+    layout = layout or publication_layout(project)
     files = []
-    for relative in RESULT_DIRECTORIES:
-        directory = project / relative
+    for directory in [*layout["runs"], layout["analysis"], layout["monitor"]]:
         if directory.is_symlink():
             raise RuntimeError("Publication directory must not be a symlink")
         for path in sorted(directory.rglob("*")):
@@ -131,7 +154,7 @@ def selected_files(project):
                 continue
             if not path.resolve().is_relative_to(directory.resolve()):
                 raise RuntimeError("Publication artifact escaped its permitted directory")
-            if relative == "result/experiment_monitor" and path.name not in MONITOR_FILES:
+            if directory == layout["monitor"] and path.name not in MONITOR_FILES:
                 continue
             if path.suffix.lower() not in SMALL_SUFFIXES or path.stat().st_size > MAX_FILE_BYTES:
                 continue
@@ -139,9 +162,12 @@ def selected_files(project):
     return files
 
 
-def publish_once(monitor_path, project=None):
+def publish_once(monitor_path, project=None, config_path=None):
     project = (project or PROJECT).resolve()
-    publication_path = project / "result/experiment_monitor/publication.json"
+    layout = publication_layout(project, config_path)
+    if config_path is not None and monitor_path.resolve() != layout["monitor"] / "state.json":
+        raise ValueError("Monitor state must match the explicit publication configuration")
+    publication_path = layout["monitor"] / "publication.json"
     publication_path.parent.mkdir(parents=True, exist_ok=True)
     previous = read_json(publication_path) if publication_path.exists() else {}
     record = {**previous, "updated_at": now(), "monitor_state": str(monitor_path.resolve())}
@@ -152,9 +178,9 @@ def publish_once(monitor_path, project=None):
             write_json(publication_path, record)
             return record
         monitor = read_json(monitor_path)
-        verify_artifacts(project, monitor)
+        verify_artifacts(project, monitor, layout)
         verify_git(project)
-        files = selected_files(project)
+        files = selected_files(project, layout)
         fingerprints = {name: sha256(project / name) for name in files}
         if committed:
             if not re.fullmatch(r"[0-9a-f]{40,64}", committed):
@@ -192,15 +218,18 @@ def publish_once(monitor_path, project=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--monitor-state", type=Path, default=PROJECT / "result/experiment_monitor/state.json")
+    parser.add_argument("--monitor-state", type=Path, default=None)
+    parser.add_argument("--config", type=Path, default=None, help="Explicit monitor config defining the two runs and result directories")
     parser.add_argument("--once", action="store_true", help="Return immediately if analysis is not ready")
     args = parser.parse_args()
-    directory = PROJECT / "result/experiment_monitor"
+    layout = publication_layout(PROJECT, args.config)
+    directory = layout["monitor"]
+    monitor_path = args.monitor_state or directory / "state.json"
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / "publisher.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         while True:
-            record = publish_once(args.monitor_state)
+            record = publish_once(monitor_path, config_path=args.config)
             if record["status"] != "waiting_for_analysis" or args.once:
                 print(json.dumps({key: record.get(key) for key in ("status", "commit", "error")}, ensure_ascii=False))
                 return 0 if record["status"] in ("waiting_for_analysis", "published") else 1

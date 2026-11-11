@@ -2,10 +2,129 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 from scipy.optimize import linear_sum_assignment
 from torch import Tensor, nn
 from torch.nn import functional as F
+
+
+HARD_PIXEL_DIRECTIONS = ((0, 3), (3, 0), (2, 0), (0, 2), (3, 1), (1, 3))
+
+
+def confusion_hard_pixel_loss(
+    semantic_logits: Tensor,
+    targets: Tensor,
+    quota: int = 256,
+    boundary_radius: int = 3,
+    example_limit_per_direction: int = 2,
+) -> tuple[Tensor, dict, list[dict]]:
+    """Mine current directional mistakes on full-size continuous semantics.
+
+    Each image/direction contributes its selected CE mean, or zero when empty.
+    Divide by the fixed number of images times six directions, including empty
+    groups. Selection uses detached predictions and CE ranks; only the gathered
+    original CE values enter the differentiable loss. No random sampling occurs.
+
+    Diagnostic boundaries contain pixels whose Chebyshev-radius neighborhood
+    includes a different GT label. Outside-image pixels are ignored. This is
+    only an inspection band: boundary pixels remain eligible for the loss.
+    Statistics sum over this batch; examples retain at most the highest-CE
+    selected points per direction over all images, with batch-local coordinates.
+    Quota zero disables mining and returns graph-connected zero and zero stats.
+    """
+    for name, value in (("quota", quota), ("boundary_radius", boundary_radius),
+                        ("example_limit_per_direction", example_limit_per_direction)):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"{name} must be a nonnegative integer")
+    if semantic_logits.ndim != 4 or semantic_logits.shape[1] != 5 or not semantic_logits.is_floating_point():
+        raise ValueError("Hard-pixel semantics must be floating [batch, 5, height, width]")
+    if (targets.ndim != 3 or targets.dtype != torch.long or not len(targets)
+            or semantic_logits.shape[0] != targets.shape[0]):
+        raise ValueError("Hard-pixel targets must be nonempty int64 [batch, height, width]")
+    logits = semantic_logits.float()
+    if logits.shape[-2:] != targets.shape[-2:]:
+        logits = F.interpolate(logits, targets.shape[-2:], mode="bilinear", align_corners=False)
+    stat_fields = ("candidate_count", "selected_count", "selected_ce_sum",
+                   "candidate_boundary_count", "selected_boundary_count")
+    stats = {f"{truth}->{prediction}": dict.fromkeys(stat_fields, 0)
+             for truth, prediction in HARD_PIXEL_DIRECTIONS}
+    if quota == 0:
+        return logits.sum() * 0, stats, []
+
+    ce_map = F.cross_entropy(logits, targets, reduction="none")
+    ce_flat = ce_map.flatten(1)
+    ranks = ce_flat.detach()
+    batch, height, width = targets.shape
+    with torch.no_grad():
+        predicted = logits.detach().argmax(1).flatten(1)
+        truth_flat = targets.flatten(1)
+        labels = targets.unsqueeze(1).float()
+        kernel = 2 * boundary_radius + 1
+        maximum = F.max_pool2d(labels, kernel, stride=1, padding=boundary_radius)
+        minimum = -F.max_pool2d(-labels, kernel, stride=1, padding=boundary_radius)
+        boundary = (maximum != minimum).flatten(1)
+    # Keep a differentiable zero even when every directional group is empty.
+    loss = ce_map.sum() * 0
+    count_rows, ce_sums, example_rows = [], [], []
+    for truth, prediction in HARD_PIXEL_DIRECTIONS:
+        counts = torch.zeros(4, device=targets.device, dtype=torch.long)
+        ce_sum = ce_map.new_zeros(())
+        direction_examples = []
+        for image_index in range(batch):
+            with torch.no_grad():
+                candidates = ((truth_flat[image_index] == truth)
+                              & (predicted[image_index] == prediction)).nonzero(as_tuple=False).flatten()
+                counts[0] += candidates.numel()
+                if not candidates.numel():
+                    continue
+                count = min(quota, candidates.numel())
+                positions = torch.topk(ranks[image_index, candidates], count, sorted=True).indices
+                selected = candidates[positions]
+                counts[1] += count
+                counts[2] += boundary[image_index, candidates].sum()
+                counts[3] += boundary[image_index, selected].sum()
+                selected_ce = ranks[image_index, selected]
+                ce_sum += selected_ce.sum()
+                keep = min(example_limit_per_direction, count)
+                if keep:
+                    coordinates = selected[:keep]
+                    direction_examples.append(torch.stack((
+                        torch.full_like(coordinates, image_index),
+                        torch.div(coordinates, width, rounding_mode="floor"),
+                        coordinates.remainder(width),
+                        selected_ce[:keep],
+                        boundary[image_index, coordinates],
+                    ), dim=1))
+            # Gather from the original CE map, never from detached topk values.
+            loss = loss + ce_flat[image_index, selected].mean()
+        count_rows.append(counts)
+        ce_sums.append(ce_sum)
+        if direction_examples:
+            rows = torch.cat(direction_examples)
+            keep = min(example_limit_per_direction, len(rows))
+            order = torch.topk(rows[:, 3], keep, sorted=True).indices
+            example_rows.append(rows[order])
+        else:
+            example_rows.append(None)
+
+    count_values = torch.stack(count_rows).cpu().tolist()
+    sum_values = torch.stack(ce_sums).cpu().tolist()
+    examples = []
+    for index, (truth, prediction) in enumerate(HARD_PIXEL_DIRECTIONS):
+        direction = f"{truth}->{prediction}"
+        candidates, selected, candidate_boundary, selected_boundary = count_values[index]
+        stats[direction] = {"candidate_count": int(candidates), "selected_count": int(selected),
+                            "selected_ce_sum": float(sum_values[index]),
+                            "candidate_boundary_count": int(candidate_boundary),
+                            "selected_boundary_count": int(selected_boundary)}
+        if example_rows[index] is not None:
+            for image_index, y, x, ce, on_boundary in example_rows[index].cpu().tolist():
+                examples.append({"direction": direction, "batch_index": int(image_index),
+                                 "y": int(y), "x": int(x), "gt": truth, "pred": prediction,
+                                 "ce": float(ce), "boundary": bool(on_boundary)})
+    return loss / (batch * len(HARD_PIXEL_DIRECTIONS)), stats, examples
 
 
 class SegmentationCriterion(nn.Module):
@@ -27,10 +146,17 @@ class SegmentationCriterion(nn.Module):
         aux_weight: float = 0.5,
         num_points: int = 4096,
         no_object_weight: float = 0.1,
+        hard_pixel_weight: float = 0.0,
+        hard_pixel_quota: int = 256,
     ) -> None:
         super().__init__()
         if num_classes < 2 or num_points < num_classes:
             raise ValueError("num_classes >= 2 and num_points >= num_classes are required")
+        if (isinstance(hard_pixel_weight, bool) or not math.isfinite(hard_pixel_weight)
+                or hard_pixel_weight < 0):
+            raise ValueError("hard_pixel_weight must be finite and nonnegative")
+        if isinstance(hard_pixel_quota, bool) or not isinstance(hard_pixel_quota, int) or hard_pixel_quota < 0:
+            raise ValueError("hard_pixel_quota must be a nonnegative integer")
         self.num_classes = num_classes
         self.semantic_weight = semantic_weight
         self.dice_weight = dice_weight
@@ -38,6 +164,10 @@ class SegmentationCriterion(nn.Module):
         self.mask_weight = mask_weight
         self.aux_weight = aux_weight
         self.num_points = num_points
+        self.hard_pixel_weight = float(hard_pixel_weight)
+        self.hard_pixel_quota = hard_pixel_quota
+        self.latest_hard_pixel_stats = {}
+        self.latest_hard_examples = []
         eos_weight = torch.ones(num_classes + 1)
         eos_weight[-1] = no_object_weight
         self.register_buffer("eos_weight", eos_weight)
@@ -128,6 +258,8 @@ class SegmentationCriterion(nn.Module):
             raise ValueError("Targets must be int64 class IDs with shape [batch, height, width]")
         if targets.numel() == 0 or targets.min() < 0 or targets.max() >= self.num_classes:
             raise ValueError("Targets contain an invalid semantic class ID")
+        self.latest_hard_pixel_stats = {}
+        self.latest_hard_examples = []
         losses = self._semantic_losses(outputs["semantic_logits"], targets)
         total = self.semantic_weight * losses["loss_semantic_ce"] + self.dice_weight * losses["loss_semantic_dice"]
         if "pred_logits" in outputs:
@@ -142,5 +274,12 @@ class SegmentationCriterion(nn.Module):
                 auxiliary = auxiliary + self.mask_weight * extra["loss_region_mask"] + self.dice_weight * extra["loss_region_dice"]
             losses["loss_auxiliary"] = auxiliary
             total = total + self.aux_weight * auxiliary
+        if self.hard_pixel_weight:
+            hard, self.latest_hard_pixel_stats, self.latest_hard_examples = confusion_hard_pixel_loss(
+                outputs["semantic_logits"], targets, quota=self.hard_pixel_quota,
+            )
+            losses["loss_hard_pixels"] = hard
+            losses["loss_hard_pixels_weighted"] = self.hard_pixel_weight * hard
+            total = total + losses["loss_hard_pixels_weighted"]
         losses["loss_total"] = total
         return losses

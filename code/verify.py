@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import gc
+import hashlib
 import json
 import math
 import platform
+import random
 import tempfile
 import time
 from collections import Counter
@@ -218,6 +220,275 @@ def check_mountain_sweep() -> dict:
     return {"alpha_values": alphas, "cases": reports}
 
 
+def check_hard_pixels() -> dict:
+    """Numerical CPU checks with explicit probabilities and independent oracles."""
+    from unittest.mock import patch
+    from lunarseg.losses import HARD_PIXEL_DIRECTIONS, confusion_hard_pixel_loss
+
+    directions = ((0, 3), (3, 0), (2, 0), (0, 2), (3, 1), (1, 3))
+    assert HARD_PIXEL_DIRECTIONS == directions
+
+    def make_case(counts, crowd=False):
+        batch = len(counts)
+        width = max(sum(row) for row in counts) + 4
+        probabilities = torch.full((batch, 5, 1, width), 0.015)
+        probabilities[:, 4] = 0.94
+        targets = torch.full((batch, 1, width), 4, dtype=torch.long)
+        buckets = {}
+        for item, item_counts in enumerate(counts):
+            position = 0
+            for index, ((truth, prediction), count) in enumerate(zip(directions, item_counts)):
+                bucket = []
+                for offset in range(count):
+                    # Increasing true-class probability makes CE strictly fall.
+                    # The expected top-k points are therefore the first k, with
+                    # no topk/sort/mining implementation used by the oracle.
+                    if crowd:
+                        true_probability = (0.0001 + offset / count * 0.0009 if index == 0
+                                            else 0.1 + offset / count * 0.1)
+                    else:
+                        true_probability = 0.025 + offset * 0.004 + index * 0.003 + item * 0.002
+                    probability = torch.full((5,), (1 - true_probability - 0.72) / 3)
+                    probability[truth], probability[prediction] = true_probability, 0.72
+                    probabilities[item, :, 0, position] = probability
+                    targets[item, 0, position] = truth
+                    bucket.append((position, true_probability))
+                    position += 1
+                buckets[item, index] = bucket
+        return probabilities, targets, buckets
+
+    # Different image/group sizes and empty groups distinguish the specified
+    # fixed B*6 reduction from a global pixel mean or nonempty-group mean.
+    counts = ((13, 3, 1, 0, 4, 2), (1, 0, 4, 2, 3, 1))
+    probabilities, targets, buckets = make_case(counts)
+    logits = probabilities.log().requires_grad_()
+    quota, batch = 2, len(counts)
+    expected_loss, selected_points = 0.0, set()
+    expected_gradient = torch.zeros_like(logits)
+    expected_stats = {}
+    for index, (truth, prediction) in enumerate(directions):
+        expected_candidates = expected_selected = 0
+        selected_ce_sum = 0.0
+        for item in range(batch):
+            chosen = buckets[item, index][:quota]
+            expected_candidates += len(buckets[item, index])
+            expected_selected += len(chosen)
+            if not chosen:
+                continue
+            expected_loss += sum(-math.log(p) for _, p in chosen) / len(chosen) / (batch * 6)
+            for position, probability in chosen:
+                selected_points.add((item, 0, position))
+                selected_ce_sum += -math.log(probability)
+                derivative = probabilities[item, :, 0, position].clone()
+                derivative[truth] -= 1
+                expected_gradient[item, :, 0, position] = derivative / (batch * 6 * len(chosen))
+        expected_stats[f"{truth}->{prediction}"] = (expected_candidates, expected_selected, selected_ce_sum)
+    torch_state = torch.get_rng_state().clone()
+    python_state = random.getstate()
+    loss, stats, examples = confusion_hard_pixel_loss(logits, targets, quota=quota,
+                                                     example_limit_per_direction=256)
+    assert torch.equal(torch.get_rng_state(), torch_state) and random.getstate() == python_state
+    torch.testing.assert_close(loss, torch.tensor(expected_loss), rtol=2e-6, atol=2e-6)
+    assert {(row["batch_index"], row["y"], row["x"]) for row in examples} == selected_points
+    for direction, (candidates, selected, ce_sum) in expected_stats.items():
+        assert stats[direction]["candidate_count"] == candidates
+        assert stats[direction]["selected_count"] == selected
+        assert math.isclose(stats[direction]["selected_ce_sum"], ce_sum, rel_tol=2e-6)
+    for row in examples:
+        item, y, x = row["batch_index"], row["y"], row["x"]
+        assert row["gt"] == targets[item, y, x].item()
+        assert row["pred"] == probabilities[item, :, y, x].argmax().item()
+        assert row["direction"] == f"{row['gt']}->{row['pred']}"
+        assert all(not isinstance(value, torch.Tensor) for value in row.values())
+    loss.backward()
+    torch.testing.assert_close(logits.grad, expected_gradient, rtol=2e-5, atol=2e-7)
+    actual_points = {tuple(index) for index in (logits.grad.abs().sum(1) > 0).nonzero().tolist()}
+    assert actual_points == selected_points
+    reduction_report = {"batch_size": batch, "quota": quota, "raw_loss": float(loss.detach()),
+                        "independent_nll_expectation": expected_loss,
+                        "selected_pixels": len(selected_points), "empty_image_direction_groups": 2,
+                        "fixed_image_direction_mean_including_empty_groups": True,
+                        "analytical_selected_ce_gradients_match": True,
+                        "unselected_pixel_gradients_exactly_zero": True,
+                        "torch_and_python_rng_unchanged": True}
+
+    # All 1024 majority-class mistakes have higher CE than the other groups.
+    # A global hard-pixel pool would crowd them out; six independent quotas must
+    # still select exactly 256 candidates in EACH confusion direction.
+    crowded_probabilities, crowded_targets, _ = make_case(((1024, 300, 300, 300, 300, 300),), crowd=True)
+    crowded_loss, crowded_stats, _ = confusion_hard_pixel_loss(crowded_probabilities.log(), crowded_targets,
+                                                              quota=256, example_limit_per_direction=0)
+    assert torch.isfinite(crowded_loss)
+    assert [row["selected_count"] for row in crowded_stats.values()] == [256] * 6
+
+    # Compute query-class/mask mixture exactly as required by the region head,
+    # then compare mining gradients with an independent NLL objective.
+    query_classes = torch.full((1, 4, 6), -3.0)
+    query_classes[0, torch.arange(4), torch.arange(4)] = 4.0
+    query_classes.requires_grad_()
+    query_masks = torch.full((1, 4, 2, 3), -4.0)
+    region_targets = torch.tensor([truth for truth, _ in directions]).reshape(1, 2, 3)
+    for position, (_, prediction) in enumerate(directions):
+        query_masks[0, prediction, position // 3, position % 3] = 4.0
+    query_masks.requires_grad_()
+
+    def region_log_scores(classes, masks):
+        evidence = torch.einsum("bqc,bqhw->bchw", classes.softmax(-1)[..., :5], masks.sigmoid())
+        return (evidence / evidence.sum(1, keepdim=True)).log()
+
+    log_scores = region_log_scores(query_classes, query_masks)
+    torch.testing.assert_close(log_scores.exp().sum(1), torch.ones_like(region_targets, dtype=torch.float32))
+    assert torch.equal(log_scores.argmax(1), torch.tensor([p for _, p in directions]).reshape(1, 2, 3))
+    ce = F.cross_entropy(log_scores, region_targets, reduction="none")
+    nll = F.nll_loss(log_scores, region_targets, reduction="none")
+    torch.testing.assert_close(ce, nll, rtol=1e-6, atol=1e-6)
+    region_loss, _, _ = confusion_hard_pixel_loss(log_scores, region_targets, quota=1)
+    torch.testing.assert_close(region_loss, nll.mean(), rtol=1e-6, atol=1e-6)
+    actual_query_gradients = torch.autograd.grad(region_loss, (query_classes, query_masks))
+    independent_classes = query_classes.detach().clone().requires_grad_()
+    independent_masks = query_masks.detach().clone().requires_grad_()
+    independent_log_scores = region_log_scores(independent_classes, independent_masks)
+    reference_nll = -independent_log_scores.gather(1, region_targets.unsqueeze(1)).mean()
+    expected_query_gradients = torch.autograd.grad(reference_nll, (independent_classes, independent_masks))
+    for actual, expected in zip(actual_query_gradients, expected_query_gradients):
+        assert actual.isfinite().all() and actual.abs().sum() > 0
+        torch.testing.assert_close(actual, expected, rtol=2e-5, atol=2e-7)
+
+    # A vertical GT split at x=6 has a radius-r boundary band x=6-r..5+r.
+    boundary_targets = torch.zeros(1, 9, 13, dtype=torch.long)
+    boundary_targets[:, :, 6:] = 3
+    boundary_probabilities = torch.full((1, 5, 9, 13), 0.015)
+    boundary_probabilities.scatter_(1, boundary_targets.unsqueeze(1), 0.94)
+    mistakes = [(1, 0, 3, .05), (3, 0, 3, .02), (5, 0, 3, .01),
+                (6, 3, 0, .01), (8, 3, 0, .02), (11, 3, 0, .05)]
+    for x, truth, prediction, true_probability in mistakes:
+        boundary_probabilities[0, :, 4, x] = (1 - true_probability - 0.72) / 3
+        boundary_probabilities[0, truth, 4, x] = true_probability
+        boundary_probabilities[0, prediction, 4, x] = .72
+    boundary_report = []
+    for radius, expected_count in ((1, 1), (3, 2)):
+        _, boundary_stats, boundary_examples = confusion_hard_pixel_loss(
+            boundary_probabilities.log(), boundary_targets, quota=2, boundary_radius=radius,
+            example_limit_per_direction=256)
+        for key in ("0->3", "3->0"):
+            assert boundary_stats[key]["candidate_boundary_count"] == expected_count
+            assert boundary_stats[key]["selected_boundary_count"] == expected_count
+        for example in boundary_examples:
+            assert example["boundary"] == (6 - radius <= example["x"] <= 5 + radius)
+        boundary_report.append({"radius": radius, "expected_boundary_count_per_active_direction": expected_count})
+    homogeneous_targets = torch.zeros(1, 3, 4, dtype=torch.long)
+    homogeneous_scores = torch.full((1, 5, 3, 4), -2.0)
+    homogeneous_scores[:, 3] = 2.0  # Every pixel is wrong, but GT has no semantic boundary.
+    _, homogeneous_stats, homogeneous_examples = confusion_hard_pixel_loss(
+        homogeneous_scores, homogeneous_targets, quota=256, boundary_radius=3,
+        example_limit_per_direction=256)
+    assert homogeneous_stats["0->3"]["candidate_count"] == 12
+    assert homogeneous_stats["0->3"]["candidate_boundary_count"] == 0
+    assert not any(example["boundary"] for example in homogeneous_examples)
+
+    # Empty directions and quota zero return differentiable exact zero.
+    for quota_value, error_free in ((256, True), (0, False)):
+        scores = torch.zeros(1, 5, 3, 4)
+        scores[:, 0 if error_free else 3] = 3.0
+        scores.requires_grad_()
+        zero, zero_stats, zero_examples = confusion_hard_pixel_loss(scores, homogeneous_targets, quota=quota_value)
+        assert zero.requires_grad and zero.item() == 0 and not zero_examples
+        assert all(not any(values.values()) for values in zero_stats.values())
+        zero.backward()
+        assert scores.grad is not None and torch.equal(scores.grad, torch.zeros_like(scores))
+
+    # Fixture captured with the unchanged, pre-hard-pixel criterion. Its exact
+    # losses, all leaf gradient bytes, and final RNG verify lambda=0 compatibility
+    # against the OLD computation, not merely two calls to the new helper.
+    legacy_losses = {"loss_semantic_ce": 1.981998085975647, "loss_semantic_dice": 0.7075377106666565,
+                     "loss_region_class": 1.8356012105941772, "loss_region_mask": 0.7129302024841309,
+                     "loss_region_dice": 0.6840599179267883, "loss_auxiliary": 8.3510103225708,
+                     "loss_total": 14.784954071044922}
+    legacy_gradients = {
+        "semantic_logits": "b5ca8af9a0fe238c4f9c3f1510b716fcb1fbdac391a024742af9ea779fcde9fb",
+        "pred_logits": "f8baccf26cb7dcad1601ff8bf71d5e6daced828469a6e7c04b3896535f75a590",
+        "pred_masks": "e06602e7ecf8cf763bd9494f45ff8d32950673b611f38bf8d55126b9e4d5c45a",
+        "aux_pred_logits": "1a2ba7af1e1ffa3a069e990b70b7d70c58a11000e40ca2eb51da0498e27bc074",
+        "aux_pred_masks": "d0baa2bf26387a398e8474813a9405b34deb7da6ca1414c2583ffe898cfe0c45",
+    }
+    values = {"semantic_logits": torch.linspace(-1.1, 1.7, 80).reshape(1, 5, 4, 4).requires_grad_(),
+              "pred_logits": torch.linspace(-.8, 1.3, 30).reshape(1, 5, 6).requires_grad_(),
+              "pred_masks": torch.linspace(-1.4, 1.2, 20).reshape(1, 5, 2, 2).requires_grad_()}
+    auxiliary = {"pred_logits": torch.linspace(-.5, 1.6, 30).reshape(1, 5, 6).requires_grad_(),
+                 "pred_masks": torch.linspace(-.9, 1.5, 20).reshape(1, 5, 2, 2).requires_grad_()}
+    torch.manual_seed(271828)
+    with patch("lunarseg.losses.confusion_hard_pixel_loss", side_effect=AssertionError("lambda=0 must not mine")):
+        legacy_actual = SegmentationCriterion(num_points=32, hard_pixel_weight=0)(
+            {**values, "aux_outputs": [auxiliary]}, torch.arange(16).remainder(5).reshape(1, 4, 4))
+    assert {key: float(value.detach()) for key, value in legacy_actual.items()} == legacy_losses
+    assert hashlib.sha256(torch.get_rng_state().numpy().tobytes()).hexdigest() == "cbebbd3721d70feb686be69a2dc42f129af6bb3a9685c16de548b1e09c2f5bad"
+    legacy_actual["loss_total"].backward()
+    for key, value in {**values, **{"aux_" + key: value for key, value in auxiliary.items()}}.items():
+        assert hashlib.sha256(value.grad.numpy().tobytes()).hexdigest() == legacy_gradients[key], key
+
+    baseline = SegmentationCriterion(hard_pixel_weight=0)({"semantic_logits": logits.detach()}, targets)
+    weighted_criterion = SegmentationCriterion(hard_pixel_weight=.2, hard_pixel_quota=quota)
+    weighted = weighted_criterion({"semantic_logits": logits.detach()}, targets)
+    for key in baseline:
+        if key != "loss_total":
+            assert torch.equal(weighted[key], baseline[key])
+    assert torch.equal(weighted["loss_hard_pixels"], loss.detach())
+    assert torch.equal(weighted["loss_hard_pixels_weighted"], loss.detach() * .2)
+    assert torch.equal(weighted["loss_total"], baseline["loss_total"] + .2 * loss.detach())
+    assert weighted_criterion.latest_hard_pixel_stats == stats
+
+    rejected = 0
+    for field in ("quota", "boundary_radius", "example_limit_per_direction"):
+        for value in (-1, .5, True):
+            try:
+                confusion_hard_pixel_loss(logits.detach(), targets, **{field: value})
+            except (ValueError, TypeError):
+                rejected += 1
+            else:
+                raise AssertionError(f"Invalid hard-pixel parameter accepted: {field}={value}")
+    for value in (-.1, float("nan"), float("inf"), float("-inf"), True):
+        try:
+            SegmentationCriterion(hard_pixel_weight=value)
+        except (ValueError, TypeError):
+            rejected += 1
+        else:
+            raise AssertionError(f"Invalid hard_pixel_weight accepted: {value}")
+    for value in (-1, .5, True):
+        try:
+            SegmentationCriterion(hard_pixel_quota=value)
+        except (ValueError, TypeError):
+            rejected += 1
+        else:
+            raise AssertionError(f"Invalid hard_pixel_quota accepted: {value}")
+    invalid_arrays = ((torch.zeros(1, 4, 2, 2), torch.zeros(1, 2, 2, dtype=torch.long)),
+                      (torch.zeros(1, 5, 2, 2, dtype=torch.long), torch.zeros(1, 2, 2, dtype=torch.long)),
+                      (torch.zeros(1, 5, 2, 2), torch.zeros(1, 2, 2)),
+                      (torch.zeros(2, 5, 2, 2), torch.zeros(1, 2, 2, dtype=torch.long)))
+    for invalid_scores, invalid_targets in invalid_arrays:
+        try:
+            confusion_hard_pixel_loss(invalid_scores, invalid_targets)
+        except (ValueError, TypeError):
+            rejected += 1
+        else:
+            raise AssertionError("Invalid hard-pixel tensor shape/dtype accepted")
+
+    return {"directions": [f"{truth}->{prediction}" for truth, prediction in directions],
+            "numerical_reduction_and_selected_gradients": reduction_report,
+            "majority_candidates": 1024, "independent_quota": 256,
+            "selected_per_direction_under_majority_crowding": [256] * 6,
+            "region_log_probabilities_match_ce_and_nll": True,
+            "region_query_class_and_mask_gradients_match_independent_nll": True,
+            "region_gradient_l1": {"query_class": float(actual_query_gradients[0].abs().sum()),
+                                   "query_mask": float(actual_query_gradients[1].abs().sum())},
+            "boundary_counts_match_independent_geometry": boundary_report,
+            "homogeneous_gt_image_edges_are_not_boundaries": True,
+            "empty_mistakes_and_zero_quota_have_graph_connected_zero": True,
+            "lambda_zero_exact_legacy_loss_gradient_and_rng_fixture": True,
+            "legacy_fixture_torch_version": "2.1.1+cu121", "legacy_loss_total": legacy_losses["loss_total"],
+            "lambda_point_two_only_adds_weighted_hard_loss": True,
+            "invalid_parameters_and_tensor_cases_rejected": rejected}
+
+
 def check_matching() -> dict:
     torch.manual_seed(42)
     criterion = SegmentationCriterion(num_points=512)
@@ -292,7 +563,8 @@ def check_model(decoder: str, args: argparse.Namespace, device: torch.device) ->
     model.train()
     images = torch.randn(args.batch_size, 3, args.size, args.size, device=device)
     target = torch.randint(0, 5, (args.batch_size, args.size, args.size), device=device)
-    criterion = SegmentationCriterion(num_points=1024).to(device)
+    criterion = SegmentationCriterion(num_points=1024, hard_pixel_weight=args.hard_pixel_weight,
+                                      hard_pixel_quota=args.hard_pixel_quota).to(device)
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
     context = torch.autocast("cuda", dtype=torch.bfloat16) if device.type == "cuda" and torch.cuda.is_bf16_supported() else nullcontext()
@@ -327,10 +599,14 @@ def check_model(decoder: str, args: argparse.Namespace, device: torch.device) ->
         "semantic_shape": list(output["semantic_logits"].shape),
         "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
         "branch_gradient_l1": gradients,
+        "hard_pixel_weight": args.hard_pixel_weight, "hard_pixel_quota": args.hard_pixel_quota,
         "losses": {key: float(value.detach()) for key, value in losses.items()},
         "checkpoint_strict_roundtrip": True, "optimizer_step": True,
         "seconds": round(time.monotonic() - start, 3),
     }
+    if args.hard_pixel_weight > 0:
+        report["hard_pixel_stats"] = criterion.latest_hard_pixel_stats
+        report["hard_pixel_examples"] = criterion.latest_hard_examples
     if device.type == "cuda":
         report["peak_cuda_allocated_bytes"] = torch.cuda.max_memory_allocated(device)
     for hook in hooks:
@@ -351,14 +627,32 @@ def main() -> None:
     parser.add_argument("--model-dir", type=Path, default=PROJECT_ROOT / "model")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--output", type=Path, default=None)
-    parser.add_argument("--calibration-only", action="store_true",
-                        help="Run only lightweight CPU mountain-score checks; no weights or dataset are loaded")
+    parser.add_argument("--hard-pixel-weight", type=float, default=0.0)
+    parser.add_argument("--hard-pixel-quota", type=int, default=256)
+    cpu_checks = parser.add_mutually_exclusive_group()
+    cpu_checks.add_argument("--calibration-only", action="store_true",
+                            help="Run only lightweight CPU mountain-score checks; no weights or dataset are loaded")
+    cpu_checks.add_argument("--hard-pixel-only", action="store_true",
+                            help="Run only lightweight CPU hard-pixel loss checks; no weights or dataset are loaded")
     args = parser.parse_args()
     if args.output is None:
-        args.output = PROJECT_ROOT / "result" / ("calibration_verification.json" if args.calibration_only else "verification.json")
+        filename = ("hard_pixel_verification.json" if args.hard_pixel_only else
+                    "calibration_verification.json" if args.calibration_only else "verification.json")
+        args.output = PROJECT_ROOT / "result" / filename
     if args.batch_size < 1:
         parser.error("batch-size must be positive")
+    if not math.isfinite(args.hard_pixel_weight) or args.hard_pixel_weight < 0:
+        parser.error("hard-pixel-weight must be finite and nonnegative")
+    if args.hard_pixel_quota < 0:
+        parser.error("hard-pixel-quota must be nonnegative")
     torch.set_num_threads(4)
+    if args.hard_pixel_only:
+        report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
+                  "hard_pixel_only": True, "hard_pixel_checks": check_hard_pixels(), "status": "passed"}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        print(f"CPU hard-pixel loss checks passed. Verification report: {args.output}", flush=True)
+        return
     if args.calibration_only:
         report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
                   "calibration_only": True, "mountain_calibration": check_mountain_calibration(),
