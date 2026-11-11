@@ -263,7 +263,7 @@ def analyze(image_index, metrics_path, output, *, expected_counts=None, expected
     csv_path = output / "per_image_metrics.csv"
     temporary = csv_path.with_suffix(".csv.tmp")
     with temporary.open("w", newline="", encoding="utf-8-sig") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     temporary.replace(csv_path)
