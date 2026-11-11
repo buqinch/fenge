@@ -1,0 +1,400 @@
+{
+  "config": "/home/lzc/workspace/fenge/config/dual_region_random80_1024.json",
+  "manifest": "/home/lzc/workspace/fenge/result/selections/random80_seed42_20261112.json",
+  "augmented_manifest": null,
+  "selection_manifest": null,
+  "augmentation_groups": [],
+  "train_source": "original",
+  "decoder": "region",
+  "backbone": "dual",
+  "input_size": 1024,
+  "num_queries": 32,
+  "decoder_layers": 4,
+  "weight_dir": "/home/lzc/workspace/fenge/model",
+  "convnext_checkpoint": null,
+  "initial_checkpoint": null,
+  "design_selection_reference": "/home/lzc/workspace/fenge/result/selections/random80_selected_recipe_20261112.json",
+  "output": "/home/lzc/workspace/fenge/result/dual_region_random80_1024",
+  "epochs": 30,
+  "freeze_epochs": 3,
+  "batch_size": 8,
+  "val_batch_size": 2,
+  "accumulation": 1,
+  "head_lr": 0.0001,
+  "backbone_lr": 1e-05,
+  "weight_decay": 0.01,
+  "gradient_clip": 1.0,
+  "workers": 4,
+  "seed": 42,
+  "amp": "bf16",
+  "val_tta": "hflip",
+  "device": "cuda:0",
+  "horizontal_flip": true,
+  "resume": null,
+  "max_train_samples": null,
+  "max_val_samples": null,
+  "num_points": 4096,
+  "hard_pixel_weight": 0.0,
+  "hard_pixel_quota": 256,
+  "pretrained": true,
+  "initial_model_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+  "initial_model_tensor_hashes": {
+    "algorithm": "sha256_sorted_state_dict_name_dtype_shape_raw_bytes_v1",
+    "tensor_count": 628,
+    "model_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+    "backbones_sha256": "78c71a948dc7212357be9c1836d80545954f61f1f5ceb53b74803520c280c790",
+    "heads_sha256": "9e0e0634054c1250c574624398c1a572c6d9b59a96fecff76277ace2d3aac1f9"
+  },
+  "pretrained_report": {
+    "backbones": {
+      "convnext": {
+        "loaded": true,
+        "path": "/home/lzc/workspace/fenge/model/dinov3_convnext_tiny/model.safetensors",
+        "tensor_count": 180,
+        "strict": true,
+        "source_format": "timm_dinov3",
+        "sha256": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f"
+      },
+      "mobile": {
+        "loaded": true,
+        "path": "/home/lzc/workspace/fenge/model/mobilenet_v3_large-5c1a4163.pth",
+        "tensor_count": 312,
+        "strict": true,
+        "sha256": "5c1a416349c4cf298f2a6a5e2600ed0ee55e604713578f5e74e6bc8bcaef7997"
+      }
+    },
+    "manifest.json": {
+      "content": {
+        "schema": "lunarseg_pretrained_backbones_v1",
+        "state": "verified",
+        "created_at_utc": "2026-11-11T12:59:41Z",
+        "convnext": {
+          "source_repository": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m",
+          "revision": "7acfec1",
+          "format": "timm",
+          "pretraining": "DINOv3 self-supervised LVD-1689M",
+          "lunar_finetuning": false,
+          "license": "dinov3-license",
+          "hash_source": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m/blob/main/model.safetensors"
+        },
+        "mobilenet": {
+          "source": "torchvision MobileNet_V3_Large_Weights.IMAGENET1K_V2",
+          "format": "torchvision_state_dict",
+          "pretraining": "supervised ImageNet-1K",
+          "lunar_finetuning": false,
+          "source_code": "https://github.com/pytorch/vision/blob/main/torchvision/models/mobilenetv3.py"
+        },
+        "files": [
+          {
+            "path": "model/dinov3_convnext_tiny/config.json",
+            "sha256": "ca74f08faca70799f011184069ced874174e99cd9a83da966fbc8f176c04498b",
+            "size_bytes": 594,
+            "source_url": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m/resolve/7acfec1/config.json",
+            "tls_certificate_fallback": true
+          },
+          {
+            "path": "model/dinov3_convnext_tiny/model.safetensors",
+            "sha256": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f",
+            "size_bytes": 111298008,
+            "source_url": "https://huggingface.co/timm/convnext_tiny.dinov3_lvd1689m/resolve/7acfec1/model.safetensors",
+            "tls_certificate_fallback": true
+          },
+          {
+            "path": "model/mobilenet_v3_large-5c1a4163.pth",
+            "sha256": "5c1a416349c4cf298f2a6a5e2600ed0ee55e604713578f5e74e6bc8bcaef7997",
+            "size_bytes": 22132113,
+            "source_url": "https://download.pytorch.org/models/mobilenet_v3_large-5c1a4163.pth",
+            "tls_certificate_fallback": false
+          }
+        ]
+      },
+      "sha256": "0eff0dded1295ec5108267da6e4b3e97b16bea1073383caa2af924cfe5821729"
+    }
+  },
+  "initial_hash_available": true,
+  "initialization_mode": "original_pretrained",
+  "initial_checkpoint_sha256": null,
+  "initial_checkpoint_epoch": null,
+  "official_test_used_for_selection": true,
+  "checkpoint_selection_uses_test": false,
+  "design_selection_reference_sha256": "d220a0e0975c665712ec6577303de55b701accee4e9f6a9d6b977a6af6c4d707",
+  "design_selection_reference_data": {
+    "schema": "lusnar_test_selected_recipe_v1",
+    "created_at_utc": "2026-11-11T17:36:15.400889+00:00",
+    "selected_using_test": true,
+    "selection_metric": "S=(Moon_2 mIoU + Moon_4 mIoU + 2*Moon_9 mIoU)/4",
+    "selection_rule": "Maximum complete 5004-image weighted S among the existing four best checkpoints and both inference modes; each checkpoint epoch was chosen on its own Moon_5 validation",
+    "selected_run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8",
+    "selected_checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/best.pt",
+    "selected_checkpoint_sha256": "96c2c7a7df646cd1a21876e7a3a5c651d14298face3d0a3bbd64f9dafbf93356",
+    "selected_checkpoint_epoch": 10,
+    "selected_test_tta": "hflip",
+    "selected_weighted_score": 0.8836778870423398,
+    "selected_metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/test_hflip_metrics.json",
+    "selected_metrics_sha256": "6d85c280b5017a47471855273b0eb71f312d79de27bd256df2a49ea57d91798a",
+    "training_recipe": {
+      "decoder": "region",
+      "backbone": "dual",
+      "input_size": 1024,
+      "num_queries": 32,
+      "decoder_layers": 4,
+      "hard_pixel_weight": 0.0,
+      "hard_pixel_quota": 256,
+      "batch_size": 8,
+      "accumulation": 1,
+      "head_lr": 0.0001,
+      "backbone_lr": 1e-05,
+      "freeze_epochs": 3,
+      "epochs": 30,
+      "val_tta": "hflip",
+      "seed": 42
+    },
+    "initialization_mode": "original_pretrained",
+    "initialization_basis": "User previously selected restarting from original pretrained backbones; retain the selected training recipe without transferring lunar-trained weights into the new random validation split",
+    "validation_independent_of_prior_lunar_training": true,
+    "new_split_manifest": "/home/lzc/workspace/fenge/result/selections/random80_seed42_20261112.json",
+    "new_split_manifest_sha256": "29da57bc3a846e5ae38ba8bd55919e8813f3da954695ffa53552d2e4094e7187",
+    "candidate_results": [
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/best.pt",
+        "checkpoint_sha256": "96c2c7a7df646cd1a21876e7a3a5c651d14298face3d0a3bbd64f9dafbf93356",
+        "checkpoint_epoch": 10,
+        "tta": "hflip",
+        "weighted_score": 0.8836778870423398,
+        "scene_miou": {
+          "Moon_2": 0.9267653915049945,
+          "Moon_4": 0.9162364993965365,
+          "Moon_9": 0.8458548286339143
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/test_hflip_metrics.json",
+        "metrics_sha256": "6d85c280b5017a47471855273b0eb71f312d79de27bd256df2a49ea57d91798a"
+      },
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/best.pt",
+        "checkpoint_sha256": "ff4d8f32a91c1d6dce06b0f06e482c2aa246a18eda2995b452b4f0c878c33eb2",
+        "checkpoint_epoch": 12,
+        "tta": "hflip",
+        "weighted_score": 0.8830443668934227,
+        "scene_miou": {
+          "Moon_2": 0.9302281236391504,
+          "Moon_4": 0.9205287951061155,
+          "Moon_9": 0.8407102744142125
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_hflip_metrics.json",
+        "metrics_sha256": "76bee456dd65699e557366391fb184654076b56c95384302a6e1b1a324bd9742"
+      },
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/best.pt",
+        "checkpoint_sha256": "ff4d8f32a91c1d6dce06b0f06e482c2aa246a18eda2995b452b4f0c878c33eb2",
+        "checkpoint_epoch": 12,
+        "tta": "none",
+        "weighted_score": 0.8824244465052578,
+        "scene_miou": {
+          "Moon_2": 0.9307419793424276,
+          "Moon_4": 0.9191911171252345,
+          "Moon_9": 0.8398823447766846
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_metrics.json",
+        "metrics_sha256": "bc33afdc3a7ec1a095774f7496c8dfc5e2a8f9d92e47f2b5dcf539aee2a79d4c"
+      },
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/best.pt",
+        "checkpoint_sha256": "96c2c7a7df646cd1a21876e7a3a5c651d14298face3d0a3bbd64f9dafbf93356",
+        "checkpoint_epoch": 10,
+        "tta": "none",
+        "weighted_score": 0.8811302189077175,
+        "scene_miou": {
+          "Moon_2": 0.926690248269878,
+          "Moon_4": 0.9131325777025902,
+          "Moon_9": 0.8423490248292008
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/test_metrics.json",
+        "metrics_sha256": "14a732b1ba8b482d40ad9f681fc380428cfbe1facc8a309660deacd99754a802"
+      },
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/best.pt",
+        "checkpoint_sha256": "7f341f060a0aa316c3013d0e8bad2f268bb8a92ae7eba98529c32b29def15453",
+        "checkpoint_epoch": 7,
+        "tta": "hflip",
+        "weighted_score": 0.8784097277229723,
+        "scene_miou": {
+          "Moon_2": 0.9288104527297255,
+          "Moon_4": 0.9124843645394426,
+          "Moon_9": 0.8361720468113605
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_hflip_metrics.json",
+        "metrics_sha256": "e6a3e750e494077ec0804390b30cab40a8278e0db957320228d355706b0f3e21"
+      },
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/best.pt",
+        "checkpoint_sha256": "7f341f060a0aa316c3013d0e8bad2f268bb8a92ae7eba98529c32b29def15453",
+        "checkpoint_epoch": 7,
+        "tta": "none",
+        "weighted_score": 0.8757803440413382,
+        "scene_miou": {
+          "Moon_2": 0.9290415421027314,
+          "Moon_4": 0.9103534015415864,
+          "Moon_9": 0.8318632162605175
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_metrics.json",
+        "metrics_sha256": "65f3697f719dec7ddf308a8b10badb31427021b71726185faaec5d05e628e68b"
+      },
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/best.pt",
+        "checkpoint_sha256": "10baa725baf8bb8d01cfcfe36624be5969d6fbb333f7e0f1345414f34cc9b043",
+        "checkpoint_epoch": 5,
+        "tta": "hflip",
+        "weighted_score": 0.8724676096041081,
+        "scene_miou": {
+          "Moon_2": 0.9198218319526698,
+          "Moon_4": 0.8892774208685303,
+          "Moon_9": 0.840385592797616
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/test_hflip_metrics.json",
+        "metrics_sha256": "cb144b2946b22a8f0f5d2f19b70dc5b4ac33e0f1d62c4f722dfd2a1917884f2b"
+      },
+      {
+        "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8",
+        "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/best.pt",
+        "checkpoint_sha256": "10baa725baf8bb8d01cfcfe36624be5969d6fbb333f7e0f1345414f34cc9b043",
+        "checkpoint_epoch": 5,
+        "tta": "none",
+        "weighted_score": 0.8707318176369632,
+        "scene_miou": {
+          "Moon_2": 0.9167137533577041,
+          "Moon_4": 0.8862710628070442,
+          "Moon_9": 0.8399712271915524
+        },
+        "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/test_metrics.json",
+        "metrics_sha256": "43e7804344b97f41ed1e8378b4370067b60db52dbc5efaced2f8aa4c983220cc"
+      }
+    ],
+    "test_comparison_interpretation": "Moon_2/4/9 are excluded from training data but have been used for recipe selection; later evaluation is a comparison on an already inspected test set"
+  },
+  "model_config": {
+    "decoder": "region",
+    "backbone": "dual",
+    "input_size": 1024,
+    "num_classes": 5,
+    "num_queries": 32,
+    "decoder_layers": 4,
+    "width": 128,
+    "branch_width": 64,
+    "attention_heads": 8,
+    "dropout": 0.0,
+    "weight_dir": "/home/lzc/workspace/fenge/model",
+    "convnext_checkpoint": null
+  },
+  "data_identity": {
+    "train": {
+      "manifest": "/home/lzc/workspace/fenge/result/selections/random80_seed42_20261112.json",
+      "manifest_sha256": "29da57bc3a846e5ae38ba8bd55919e8813f3da954695ffa53552d2e4094e7187",
+      "split": "train",
+      "train_source": "embedded_custom_manifest",
+      "protocol": "random_original_source_family_4_to_1",
+      "custom_split": true,
+      "selection_metric": "validation_all_scenes_miou",
+      "selection_scope": "custom_val_originals",
+      "split_seed": 42,
+      "split_counts": {
+        "original_pool": 8002,
+        "train_original": 6401,
+        "val_original": 1601,
+        "train_augmented": 3000,
+        "train_total": 9401,
+        "val_total": 1601
+      },
+      "augmentation_counts": {
+        "crater": 1500,
+        "mountain_rock": 1500
+      },
+      "source_manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+      "source_manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+      "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+      "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+      "original_split_sha256": "e442513b7c6d6357db4c59df4377c7a39a046feca4119251fe0476c2f7ef65e4",
+      "splits_sha256": "a53ea716ce1d4c6926e204ca7d22238a47861abd4360355f69194f15b8905a5c",
+      "literal_ordered_samples_sha256": "aee0f82b27dd23320b70b55140aefdc47804aeabb9e4c87b187bf135574f6d64",
+      "train_original_source_ids_sha256": "fec94ec964934d4c4840973267bd1427a285557f723b992da0e0ff73fea0e198",
+      "val_original_source_ids_sha256": "23a64d503db0d08d08fdcd4dd05921a4aa458e70f835edba2a827ee510d4267a",
+      "validation_scenes": [
+        "Moon_1",
+        "Moon_3",
+        "Moon_5",
+        "Moon_6",
+        "Moon_7",
+        "Moon_8"
+      ],
+      "validation_image_count": 1601,
+      "independent_test_scenes": [
+        "Moon_2",
+        "Moon_4",
+        "Moon_9"
+      ],
+      "image_count": 9401,
+      "complete_image_count": 9401,
+      "partial": false,
+      "unique_source_count": 6401,
+      "ordered_samples_sha256": "aee0f82b27dd23320b70b55140aefdc47804aeabb9e4c87b187bf135574f6d64"
+    },
+    "val": {
+      "manifest": "/home/lzc/workspace/fenge/result/selections/random80_seed42_20261112.json",
+      "manifest_sha256": "29da57bc3a846e5ae38ba8bd55919e8813f3da954695ffa53552d2e4094e7187",
+      "split": "val",
+      "train_source": null,
+      "protocol": "random_original_source_family_4_to_1",
+      "custom_split": true,
+      "selection_metric": "validation_all_scenes_miou",
+      "selection_scope": "custom_val_originals",
+      "split_seed": 42,
+      "split_counts": {
+        "original_pool": 8002,
+        "train_original": 6401,
+        "val_original": 1601,
+        "train_augmented": 3000,
+        "train_total": 9401,
+        "val_total": 1601
+      },
+      "augmentation_counts": {
+        "crater": 1500,
+        "mountain_rock": 1500
+      },
+      "source_manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+      "source_manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+      "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+      "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+      "original_split_sha256": "e442513b7c6d6357db4c59df4377c7a39a046feca4119251fe0476c2f7ef65e4",
+      "splits_sha256": "a53ea716ce1d4c6926e204ca7d22238a47861abd4360355f69194f15b8905a5c",
+      "literal_ordered_samples_sha256": "2f97e1d6e9ceb200d3c1aba7746797798a98e5a4654723e657d8e31e3361be2c",
+      "train_original_source_ids_sha256": "fec94ec964934d4c4840973267bd1427a285557f723b992da0e0ff73fea0e198",
+      "val_original_source_ids_sha256": "23a64d503db0d08d08fdcd4dd05921a4aa458e70f835edba2a827ee510d4267a",
+      "validation_scenes": [
+        "Moon_1",
+        "Moon_3",
+        "Moon_5",
+        "Moon_6",
+        "Moon_7",
+        "Moon_8"
+      ],
+      "validation_image_count": 1601,
+      "independent_test_scenes": [
+        "Moon_2",
+        "Moon_4",
+        "Moon_9"
+      ],
+      "image_count": 1601,
+      "complete_image_count": 1601,
+      "partial": false,
+      "unique_source_count": 1601,
+      "ordered_samples_sha256": "2f97e1d6e9ceb200d3c1aba7746797798a98e5a4654723e657d8e31e3361be2c"
+    }
+  },
+  "partial": false
+}

@@ -120,11 +120,13 @@ python code/publish_results.py --config config/early_stopping_random80.json
 
 新结果目录为 `result/dual_region_random80_1024/`；独立监控保存在 `result/random80_monitor/`。仍按完整验证集连续 5 轮没有增加 0.05 个百分点早停，结束后自动测试新最佳检查点的 none／hflip 两种完整 Moon_2/4/9，分析写入 `result/random80_analysis/` 并自动提交推送。新旧测试按相同 TTA 分别比较，图像、权重和验证划分的来源都保留在记录中。
 
+新训练已于 **2026-11-12 01:38（北京时间）**在 GPU 3 启动，首批前后向和优化器更新正常，读取数量为完整 9401／1601。初始化哈希与选中参考实验的原始预训练起点完全一致；核对记录为 `result/random80_monitor/startup_check.json`。当前新训练和后续自动流程仍在运行，最终新测试成绩尚未产生。
+
 新划分允许同一场景出现在训练和验证中，与原先整场景留出 Moon_5 的口径不同，新旧验证 mIoU 不能直接作为提升对比。本轮按用户要求使用 Moon_2/4/9 的结果选择训练方案，后续在这三个场景上的结果属于同一已查看测试集上的对照；相关选择依据会保存在运行记录中。
 
 ## 训练与断点续训
 
-当前实验使用固定随机选择的 **8000 张训练图**：5000 张原始图、1500 张 `mountain_rock` 山岩交界增强、1500 张 `crater` 大坑增强。Moon_5 的完整 1599 张继续用于每轮评估与选轮。实际 **batch size 8、累积 1**，有效 batch 也是 8。
+以下保留上一轮固定 **8000 张训练图**的复现说明：5000 张原始图、1500 张 `mountain_rock` 山岩交界增强、1500 张 `crater` 大坑增强。其 Moon_5 完整 1599 张用于每轮评估与选轮。实际 **batch size 8、累积 1**，有效 batch 也是 8。当前随机 4:1 实验使用上节的 9401／1601 清单与独立配置。
 
 先生成并保存抽样清单：
 
@@ -196,7 +198,7 @@ CPU 损失与梯度验证使用现有入口 `python code/verify.py --hard-pixel-
 
 上述 CPU 检查已通过，包括 λ=0 与旧实现的损失、梯度、RNG 精确一致；真实 GPU 检查也已通过，两骨干梯度有限非零，峰值分配显存约 **19.67 GiB**，并完成优化器更新与检查点严格重载。对应报告为 `result/hard_pixel_verification.json` 和 `result/verification_hard_pixel_batch8.json`。
 
-当前 `config/early_stopping_monitor.json` 指向这两组新对照，仍按完整 Moon_5 连续 5 轮没有增加 0.05 个百分点早停；训练停止后自动测试最佳权重的完整 Moon_2/4/9，并按相同 TTA 协议生成 `result/hard_pixel_analysis/`。监控记录位于 `result/hard_pixel_monitor/`，先前实验和分析保留原目录。
+`config/early_stopping_monitor.json` 保留这两组已完成对照的监控配置，按完整 Moon_5 连续 5 轮没有增加 0.05 个百分点早停；结果与分析位于 `result/hard_pixel_monitor/`、`result/hard_pixel_analysis/`。当前随机实验使用单独的 `config/early_stopping_random80.json`，按自定义验证集的汇总 mIoU 判断。
 
 ## 外部 JSON 监控、早停与最终分析
 
