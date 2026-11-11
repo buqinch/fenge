@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train both CNN encoder ablations with a fixed, complete Moon_5 validation."""
+"""Train with a saved scene split or an explicit reproducible train/val manifest."""
 from __future__ import annotations
 
 import argparse
@@ -48,6 +48,10 @@ def parse_args(argv=None):
     parser.add_argument("--weight-dir", default="model")
     parser.add_argument("--convnext-checkpoint", default=None,
                         help="Optional matching ConvNeXt checkpoint, including a saved previous LuSNAR model")
+    parser.add_argument("--initial-checkpoint", default=None,
+                        help="Initialize all model weights strictly from this checkpoint; start a new optimizer/schedule")
+    parser.add_argument("--design-selection-reference", default=None,
+                        help="Saved recipe decision and test-use provenance; does not use test data to choose epochs")
     parser.add_argument("--output", default="result/dual_region_1024")
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--freeze-epochs", type=int, default=3)
@@ -93,7 +97,10 @@ def parse_args(argv=None):
     if (isinstance(args.hard_pixel_quota, bool) or not isinstance(args.hard_pixel_quota, int)
             or args.hard_pixel_quota < 0):
         parser.error("hard_pixel_quota must be a nonnegative integer")
-    for key in ("manifest", "augmented_manifest", "selection_manifest", "weight_dir", "convnext_checkpoint", "output", "resume"):
+    if args.initial_checkpoint and (args.resume or args.convnext_checkpoint):
+        parser.error("initial_checkpoint is mutually exclusive with resume and convnext_checkpoint")
+    for key in ("manifest", "augmented_manifest", "selection_manifest", "weight_dir", "convnext_checkpoint",
+                "initial_checkpoint", "design_selection_reference", "output", "resume"):
         value = getattr(args, key)
         if value:
             path = Path(value)
@@ -178,6 +185,93 @@ def pretrained_provenance(model, weight_dir):
         provenance[weight_manifest.name] = {"content": json.loads(weight_manifest.read_text()),
                                              "sha256": sha256_file(weight_manifest)}
     return provenance
+
+
+def initialization_mode(args, previous=None):
+    if previous is not None and previous.get("initialization_mode"):
+        return previous["initialization_mode"]
+    values = previous if previous is not None else vars(args)
+    if values.get("initial_checkpoint"):
+        return "checkpoint_finetune"
+    if not values.get("pretrained", True):
+        return "random"
+    return "convnext_checkpoint" if values.get("convnext_checkpoint") else "original_pretrained"
+
+
+def design_selection_reference(args, mode, previous=None):
+    """Validate and embed the recipe decision without evaluating test images."""
+    raw_path = args.design_selection_reference
+    if previous is not None and not raw_path:
+        raw_path = previous.get("design_selection_reference")
+    if raw_path:
+        path = Path(raw_path)
+        path = path.resolve() if path.is_absolute() else (PROJECT / path).resolve()
+        with path.open("rb") as stream:
+            raw = stream.read()
+        fingerprint = hashlib.sha256(raw).hexdigest()
+        document = json.loads(raw)
+    else:
+        path, fingerprint, document = None, None, None
+    if previous is not None and previous.get("design_selection_reference_sha256") != fingerprint:
+        raise ValueError("Resume design-selection reference SHA256 differs; retain the original recipe decision")
+    if document is not None:
+        if not isinstance(document, dict) or document.get("schema") != "lusnar_test_selected_recipe_v1":
+            raise ValueError("Unsupported design-selection reference schema")
+        if document.get("selected_using_test") is not True:
+            raise ValueError("A test-selected recipe reference must explicitly declare selected_using_test=true")
+        if not isinstance(document.get("selected_run"), str) or not document["selected_run"]:
+            raise ValueError("Design-selection reference needs selected_run")
+        if (type(document.get("selected_checkpoint_epoch")) is not int
+                or document["selected_checkpoint_epoch"] < 1
+                or document.get("selected_test_tta") not in ("none", "hflip")):
+            raise ValueError("Invalid selected checkpoint epoch or test TTA in recipe reference")
+        score = document.get("selected_weighted_score")
+        if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 1:
+            raise ValueError("Selected weighted score must be a finite fraction between zero and one")
+        for field in ("selected_checkpoint", "selected_metrics_file"):
+            value = document.get(field)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"Design-selection reference needs {field}")
+            source_path = Path(value)
+            source_path = source_path.resolve() if source_path.is_absolute() else (PROJECT / source_path).resolve()
+            expected_sha = document.get(field + "_sha256")
+            if field == "selected_metrics_file" and "selected_metrics_sha256" in document:
+                if expected_sha is not None and expected_sha != document["selected_metrics_sha256"]:
+                    raise ValueError("Conflicting selected metrics SHA256 fields in recipe reference")
+                expected_sha = document["selected_metrics_sha256"]
+            if (not isinstance(expected_sha, str) or len(expected_sha) != 64
+                    or any(character not in "0123456789abcdef" for character in expected_sha)):
+                raise ValueError(f"Recipe reference needs a valid {field} SHA256")
+            # Exact resume already carries the selected model/optimizer and the
+            # unchanged embedded reference. Its original source checkpoints may
+            # have been archived; do not reload or require those files again.
+            if previous is None and expected_sha != sha256_file(source_path):
+                raise ValueError(f"Design-selection reference {field} SHA256 differs from its source file")
+        if document.get("initialization_mode") != mode:
+            raise ValueError("Recipe initialization_mode differs from the actual training initialization")
+        if "new_split_manifest" in document or "new_split_manifest_sha256" in document:
+            value = document.get("new_split_manifest")
+            if not isinstance(value, str) or not value:
+                raise ValueError("Recipe reference needs both new_split_manifest and its SHA256")
+            split_path = Path(value)
+            split_path = split_path.resolve() if split_path.is_absolute() else (PROJECT / split_path).resolve()
+            if split_path != Path(args.manifest) or document.get("new_split_manifest_sha256") != sha256_file(args.manifest):
+                raise ValueError("Recipe reference new split manifest path/SHA256 differs from training")
+        recipe = document.get("training_recipe")
+        if not isinstance(recipe, dict) or not isinstance(document.get("candidate_results"), (list, dict)) or not document["candidate_results"]:
+            raise ValueError("Recipe reference needs training_recipe and nonempty candidate_results")
+        fields = ("decoder", "backbone", "input_size", "num_queries", "decoder_layers", "hard_pixel_weight",
+                  "hard_pixel_quota", "batch_size", "accumulation", "head_lr", "backbone_lr",
+                  "freeze_epochs", "epochs", "val_tta", "seed")
+        for field in fields:
+            if field in recipe and recipe[field] != getattr(args, field):
+                raise ValueError(f"Recipe reference training setting {field} differs from the requested run")
+        if mode == "checkpoint_finetune" and previous is None:
+            if sha256_file(args.initial_checkpoint) != document["selected_checkpoint_sha256"]:
+                raise ValueError("initial_checkpoint differs from the test-selected checkpoint")
+    return {"design_selection_reference": str(path) if path else None,
+            "design_selection_reference_sha256": fingerprint,
+            "design_selection_reference_data": document}
 
 
 def training_loss_means(sums, seen):
@@ -294,6 +388,8 @@ def main(argv=None):
                               args.train_source, args.horizontal_flip, args.max_train_samples,
                               selection_manifest=args.selection_manifest)
     val_data = LunarDataset(args.manifest, "val", args.input_size, max_samples=args.max_val_samples)
+    custom_validation = val_data.identity.get("custom_split", False)
+    selection_scene = "custom_validation" if custom_validation else "Moon_5"
     partial = train_data.partial or val_data.partial
     generator = torch.Generator().manual_seed(args.seed)
     val_generator = torch.Generator().manual_seed(args.seed + 1)
@@ -324,7 +420,24 @@ def main(argv=None):
         for field, default in (("hard_pixel_weight", 0.0), ("hard_pixel_quota", 256)):
             if previous.get(field, default) != getattr(args, field):
                 raise ValueError(f"Resume setting {field} differs; changing the objective requires a new run")
-    model = build_model(config, pretrained=args.pretrained and saved is None).to(device)
+    mode = initialization_mode(args, saved["run_config"] if saved else None)
+    reference = design_selection_reference(args, mode, saved["run_config"] if saved else None)
+    test_selected_recipe = bool(reference["design_selection_reference_data"]
+                                and reference["design_selection_reference_data"]["selected_using_test"])
+    model = build_model(config, pretrained=args.pretrained and saved is None and not args.initial_checkpoint).to(device)
+    initial_checkpoint_sha256, initial_checkpoint_epoch, parent_pretrained_report = None, None, None
+    if args.initial_checkpoint:
+        initial_checkpoint_sha256 = sha256_file(args.initial_checkpoint)
+        initial = torch.load(args.initial_checkpoint, map_location="cpu", weights_only=True)
+        model.load_state_dict(initial.get("model", initial), strict=True)
+        initial_checkpoint_epoch = initial.get("epoch")
+        parent_pretrained_report = initial.get("pretrained_report")
+        if sha256_file(args.initial_checkpoint) != initial_checkpoint_sha256:
+            raise ValueError("Initial checkpoint changed while reading its weights")
+        del initial
+    elif saved:
+        initial_checkpoint_sha256 = saved["run_config"].get("initial_checkpoint_sha256")
+        initial_checkpoint_epoch = saved["run_config"].get("initial_checkpoint_epoch")
     initialization = saved["run_config"].get("initial_model_tensor_hashes") if saved else model_tensor_hashes(model)
     initial_model_sha256 = (saved["run_config"].get("initial_model_sha256") if saved
                             else initialization["model_sha256"])
@@ -351,10 +464,24 @@ def main(argv=None):
         return
     run_config = vars(args).copy()
     data_identity = {"train": train_data.identity, "val": val_data.identity}
-    provenance = saved.get("pretrained_report") if saved else pretrained_provenance(model, args.weight_dir)
+    if saved:
+        provenance = saved.get("pretrained_report")
+    elif args.initial_checkpoint:
+        provenance = {"backbones": model.pretrained_report,
+                      "initial_checkpoint": {"path": args.initial_checkpoint, "sha256": initial_checkpoint_sha256,
+                                             "epoch": initial_checkpoint_epoch,
+                                             "parent_pretrained_report": parent_pretrained_report}}
+    else:
+        provenance = pretrained_provenance(model, args.weight_dir)
     run_config.update(initial_model_sha256=initial_model_sha256,
                       initial_model_tensor_hashes=initialization, pretrained_report=provenance,
-                      initial_hash_available=initial_model_sha256 is not None)
+                      initial_hash_available=initial_model_sha256 is not None,
+                      initialization_mode=mode,
+                      initial_checkpoint=(saved["run_config"].get("initial_checkpoint") if saved else args.initial_checkpoint),
+                      initial_checkpoint_sha256=initial_checkpoint_sha256,
+                      initial_checkpoint_epoch=initial_checkpoint_epoch,
+                      official_test_used_for_selection=test_selected_recipe,
+                      checkpoint_selection_uses_test=False, **reference)
     write_json(output / "run_config.json", {**run_config, "model_config": config.to_dict(),
                                              "pretrained_report": provenance,
                                              "data_identity": data_identity, "partial": partial})
@@ -363,7 +490,9 @@ def main(argv=None):
                       "partial": partial, "decoder": args.decoder, "backbone": args.backbone,
                       "val_tta": args.val_tta, "hard_pixel_weight": args.hard_pixel_weight,
                       "hard_pixel_quota": args.hard_pixel_quota,
-                      "initial_model_sha256": initial_model_sha256}), flush=True)
+                      "initial_model_sha256": initial_model_sha256, "initialization_mode": mode,
+                      "official_test_used_for_selection": test_selected_recipe,
+                      "checkpoint_selection_uses_test": False}), flush=True)
     for epoch in range(start_epoch, args.epochs):
         started = time.monotonic()
         frozen = epoch < args.freeze_epochs
@@ -425,13 +554,16 @@ def main(argv=None):
         write_json(diagnostics_path, final_diagnostics)
         write_json(output / "hard_pixel_diagnostics_current.json", final_diagnostics)
         metrics = evaluate_loader(model, val_loader, device, args.amp, tta=args.val_tta)
-        score = metrics["scenes"]["Moon_5"]["miou"]
+        # Custom validation pools all saved validation images across its scenes.
+        score = metrics["miou"] if custom_validation else metrics["scenes"]["Moon_5"]["miou"]
         improved = score > best
         if improved:
             best, best_epoch = score, epoch + 1
         record = {"epoch": epoch + 1, "training_loss": mean_losses,
                   "hard_pixel_diagnostics": str(diagnostics_path.resolve()),
                   "validation": metrics, "best_miou": best, "best_epoch": best_epoch,
+                  "selection_scene": selection_scene, "selection_score": score,
+                  "official_test_used_for_selection": test_selected_recipe, "checkpoint_selection_uses_test": False,
                   "backbones_frozen": frozen, "seconds": time.monotonic() - started,
                   "partial": partial, "global_update": update}
         write_json(output / f"validation_epoch_{epoch + 1:03d}.json", record)
@@ -443,15 +575,17 @@ def main(argv=None):
                       "metrics": metrics, "run_config": run_config, "data_identity": data_identity,
                       "loader_generator": generator.get_state(), "val_loader_generator": val_generator.get_state(),
                       "rng": rng_state(device), "partial": partial, "pretrained_report": provenance}
+        checkpoint.update(official_test_used_for_selection=test_selected_recipe, checkpoint_selection_uses_test=False)
         save_checkpoint(output / "last.pt", checkpoint)
         if improved:
             save_checkpoint(output / ("best_smoke.pt" if partial else "best.pt"), checkpoint)
         write_json(output / "summary.json", {"status": "complete" if epoch + 1 == args.epochs else "running",
                                               "completed_epochs": epoch + 1, "best_epoch": best_epoch,
                                               "best_validation_miou": best, "partial": partial,
-                                              "selection_scene": "Moon_5", "val_tta": args.val_tta,
-                                              "official_test_used_for_selection": False})
-        print(f"epoch {epoch + 1} Moon_5 mIoU={score:.6%}; best={best:.6%}", flush=True)
+                                              "selection_scene": selection_scene, "val_tta": args.val_tta,
+                                              "official_test_used_for_selection": test_selected_recipe,
+                                              "checkpoint_selection_uses_test": False})
+        print(f"epoch {epoch + 1} {selection_scene} mIoU={score:.6%}; best={best:.6%}", flush=True)
 
 
 if __name__ == "__main__":

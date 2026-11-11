@@ -540,6 +540,270 @@ def check_data(path: Path) -> dict:
     return {"manifest": str(path), "scenes": scenes, "counts": dict(counts), "id_mask_samples_checked": 2}
 
 
+def check_random_split(path: Path, *, production: bool = True, read_images: bool = True) -> dict:
+    """Audit every saved identity independently, then exercise literal replay."""
+    from unittest.mock import patch
+    from lunarseg.data import (CLASS_NAMES, TEST_SCENES, TRAIN_SCENES, VAL_SCENES,
+                               LunarDataset, resolve_record_path, sha256_file)
+
+    path = path.resolve()
+    saved = json.loads(path.read_text())
+    assert saved.get("schema") == "lusnar_random_split_v1"
+    assert saved["class_names"] == list(CLASS_NAMES)
+    assert saved["split_protocol"] == "random_original_source_family_4_to_1"
+    assert type(saved["seed"]) is int and saved["seed"] >= 0
+    source_path = Path(saved["source_manifest"]).resolve()
+    augmented_path = Path(saved["augmented_manifest"]).resolve()
+    assert sha256_file(source_path) == saved["source_manifest_sha256"]
+    assert sha256_file(augmented_path) == saved["augmented_manifest_sha256"]
+    source = json.loads(source_path.read_text())
+    augmented = json.loads(augmented_path.read_text())
+    assert source["class_names"] == augmented["class_names"] == list(CLASS_NAMES)
+    allowed_scenes = TRAIN_SCENES | VAL_SCENES
+    originals = {}
+    for row in source["samples"]:
+        assert row["scene"] in allowed_scenes and row["scene"] not in TEST_SCENES
+        assert row["split"] == ("train" if row["scene"] in TRAIN_SCENES else "val")
+        source_id = f"{row['scene']}/{row['sample_id']}"
+        assert source_id not in originals
+        originals[source_id] = {
+            "image": str(resolve_record_path(source_path.parent, row["image"]).resolve()),
+            "mask": str(resolve_record_path(source_path.parent, row["mask"]).resolve()),
+            "scene": row["scene"], "sample_id": str(row["sample_id"]), "source_id": source_id,
+            "source_kind": "original"}
+    rng = random.Random(saved["seed"])
+    original_ids = sorted(originals)
+    rng.shuffle(original_ids)
+    cutoff = len(original_ids) * 4 // 5
+    train_ids, val_ids = original_ids[:cutoff], original_ids[cutoff:]
+    train_id_set = set(train_ids)
+    assert saved["original_split"] == {"train_source_ids": train_ids, "val_source_ids": val_ids}
+    assert not set(train_ids) & set(val_ids)
+    pools = {"crater": [], "mountain_rock": []}
+    seen_aug = set()
+    for row in augmented["samples"]:
+        assert row["split"] == "train"
+        family = f"{row['source_scene']}/{row['source_sample_id']}"
+        assert family in originals
+        group = row.get("primary_group", row.get("focus_group"))
+        if group not in pools or family not in train_id_set:
+            continue
+        key = (row["source_scene"], str(row["sample_id"]))
+        assert key not in seen_aug
+        seen_aug.add(key)
+        pools[group].append({"image": str(resolve_record_path(augmented_path.parent, row["image"]).resolve()),
+                             "mask": str(resolve_record_path(augmented_path.parent, row["mask"]).resolve()),
+                             "scene": row["source_scene"], "sample_id": str(row["sample_id"]),
+                             "source_id": family, "source_kind": "augmented", "augmentation_group": group})
+    expected_train = [originals[source_id] for source_id in train_ids]
+    expected_val = [originals[source_id] for source_id in val_ids]
+    for group in ("crater", "mountain_rock"):
+        pools[group].sort(key=lambda row: (row["scene"], str(row["sample_id"])))
+        expected_train.extend(rng.sample(pools[group], saved["augmentation_counts"][group]))
+    rng.shuffle(expected_train)
+    fields = ("source_kind", "scene", "sample_id", "source_id", "image", "mask", "augmentation_group")
+
+    def identities(rows):
+        return [tuple(row.get(field) for field in fields) for row in rows]
+
+    train, val = saved["splits"]["train"], saved["splits"]["val"]
+    assert identities(train) == identities(expected_train)
+    assert identities(val) == identities(expected_val)
+    assert {row["split"] for row in train} == {"train"}
+    assert {row["split"] for row in val} == {"val"}
+    assert all(row["source_kind"] == "original" for row in val)
+    for split_rows in (train, val):
+        keys = [(row["source_kind"], row["scene"], str(row["sample_id"])) for row in split_rows]
+        assert len(keys) == len(set(keys))
+        paths = [(row["image"], row["mask"]) for row in split_rows]
+        assert len(paths) == len(set(paths))
+        assert all(row["scene"] in allowed_scenes and row["scene"] not in TEST_SCENES for row in split_rows)
+        assert all(Path(row[field]).is_absolute() for row in split_rows for field in ("image", "mask"))
+    assert not {row["source_id"] for row in train} & {row["source_id"] for row in val}
+    assert not {row["image"] for row in train} & {row["image"] for row in val}
+    assert not {row["mask"] for row in train} & {row["mask"] for row in val}
+    observed_counts = {"original_pool": len(originals), "train_original": len(train_ids),
+                       "val_original": len(val_ids), "train_augmented": len(train) - len(train_ids),
+                       "train_total": len(train), "val_total": len(val)}
+    assert saved["counts"] == observed_counts
+    assert dict(Counter(row["augmentation_group"] for row in train if row["source_kind"] == "augmented")) == saved["augmentation_counts"]
+    splits_hash = hashlib.sha256(json.dumps(saved["splits"], ensure_ascii=False, sort_keys=True,
+                                            separators=(",", ":")).encode()).hexdigest()
+    assert splits_hash == saved["splits_sha256"]
+    canonical_hash = lambda value: hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                                             separators=(",", ":")).encode()).hexdigest()
+    assert saved["ordered_samples_sha256"] == {split: canonical_hash(saved["splits"][split]) for split in ("train", "val")}
+    assert saved["original_split_sha256"] == canonical_hash(saved["original_split"])
+    if production:
+        assert observed_counts == {"original_pool": 8002, "train_original": 6401,
+                                   "val_original": 1601, "train_augmented": 3000,
+                                   "train_total": 9401, "val_total": 1601}
+        assert saved["augmentation_counts"] == {"crater": 1500, "mountain_rock": 1500}
+        assert saved["mask_validation"]["checked_mask_count"] == len(train) + len(val)
+        assert saved["mask_validation"]["required_mode"] == "L"
+        assert saved["mask_validation"]["class_id_range"] == [0, 4]
+    # Loading must honor the literal list, without even consulting an RNG.
+    replay_torch_rng, replay_python_rng = torch.get_rng_state().clone(), random.getstate()
+    with patch("random.Random", side_effect=AssertionError("Dataset replay must not resample")), \
+            patch("random.sample", side_effect=AssertionError("Dataset replay must not resample")), \
+            patch("random.shuffle", side_effect=AssertionError("Dataset replay must not resample")):
+        datasets = {split: LunarDataset(path, split=split, input_size=32) for split in ("train", "val")}
+    assert torch.equal(torch.get_rng_state(), replay_torch_rng) and random.getstate() == replay_python_rng
+    checked = []
+    for split, dataset in datasets.items():
+        assert not dataset.partial and dataset.complete_count == len(saved["splits"][split])
+        assert identities(dataset.records) == identities(saved["splits"][split])
+        if not read_images:
+            continue
+        groups = {}
+        for index, record in enumerate(dataset.records):
+            groups.setdefault((record["scene"], record.get("augmentation_group", "original")), index)
+        for (scene, group), index in sorted(groups.items()):
+            record = dataset.records[index]
+            with Image.open(record["image"]) as image, Image.open(record["mask"]) as mask:
+                assert image.size == mask.size and image.size[0] > 0
+                assert mask.mode == "L"
+                label = np.asarray(mask)
+                assert label.ndim == 2 and label.size > 0 and label.min() >= 0 and label.max() <= 4
+                original_size = list(image.size)
+            loaded = dataset[index]
+            assert loaded["image"].shape == (3, 32, 32) and loaded["image"].isfinite().all()
+            assert loaded["mask"].shape == (32, 32) and loaded["mask"].dtype == torch.long
+            assert loaded["mask"].min() >= 0 and loaded["mask"].max() <= 4
+            checked.append({"split": split, "scene": scene, "group": group, "sample_id": record["sample_id"],
+                            "image": record["image"], "mask": record["mask"], "original_size": original_size,
+                            "class_ids": np.unique(label).tolist()})
+    return {"manifest": str(path), "manifest_sha256": sha256_file(path), "seed": saved["seed"],
+            "counts": observed_counts, "augmentation_counts": saved["augmentation_counts"],
+            "source_manifests_sha256_match": True, "all_original_families_partitioned_once": True,
+            "augmentation_families_only_in_new_train": True, "test_scenes_absent": True,
+            "seed_reproduction_matches_all_saved_sample_identities_and_order": True,
+            "literal_replay_uses_no_random_sampling": True, "splits_sha256": splits_hash,
+            "class_names": list(CLASS_NAMES), "full_mask_scan": False,
+            "producer_full_mask_validation": saved.get("mask_validation"),
+            "real_rgb_and_class_id_mask_reads": checked}
+
+
+def check_random_split_rejections() -> dict:
+    """Build a tiny independent legal manifest and deliberately corrupt it."""
+    from copy import deepcopy
+    from lunarseg.data import CLASS_NAMES, LunarDataset, sha256_file
+
+    with tempfile.TemporaryDirectory(prefix="fenge-split-check-") as temporary:
+        root = Path(temporary)
+        def images(name):
+            image_path, mask_path = root / f"{name}-rgb.png", root / f"{name}-ids.png"
+            Image.new("RGB", (32, 32), (80, 90, 100)).save(image_path)
+            Image.fromarray((np.indices((32, 32)).sum(0) % 5).astype(np.uint8), mode="L").save(mask_path)
+            return str(image_path), str(mask_path)
+        source_rows, originals = [], {}
+        for index in range(14):
+            scene = "Moon_1" if index < 10 else "Moon_5"
+            sid = str(index)
+            image, mask = images(f"original-{index}")
+            source_rows.append({"scene": scene, "sample_id": sid, "split": "train" if index < 10 else "val",
+                                "image": image, "mask": mask})
+            family = f"{scene}/{sid}"
+            originals[family] = {"scene": scene, "sample_id": sid, "source_id": family,
+                                 "image": image, "mask": mask, "source_kind": "original"}
+        source_path, augmented_path = root / "original.json", root / "augmented.json"
+        source_path.write_text(json.dumps({"class_names": list(CLASS_NAMES), "samples": source_rows}))
+        aug_rows = []
+        for group in ("crater", "mountain_rock"):
+            for index in range(10):
+                image, mask = images(f"{group}-{index}")
+                aug_rows.append({"source_scene": "Moon_1", "source_sample_id": str(index),
+                                 "sample_id": f"{group}-{index}", "split": "train", "primary_group": group,
+                                 "image": image, "mask": mask})
+        augmented_path.write_text(json.dumps({"class_names": list(CLASS_NAMES),
+                                              "source_manifest": str(source_path),
+                                              "source_manifest_sha256": sha256_file(source_path),
+                                              "validation_or_test_used": False, "samples": aug_rows}))
+        seed, rng = 29, random.Random(29)
+        families = sorted(originals)
+        rng.shuffle(families)
+        cutoff = len(families) * 4 // 5
+        train_ids, val_ids = families[:cutoff], families[cutoff:]
+        train = [{**originals[family], "split": "train"} for family in train_ids]
+        val = [{**originals[family], "split": "val"} for family in val_ids]
+        for group in ("crater", "mountain_rock"):
+            candidates = [{"scene": row["source_scene"], "sample_id": row["sample_id"],
+                           "source_id": f"{row['source_scene']}/{row['source_sample_id']}",
+                           "image": row["image"], "mask": row["mask"], "source_kind": "augmented",
+                           "augmentation_group": group, "split": "train"}
+                          for row in aug_rows if row["primary_group"] == group
+                          and f"{row['source_scene']}/{row['source_sample_id']}" in train_ids]
+            candidates.sort(key=lambda row: (row["scene"], str(row["sample_id"])))
+            train.extend(rng.sample(candidates, 2))
+        rng.shuffle(train)
+        valid = {"schema": "lusnar_random_split_v1", "class_names": list(CLASS_NAMES),
+                 "split_protocol": "random_original_source_family_4_to_1", "seed": seed,
+                 "source_manifest": str(source_path), "source_manifest_sha256": sha256_file(source_path),
+                 "augmented_manifest": str(augmented_path), "augmented_manifest_sha256": sha256_file(augmented_path),
+                 "original_split": {"train_source_ids": train_ids, "val_source_ids": val_ids},
+                 "splits": {"train": train, "val": val}, "augmentation_counts": {"crater": 2, "mountain_rock": 2},
+                 "counts": {"original_pool": 14, "train_original": 11, "val_original": 3,
+                            "train_augmented": 4, "train_total": 15, "val_total": 3}}
+        def save(name, value, refresh=True):
+            if refresh:
+                canonical_hash = lambda rows: hashlib.sha256(json.dumps(rows, ensure_ascii=False,
+                    sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                value["splits_sha256"] = canonical_hash(value["splits"])
+                value["ordered_samples_sha256"] = {split: canonical_hash(value["splits"][split]) for split in ("train", "val")}
+                value["original_split_sha256"] = canonical_hash(value["original_split"])
+            target = root / f"{name}.json"
+            target.write_text(json.dumps(value))
+            return target
+        valid_path = save("valid", valid)
+        check_random_split(valid_path, production=False)
+        variants = {}
+        variants["duplicate_sample"] = deepcopy(valid)
+        original_indices = [i for i, row in enumerate(train) if row["source_kind"] == "original"]
+        variants["duplicate_sample"]["splits"]["train"][original_indices[1]] = deepcopy(train[original_indices[0]])
+        variants["family_leak"] = deepcopy(valid)
+        aug_index = next(i for i, row in enumerate(train) if row["source_kind"] == "augmented")
+        variants["family_leak"]["splits"]["train"][aug_index]["source_id"] = val_ids[0]
+        variants["path_tamper"] = deepcopy(valid)
+        variants["path_tamper"]["splits"]["train"][0]["image"] = val[0]["image"]
+        variants["test_scene"] = deepcopy(valid)
+        variants["test_scene"]["splits"]["train"][0]["scene"] = "Moon_2"
+        variants["validation_augmentation"] = deepcopy(valid)
+        variants["validation_augmentation"]["splits"]["val"][0] = {**train[aug_index], "split": "val"}
+        variants["source_sha_tamper"] = deepcopy(valid)
+        variants["source_sha_tamper"]["source_manifest_sha256"] = "0" * 64
+        variants["splits_sha_tamper"] = deepcopy(valid)
+        variants["splits_sha_tamper"]["splits"]["train"] = list(reversed(train))
+        variants["class_order_tamper"] = deepcopy(valid)
+        variants["class_order_tamper"]["class_names"] = list(reversed(CLASS_NAMES))
+        rejected = []
+        for name, invalid in variants.items():
+            invalid_path = save(name, invalid, refresh=name != "splits_sha_tamper")
+            for split in ("train", "val"):
+                try:
+                    LunarDataset(invalid_path, split=split, input_size=32)
+                except (ValueError, TypeError, KeyError):
+                    continue
+                raise AssertionError(f"Invalid random split accepted by {split} loader: {name}")
+            rejected.append(name)
+        for split in ("train", "val"):
+            dataset = LunarDataset(valid_path, split=split, input_size=32)
+            mask_path = Path(dataset.records[0]["mask"])
+            original_bytes = mask_path.read_bytes()
+            try:
+                for mode, value in (("L", 5), ("P", 0)):
+                    Image.new(mode, (32, 32), value).save(mask_path)
+                    try:
+                        dataset[0]
+                    except ValueError:
+                        continue
+                    raise AssertionError(f"Invalid mask accepted by {split}: mode={mode}, value={value}")
+            finally:
+                mask_path.write_bytes(original_bytes)
+        return {"independent_synthetic_valid_manifest_replayed": True,
+                "corrupt_manifests_rejected_by_both_splits": rejected,
+                "invalid_class_ids_and_palette_mode_rejected_by_both_splits": True}
+
+
 def check_model(decoder: str, args: argparse.Namespace, device: torch.device) -> dict:
     start = time.monotonic()
     config = ModelConfig(decoder=decoder, input_size=args.size, weight_dir=str(args.model_dir.resolve()))
@@ -626,6 +890,8 @@ def main() -> None:
     parser.add_argument("--decoder", choices=("both", "pixel", "region"), default="both")
     parser.add_argument("--model-dir", type=Path, default=PROJECT_ROOT / "model")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--split-manifest", type=Path,
+                        help="Saved lusnar_random_split_v1 manifest to audit with --split-only")
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--hard-pixel-weight", type=float, default=0.0)
     parser.add_argument("--hard-pixel-quota", type=int, default=256)
@@ -634,9 +900,12 @@ def main() -> None:
                             help="Run only lightweight CPU mountain-score checks; no weights or dataset are loaded")
     cpu_checks.add_argument("--hard-pixel-only", action="store_true",
                             help="Run only lightweight CPU hard-pixel loss checks; no weights or dataset are loaded")
+    cpu_checks.add_argument("--split-only", action="store_true",
+                            help="Audit a saved random split and CPU data-loader rejection fixtures; no model is loaded")
     args = parser.parse_args()
     if args.output is None:
-        filename = ("hard_pixel_verification.json" if args.hard_pixel_only else
+        filename = ("split_verification.json" if args.split_only else
+                    "hard_pixel_verification.json" if args.hard_pixel_only else
                     "calibration_verification.json" if args.calibration_only else "verification.json")
         args.output = PROJECT_ROOT / "result" / filename
     if args.batch_size < 1:
@@ -646,6 +915,19 @@ def main() -> None:
     if args.hard_pixel_quota < 0:
         parser.error("hard-pixel-quota must be nonnegative")
     torch.set_num_threads(4)
+    if args.split_manifest is not None and not args.split_only:
+        parser.error("--split-manifest requires --split-only")
+    if args.split_only:
+        split_path = (args.split_manifest or args.manifest).resolve()
+        schema = json.loads(split_path.read_text()).get("schema")
+        report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
+                  "split_only": True,
+                  "split_checks": check_random_split(split_path) if schema == "lusnar_random_split_v1" else check_data(split_path),
+                  "synthetic_rejections": check_random_split_rejections(), "status": "passed"}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        print(f"CPU split and data-loader checks passed. Verification report: {args.output}", flush=True)
+        return
     if args.hard_pixel_only:
         report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
                   "hard_pixel_only": True, "hard_pixel_checks": check_hard_pixels(), "status": "passed"}

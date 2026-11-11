@@ -108,8 +108,17 @@ def publication_layout(project, config_path=None):
     layout = {"runs": [directory(row["output"]) for row in config["runs"]],
               "analysis": directory(config["analysis_output"]), "monitor": directory(config["output"])}
     paths = [*layout["runs"], layout["analysis"], layout["monitor"]]
-    if len(layout["runs"]) != 2 or len(set(paths)) != len(paths):
-        raise ValueError("Publication needs two distinct experiment, analysis and monitor directories")
+    if len(layout["runs"]) not in (1, 2) or len(set(paths)) != len(paths):
+        raise ValueError("Publication needs one or two distinct experiments, plus distinct analysis and monitor directories")
+    if config.get("comparison") == "random-split":
+        if len(layout["runs"]) != 1:
+            raise ValueError("Random-split publication contains exactly one new experiment")
+        layout["reference"] = directory(config["reference_run"])
+        layout["reference_tta"] = config.get("reference_tta")
+        if layout["reference_tta"] not in ("none", "hflip") or layout["reference"] in paths:
+            raise ValueError("Random-split reference must identify a separate experiment and an explicit test TTA")
+        paths.append(layout["reference"])
+    layout["comparison"] = config.get("comparison")
     if any(a != b and a.is_relative_to(b) for a in paths for b in paths):
         raise ValueError("Publication directories must not contain each other")
     return layout
@@ -126,8 +135,14 @@ def verify_artifacts(project, monitor, layout=None):
     if summary.get("state") != "complete" or summary.get("schema") != "lusnar_experiment_analysis_v1":
         raise RuntimeError("Final analysis summary is incomplete")
     expected = {path.resolve() for path in layout["runs"]}
-    if {Path(row["run_dir"]).resolve() for row in summary.get("runs", [])} != expected:
-        raise RuntimeError("Final analysis does not identify exactly the two authorized runs")
+    analyzed_runs = summary.get("runs", [])
+    if (len(analyzed_runs) != len(layout["runs"])
+            or {Path(row["run_dir"]).resolve() for row in analyzed_runs} != expected):
+        raise RuntimeError("Final analysis does not identify exactly the authorized experiment runs")
+    if len(layout["runs"]) == 1 and summary.get("comparison") != "random-split":
+        raise RuntimeError("Single-run publication requires completed random-split analysis")
+    if layout.get("comparison") is not None and summary.get("comparison") != layout["comparison"]:
+        raise RuntimeError("Analysis comparison differs from the explicit publication configuration")
     if monitor.get("analysis_output") and Path(monitor["analysis_output"]).resolve() != analysis.resolve():
         raise RuntimeError("Monitor analysis output differs from the fixed publication directory")
     for run in layout["runs"]:
@@ -141,6 +156,38 @@ def verify_artifacts(project, monitor, layout=None):
                     or result.get("tta_mode") != mode or result.get("split") != "test"
                     or result.get("checkpoint_epoch") != training["best_epoch"]):
                 raise RuntimeError(f"Final test metrics are incomplete: {name}/{filename}")
+    if summary.get("comparison") == "random-split":
+        # Revalidate evidence without invoking any Git operation. Only the new
+        # run enters selected_files; reference records remain read-only inputs.
+        from analyze_experiments import (load_random_split_run, load_run, read_json as analysis_json,
+                                         same_tta_changes, validate_design_reference)
+        if len(layout["runs"]) != 1 or not isinstance(summary.get("reference"), dict):
+            raise RuntimeError("Random-split analysis needs one new run and a separate old reference")
+        reference_path = Path(summary["reference"].get("run_dir", "")).resolve()
+        if layout.get("reference") is None or reference_path != layout["reference"]:
+            raise RuntimeError("Analysis reference differs from the explicit authorized reference run")
+        mode = summary.get("reference_tta")
+        if mode != layout.get("reference_tta"):
+            raise RuntimeError("Analysis reference TTA differs from the explicit publication configuration")
+        current = load_random_split_run(layout["runs"][0])
+        reference_config = analysis_json(reference_path / "run_config.json")
+        reference = load_run(reference_path, "已选旧参考方案", reference_config.get("val_tta", "none"))
+        if set(reference["tests"]) != {"none", "hflip"}:
+            raise RuntimeError("Reference must retain both complete test views")
+        validate_design_reference(current, reference, mode)
+        for saved, actual in ((analyzed_runs[0], current), (summary["reference"], reference)):
+            if (saved.get("source_files_sha256") != actual["source_files_sha256"]
+                    or saved.get("checkpoint_sha256") != actual["checkpoint_sha256"]
+                    or saved.get("best_epoch") != actual["best_epoch"]
+                    or saved.get("best_validation_miou") != actual["best_validation_miou"]
+                    or saved.get("tests") != actual["tests"]):
+                raise RuntimeError("Experiment/checkpoint/test evidence changed after random-split analysis")
+        if (summary.get("same_tta_comparisons") != same_tta_changes(reference, current)
+                or summary.get("validation_scores_directly_comparable") is not False
+                or summary.get("official_test_used_for_recipe_selection") is not True
+                or summary.get("checkpoint_selection_uses_test") is not False
+                or summary.get("test_is_previously_unseen_holdout") is not False):
+            raise RuntimeError("Random-split comparison or its evaluation-scope disclosures are inconsistent")
 
 
 def selected_files(project, layout=None):
@@ -219,7 +266,7 @@ def publish_once(monitor_path, project=None, config_path=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--monitor-state", type=Path, default=None)
-    parser.add_argument("--config", type=Path, default=None, help="Explicit monitor config defining the two runs and result directories")
+    parser.add_argument("--config", type=Path, default=None, help="Explicit monitor config defining one or two runs and result directories")
     parser.add_argument("--once", action="store_true", help="Return immediately if analysis is not ready")
     args = parser.parse_args()
     layout = publication_layout(PROJECT, args.config)

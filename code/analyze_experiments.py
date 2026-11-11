@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate two completed LuSNAR experiments and write an evidence-based report."""
+"""Validate completed LuSNAR comparisons and write an evidence-based report."""
 from __future__ import annotations
 
 import argparse
@@ -53,7 +53,7 @@ def ratio(numerator, denominator):
     return numerator / denominator if denominator else None
 
 
-def scene_statistics(scene, label, image_count=None):
+def scene_statistics(scene, label, image_count=None, require_all_classes=True):
     matrix = scene.get("confusion_matrix_gt_rows_pred_cols")
     require(isinstance(matrix, list) and len(matrix) == 5
             and all(isinstance(row, list) and len(row) == 5 for row in matrix),
@@ -64,7 +64,9 @@ def scene_statistics(scene, label, image_count=None):
         require(sum(map(sum, matrix)) == image_count * 1024 * 1024,
                 f"{label}: confusion matrix is not the complete 1024x1024 labels for {image_count} images")
     gt = [sum(row) for row in matrix]
-    require(all(value > 0 for value in gt), f"{label}: these complete Moon_5/2/4/9 scenes must contain all five GT classes")
+    require(any(value > 0 for value in gt), f"{label}: empty ground-truth confusion matrix")
+    if require_all_classes:
+        require(all(value > 0 for value in gt), f"{label}: these complete Moon_5/2/4/9 scenes must contain all five GT classes")
     predicted = [sum(matrix[r][c] for r in range(5)) for c in range(5)]
     derived = {}
     for i, name in enumerate(CLASSES):
@@ -110,7 +112,7 @@ def validate_test(path, mode, run, checkpoint_hash, best_epoch):
     require(value.get("tta_views") == expected_views, f"{label}: incorrect TTA views")
     require(value.get("continuous_scores_resized_before_argmax") is True,
             f"{label}: missing continuous-score-before-argmax protocol")
-    require(value.get("checkpoint_epoch") == best_epoch, f"{label}: evaluated checkpoint is not Moon_5's best epoch")
+    require(value.get("checkpoint_epoch") == best_epoch, f"{label}: evaluated checkpoint is not this run's validation-selected best epoch")
     require(value.get("checkpoint_sha256") == checkpoint_hash, f"{label}: evaluated checkpoint SHA256 differs from best.pt")
     checkpoint = Path(value.get("checkpoint", ""))
     require(checkpoint.is_absolute() and checkpoint.resolve() == (run / "best.pt").resolve(),
@@ -199,6 +201,175 @@ def load_run(path, label, mode):
             "tests": tests}
 
 
+def canonical_digest(value):
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":")).encode()).hexdigest()
+
+
+def load_random_split_run(path, label="随机 4:1 新划分组"):
+    """Validate the new run against its literal family split and aggregate val."""
+    from collections import Counter
+
+    run = Path(path).resolve()
+    summary, config = read_json(run / "summary.json"), read_json(run / "run_config.json")
+    require(summary.get("status") in STOPPED and summary.get("partial") is False
+            and config.get("partial") is False, f"{run}: custom training must be stopped and complete")
+    require(summary.get("selection_scene") == "custom_validation"
+            and summary.get("checkpoint_selection_uses_test") is False
+            and summary.get("official_test_used_for_selection") is True,
+            f"{run}: distinguish test-informed recipe choice from validation-only checkpoint choice")
+    mode = config.get("val_tta", "none")
+    require(mode in ("none", "hflip") and summary.get("val_tta", "none") == mode,
+            f"{run}: inconsistent custom validation TTA")
+    identity = config.get("data_identity", {})
+    training, validation = identity.get("train", {}), identity.get("val", {})
+    for split, item, count in (("train", training, 9401), ("val", validation, 1601)):
+        require(item.get("custom_split") is True and item.get("partial") is False
+                and item.get("image_count") == count and item.get("complete_image_count") == count,
+                f"{run}: expected the complete custom {split} split ({count} images)")
+    selection_path = Path(training.get("manifest", "")).resolve()
+    require(selection_path.is_file() and Path(validation.get("manifest", "")).resolve() == selection_path,
+            f"{run}: train and val must identify the same saved custom split")
+    selection_sha = digest(selection_path)
+    require(training.get("manifest_sha256") == validation.get("manifest_sha256") == selection_sha,
+            f"{run}: custom split manifest SHA256 mismatch")
+    selection = read_json(selection_path)
+    expected_counts = {"original_pool": 8002, "train_original": 6401, "val_original": 1601,
+                       "train_augmented": 3000, "train_total": 9401, "val_total": 1601}
+    require(selection.get("schema") == "lusnar_random_split_v1" and selection.get("class_names") == list(CLASSES)
+            and selection.get("split_protocol") == "random_original_source_family_4_to_1"
+            and selection.get("counts") == expected_counts
+            and selection.get("augmentation_counts") == {"crater": 1500, "mountain_rock": 1500},
+            f"{run}: invalid 6401/1601 + 3000 augmentation split provenance")
+    splits, original_split = selection["splits"], selection["original_split"]
+    require(set(splits) == {"train", "val"} and len(splits["train"]) == 9401 and len(splits["val"]) == 1601
+            and selection.get("splits_sha256") == canonical_digest(splits)
+            and selection.get("original_split_sha256") == canonical_digest(original_split)
+            and selection.get("ordered_samples_sha256") == {split: canonical_digest(rows) for split, rows in splits.items()},
+            f"{run}: custom literal list/count/hash mismatch")
+    train_families, val_families = ({row["source_id"] for row in splits[split]} for split in ("train", "val"))
+    require(len(train_families) == 6401 and len(val_families) == 1601 and not train_families & val_families
+            and train_families == set(original_split["train_source_ids"])
+            and val_families == set(original_split["val_source_ids"])
+            and all(row["source_kind"] == "original" and row["split"] == "val" for row in splits["val"])
+            and Counter(row.get("augmentation_group", "original") for row in splits["train"])
+            == {"original": 6401, "crater": 1500, "mountain_rock": 1500},
+            f"{run}: custom families overlap, originals are missing, or augmentations enter validation")
+    allowed = {"Moon_1", "Moon_3", "Moon_5", "Moon_6", "Moon_7", "Moon_8"}
+    require(all(row["scene"] in allowed for rows in splits.values() for row in rows),
+            f"{run}: independent Moon_2/4/9 test scenes cannot enter custom train/val")
+    for prefix in ("source", "augmented"):
+        require(digest(Path(selection[prefix + "_manifest"])) == selection[prefix + "_manifest_sha256"],
+                f"{run}: custom {prefix} source manifest SHA256 mismatch")
+    scene_counts = dict(sorted(Counter(row["scene"] for row in splits["val"]).items()))
+    require(config.get("input_size") == 1024 and config.get("backbone") == "dual"
+            and config.get("decoder") == "region" and config.get("num_queries") == 32
+            and config.get("decoder_layers") == 4, f"{run}: expected the dual-CNN region decoder at 1024")
+    history = [json.loads(line) for line in (run / "history.jsonl").read_text().splitlines() if line.strip()]
+    require(history and [row.get("epoch") for row in history] == list(range(1, len(history) + 1))
+            and summary.get("completed_epochs") == history[-1]["epoch"], f"{run}: incomplete custom epoch history")
+    best_row, best_score = None, -math.inf
+    for row in history:
+        val = row.get("validation", {})
+        require(row.get("partial") is False and val.get("partial") is False and val.get("image_count") == 1601
+                and set(val.get("scenes", {})) == set(scene_counts) and val.get("tta_mode", "none") == mode,
+                f"{run}: epoch {row.get('epoch')} does not use the full custom validation split")
+        summed = [[0] * 5 for _ in range(5)]
+        for scene, count in scene_counts.items():
+            require(val["scenes"][scene].get("image_count") == count,
+                    f"{run}/epoch_{row['epoch']}/{scene}: wrong custom validation scene count")
+            values = scene_statistics(val["scenes"][scene], f"{run}/epoch_{row['epoch']}/{scene}", count,
+                                      require_all_classes=False)
+            matrix = values["confusion_matrix_gt_rows_pred_cols"]
+            summed = [[summed[r][c] + matrix[r][c] for c in range(5)] for r in range(5)]
+        require(val.get("confusion_matrix_gt_rows_pred_cols") == summed,
+                f"{run}/epoch_{row['epoch']}: aggregate validation confusion matrix differs from its scenes")
+        scene_statistics(val, f"{run}/epoch_{row['epoch']}/custom_validation", 1601,
+                         require_all_classes=False)
+        # Check the stored aggregate against the independent matrix calculation,
+        # then reproduce training's exact strict comparison of validation.miou.
+        score = val["miou"]
+        require(math.isfinite(row.get("training_loss", {}).get("loss_total", math.nan)), f"{run}: non-finite training loss")
+        if score > best_score:
+            best_row, best_score = row, score
+    require(summary.get("best_epoch") == best_row["epoch"],
+            f"{run}: best epoch must be the first strict maximum of aggregate validation.miou")
+    close(summary.get("best_validation_miou"), best_score, f"{run} best custom validation mIoU")
+    checkpoint_hash = digest(run / "best.pt")
+    tests = {test_mode: validate_test(run / filename, test_mode, run, checkpoint_hash, best_row["epoch"])
+             for test_mode, filename in (("none", "test_metrics.json"), ("hflip", "test_hflip_metrics.json"))}
+    reference_path = Path(config.get("design_selection_reference", ""))
+    require(reference_path.is_file() and reference_path.is_absolute()
+            and digest(reference_path) == config.get("design_selection_reference_sha256"),
+            f"{run}: recipe-selection reference file or SHA256 is missing")
+    design = read_json(reference_path)
+    require(design == config.get("design_selection_reference_data")
+            and design.get("schema") == "lusnar_test_selected_recipe_v1" and design.get("selected_using_test") is True,
+            f"{run}: recipe-selection reference must explicitly record the prior test-informed choice")
+    return {"label": label, "plot_label": "Random 4:1 split (new validation)", "run_dir": str(run),
+            "val_tta": mode, "summary": summary, "run_config": config, "history": history,
+            "source_files_sha256": {name: digest(run / name) for name in ("summary.json", "run_config.json", "history.jsonl")},
+            "stop_reason": summary.get("stop_reason", summary.get("early_stopping", {}).get("reason")),
+            "best_epoch": best_row["epoch"], "best_validation_miou": best_score,
+            "completed_epochs": history[-1]["epoch"], "checkpoint_sha256": checkpoint_hash,
+            "selection_scene": "custom_validation", "selection_metric": "validation.miou",
+            "validation_scene_image_counts": scene_counts,
+            "selection": {"path": str(selection_path), "sha256": selection_sha, "counts": expected_counts,
+                          "image_count": 9401, "unique_source_count": 6401, "seed": selection.get("seed")},
+            "design_selection_reference": {"path": str(reference_path), "sha256": digest(reference_path), "data": design},
+            "tests": tests}
+
+
+def validate_design_reference(new_run, reference, mode):
+    design = new_run["design_selection_reference"]["data"]
+    test = reference["tests"][mode]
+    require(Path(design.get("selected_run", "")).resolve() == Path(reference["run_dir"])
+            and Path(design.get("selected_checkpoint", "")).resolve() == Path(reference["run_dir"]) / "best.pt"
+            and design.get("selected_checkpoint_sha256") == reference["checkpoint_sha256"]
+            and design.get("selected_checkpoint_epoch") == reference["best_epoch"]
+            and design.get("selected_test_tta") == mode,
+            "Recipe selection must identify the requested reference run, checkpoint and test TTA")
+    require(Path(design.get("selected_metrics_file", "")).resolve() == Path(test["source"])
+            and design.get("selected_metrics_sha256") == test["source_sha256"], "Recipe selection test metrics SHA256 mismatch")
+    close(design.get("selected_weighted_score"), test["weighted_score"], "Recipe-selection test weighted S")
+    require(Path(design.get("new_split_manifest", "")).resolve() == Path(new_run["selection"]["path"])
+            and design.get("new_split_manifest_sha256") == new_run["selection"]["sha256"],
+            "Recipe selection references a different new split manifest")
+    require(isinstance(design.get("training_recipe"), dict) and design["training_recipe"]
+            and isinstance(design.get("candidate_results"), list) and design["candidate_results"],
+            "Recipe selection must preserve the selected recipe and evaluated candidates")
+    mode = new_run["run_config"].get("initialization_mode")
+    require(mode in ("original_pretrained", "checkpoint_finetune", "random")
+            and design.get("initialization_mode") == mode, "Recipe reference and actual initialization mode disagree")
+    if mode == "checkpoint_finetune":
+        config = new_run["run_config"]
+        require(Path(config.get("initial_checkpoint", "")).resolve() == Path(reference["run_dir"]) / "best.pt"
+                and config.get("initial_checkpoint_sha256") == reference["checkpoint_sha256"],
+                "Checkpoint finetuning must record the selected checkpoint path and SHA256")
+    elif mode == "original_pretrained":
+        require(new_run["run_config"].get("pretrained") is True
+                and not new_run["run_config"].get("initial_checkpoint")
+                and not new_run["run_config"].get("convnext_checkpoint"),
+                "Original pretrained initialization cannot also transfer a lunar checkpoint")
+
+
+def same_tta_changes(reference, new_run):
+    changes = {}
+    for mode in ("none", "hflip"):
+        old, new = reference["tests"][mode], new_run["tests"][mode]
+        scenes = {}
+        for scene in SCENES:
+            a, b = old["scenes"][scene], new["scenes"][scene]
+            require(all(a["classes"][name]["gt_pixels"] == b["classes"][name]["gt_pixels"] for name in CLASSES),
+                    f"{scene}/{mode}: reference and new result disagree on ground-truth class counts")
+            scenes[scene] = {"miou_change": b["miou"] - a["miou"],
+                             "class_iou_changes": {name: b["classes"][name]["iou"] - a["classes"][name]["iou"] for name in CLASSES},
+                             "confusion_pixel_changes_gt_rows_pred_cols": [[b["confusion_matrix_gt_rows_pred_cols"][r][c]
+                                 - a["confusion_matrix_gt_rows_pred_cols"][r][c] for c in range(5)] for r in range(5)]}
+        changes[mode] = {"weighted_score_change": new["weighted_score"] - old["weighted_score"], "scenes": scenes}
+    return changes
+
+
 def percent(value):
     return "—" if value is None else f"{value * 100:.4f}%"
 
@@ -228,7 +399,8 @@ def plot_curves(runs, output):
         epochs = [row["epoch"] for row in run["history"]]
         label = run.get("plot_label", "val TTA off" if run["val_tta"] == "none" else "val TTA hflip")
         line = axes[0].plot(epochs, [row["training_loss"]["loss_total"] for row in run["history"]], label=label)[0]
-        values = [row["validation"]["scenes"]["Moon_5"]["miou"] * 100 for row in run["history"]]
+        values = [(row["validation"]["miou"] if run.get("selection_scene") == "custom_validation"
+                   else row["validation"]["scenes"]["Moon_5"]["miou"]) * 100 for row in run["history"]]
         axes[1].plot(epochs, values, label=label, color=line.get_color())
         axes[1].scatter([run["best_epoch"]], [run["best_validation_miou"] * 100], marker="*", s=100, color=line.get_color())
     for ax in axes:
@@ -236,7 +408,8 @@ def plot_curves(runs, output):
         ax.grid(alpha=0.25)
         ax.legend()
     axes[0].set_ylabel("Training total loss")
-    axes[1].set_ylabel("Full Moon_5 mIoU (%)")
+    axes[1].set_ylabel("Custom validation mIoU (%)" if any(run.get("selection_scene") == "custom_validation" for run in runs)
+                       else "Full Moon_5 mIoU (%)")
     path = output / "training_validation_curves.png"
     figure.savefig(path, dpi=180)
     plt.close(figure)
@@ -255,6 +428,86 @@ def reference_result(path):
     close(value.get("weighted_score"), score, "Historical reference S")
     return {"source": str(path), "source_sha256": digest(path), "weighted_score": score,
             "scenes": scenes, "name": path.parent.name}
+
+
+def random_split_report(run, reference, reference_tta, changes, output, curves, curve_note):
+    design = run["design_selection_reference"]["data"]
+    lines = ["# 双 CNN：随机 4:1 划分后的完整测试对照", "",
+             "新实验从旧训练原图和 Moon_5 原图组成的 8002 张池中按来源随机划分："
+             "6401 张训练原图、1601 张验证原图；另加仅来自新训练来源的 1500 张撞击坑增强和 1500 张山岩增强，训练共 9401 张。"
+             "验证集不含增强，同一原图来源及其增强不会跨训练/验证集。Moon_2/4/9 未进入训练或验证。", "",
+             "**新旧验证口径不同，验证 mIoU 不能直接比较。** 旧参考用完整 Moon_5 的 1599 张选轮；"
+             "新实验仅按 1601 张多场景验证集汇总混淆矩阵的 `validation.miou` 选第一个严格最高轮次，未按测试成绩选轮。", "",
+             "**测试成绩已经用于选择当前训练方案。** 下述 Moon_2/4/9 对照属于被查看并用于方案选择后的测试集，"
+             "不能当作从未查看的留出集，也不能据一次结果证明划分或损失的因果收益。", "",
+             "## 实验与来源", "",
+             f"新划分：[保存的完整清单]({relative_link(run['selection']['path'], output)})；SHA256 `{run['selection']['sha256']}`；"
+             f"划分种子 {run['selection']['seed']}。", "",
+             f"方案选择记录：[JSON]({relative_link(run['design_selection_reference']['path'], output)})；"
+             f"SHA256 `{run['design_selection_reference']['sha256']}`。初始化模式为 `{design['initialization_mode']}`。", "",
+             "|实验|训练图|验证口径|验证视角|完成轮次|最佳轮次|各自验证最佳 mIoU|", "|---|---:|---|---|---:|---:|---:|",
+             f"|旧参考 {Path(reference['run_dir']).name}|8000|完整 Moon_5，1599 张|{reference['val_tta']}|"
+             f"{reference['completed_epochs']}|{reference['best_epoch']}|{percent(reference['best_validation_miou'])}|",
+             f"|新随机划分 {Path(run['run_dir']).name}|9401|多场景原图，1601 张|{run['val_tta']}|"
+             f"{run['completed_epochs']}|{run['best_epoch']}|{percent(run['best_validation_miou'])}|", "",
+             "上表两种验证分数仅分别证明各自的检查点选择，不作差值或排名。新验证集各场景张数："
+             + "、".join(f"{scene} {count}" for scene, count in run["validation_scene_image_counts"].items()) + "。", "",
+             f"新实验停止状态 `{run['summary']['status']}`，停止依据 `{run['stop_reason'] or '见summary'}`；"
+             f"[summary]({relative_link(Path(run['run_dir'])/'summary.json', output)})、"
+             f"[history]({relative_link(Path(run['run_dir'])/'history.jsonl', output)})、"
+             f"[配置]({relative_link(Path(run['run_dir'])/'run_config.json', output)})。", "",
+             "|设置|旧参考|新随机划分|", "|---|---|---|"]
+    for title, field in (("输入尺寸", "input_size"), ("batch", "batch_size"), ("梯度累积", "accumulation"),
+                         ("冻结骨干轮数", "freeze_epochs"), ("骨干学习率", "backbone_lr"),
+                         ("解码器学习率", "head_lr"), ("困难像素权重", "hard_pixel_weight"),
+                         ("每图每方向配额", "hard_pixel_quota"), ("训练种子", "seed")):
+        lines.append(f"|{title}|{reference['run_config'].get(field)}|{run['run_config'].get(field)}|")
+    lines += ["", "## 相同 TTA 的完整 Moon_2/4/9 测试", "",
+              "两模型均使用各自已选定的同一个 best 检查点做 none 和 hflip 推理。"
+              "每种视角均完整评估 Moon_2/4/9 的 1597/1320/2087 张，共 5004 张。"
+              "指标由逐场景整数混淆矩阵独立重算：`S=(Moon_2 mIoU + Moon_4 mIoU + 2×Moon_9 mIoU)/4`。", "",
+              "|测试视角|模型|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权 S|", "|---|---|---:|---:|---:|---:|"]
+    for mode in ("none", "hflip"):
+        for label, item in (("旧参考", reference), ("新随机划分", run)):
+            test = item["tests"][mode]
+            lines.append(f"|{mode}|{label}|" + "|".join(percent(test["scenes"][scene]["miou"]) for scene in SCENES)
+                         + f"|{percent(test['weighted_score'])}|")
+        lines.append(f"|{mode}|新减旧（百分点）|" + "|".join(f"{changes[mode]['scenes'][scene]['miou_change'] * 100:+.4f}" for scene in SCENES)
+                     + f"|{changes[mode]['weighted_score_change'] * 100:+.4f}|")
+    lines += ["", f"旧方案选择时使用的测试视角为 `{reference_tta}`；该相同视角下新减旧的加权 S 为 "
+              f"**{changes[reference_tta]['weighted_score_change'] * 100:+.4f} 个百分点**。"
+              "同时列出另一种相同视角对照，不用新旧不同 TTA 的成绩混算收益。", "",
+              "## 逐场景、五类和混淆变化", "",
+              "下表均为新减旧 IoU 的百分点变化；完整绝对 IoU、精确率、召回率见 metrics.csv。", "",
+              "|TTA|场景|mIoU|月壤|岩石|撞击坑|山体|天空|", "|---|---|---:|---:|---:|---:|---:|---:|"]
+    for mode, change in changes.items():
+        for scene, item in change["scenes"].items():
+            values = [item["miou_change"], *[item["class_iou_changes"][name] for name in CLASSES]]
+            lines.append(f"|{mode}|{scene}|" + "|".join(f"{value * 100:+.4f}" for value in values) + "|")
+    lines += ["", "主要关注的六个错分方向按真值→预测统计；负变化表示该方向错分像素减少。", "",
+              "|TTA|场景|方向|旧错分像素|新错分像素|新减旧像素|", "|---|---|---|---:|---:|---:|"]
+    for mode in ("none", "hflip"):
+        for scene in SCENES:
+            for truth, predicted in ((0, 3), (3, 0), (2, 0), (0, 2), (3, 1), (1, 3)):
+                old = reference["tests"][mode]["scenes"][scene]["confusion_matrix_gt_rows_pred_cols"][truth][predicted]
+                new = run["tests"][mode]["scenes"][scene]["confusion_matrix_gt_rows_pred_cols"][truth][predicted]
+                lines.append(f"|{mode}|{scene}|{ZH[CLASSES[truth]]} → {ZH[CLASSES[predicted]]}|{old:,}|{new:,}|{new-old:+,}|")
+    for item in (reference, run):
+        gain = item["tests"]["hflip"]["weighted_score"] - item["tests"]["none"]["weighted_score"]
+        lines += ["", f"同一 `{Path(item['run_dir']).name}` 检查点中，hflip 相对 none 的 S 变化为 {gain * 100:+.4f} 个百分点；"
+                  "这仅是该检查点的推理视角对照。"]
+    lines += ["", "## 新实验训练与验证曲线", "",
+              "曲线只展示新实验，避免将两种验证口径画成可直接比较的指标。训练损失和验证 mIoU 量纲不同。", ""]
+    lines += [f"![新实验训练与验证曲线]({curves})"] if curves else [curve_note]
+    lines += ["", "|轮次|训练总损失|完整新验证 mIoU|骨干冻结|", "|---|---:|---:|---|"]
+    for row in run["history"]:
+        lines.append(f"|{row['epoch']}|{row['training_loss']['loss_total']:.6f}|{percent(row['validation']['miou'])}|{row.get('backbones_frozen')}|")
+    lines += ["", "## 复核与解释范围", "",
+              "- [逐类别绝对指标](metrics.csv)", "- [完整混淆矩阵](confusion_matrices.csv)",
+              "- [新实验逐轮数据](history.csv)", "- [机器可读分析与来源 SHA256](summary.json)", "",
+              "旧参考和新实验的训练样本数量、验证组成及可能的训练轨迹均不同；本次没有多种子重复或显著性检验。"
+              "Moon_2/4/9 已用于方案选择，后续对比不再具有从未查看的留出评估含义；本地测试成绩也不等同于官方平台成绩。", ""]
+    return "\n".join(lines)
 
 
 def report(runs, output, curves, curve_note, reference, comparison="tta"):
@@ -390,10 +643,27 @@ def main(argv=None):
     parser.add_argument("--run-on", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=PROJECT / "result" / "analysis")
     parser.add_argument("--reference", type=Path, default=None, help="Optional historical full-test summary JSON")
-    parser.add_argument("--comparison", choices=("tta", "hard-pixels"), default="tta")
+    parser.add_argument("--comparison", choices=("tta", "hard-pixels", "random-split"), default="tta")
+    parser.add_argument("--reference-tta", choices=("none", "hflip"), default="none",
+                        help="Test TTA used to select the old reference recipe in random-split mode")
     args = parser.parse_args(argv)
     try:
-        if args.comparison == "hard-pixels":
+        if args.comparison == "random-split":
+            require(args.reference is None, "random-split uses --run-off as its explicit reference run")
+            old_config = read_json(args.run_off.resolve() / "run_config.json")
+            reference = load_run(args.run_off, "已选旧参考方案", old_config.get("val_tta", "none"))
+            reference["plot_label"] = "Selected previous recipe (Moon_5 validation)"
+            runs = [load_random_split_run(args.run_on)]
+            require(reference["run_dir"] != runs[0]["run_dir"], "Reference and new experiment must be different runs")
+            require(set(reference["tests"]) == {"none", "hflip"}, "Reference requires complete none and hflip tests")
+            validate_design_reference(runs[0], reference, args.reference_tta)
+            changes = same_tta_changes(reference, runs[0])
+            for run in (reference, *runs):
+                directory = Path(run["run_dir"])
+                require(not args.output.resolve().is_relative_to(directory)
+                        and not directory.is_relative_to(args.output.resolve()),
+                        "Analysis output and experiment directories must not contain each other")
+        elif args.comparison == "hard-pixels":
             runs = [load_run(args.run_off, "原损失对照组", "hflip"), load_run(args.run_on, "困难像素辅助组", "hflip")]
             left, right = (r["run_config"] for r in runs)
             require(left.get("hard_pixel_weight", 0) == 0 and right.get("hard_pixel_weight", 0) > 0,
@@ -409,15 +679,17 @@ def main(argv=None):
             runs[0]["plot_label"], runs[1]["plot_label"] = "Original loss", "Directional hard pixels"
         else:
             runs = [load_run(args.run_off, "验证 TTA 关闭组", "none"), load_run(args.run_on, "验证 TTA 开启组", "hflip")]
-        require(runs[0]["run_dir"] != runs[1]["run_dir"], "Expected two different run directories")
-        require(runs[0]["selection"]["sha256"] == runs[1]["selection"]["sha256"], "Runs use different fixed training selections")
-        reference = reference_result(args.reference)
+        if args.comparison != "random-split":
+            require(runs[0]["run_dir"] != runs[1]["run_dir"], "Expected two different run directories")
+            require(runs[0]["selection"]["sha256"] == runs[1]["selection"]["sha256"], "Runs use different fixed training selections")
+            reference = reference_result(args.reference)
     except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError) as error:
         parser.exit(2, f"Analysis not ready: {error}\nNo final analysis was written.\n")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     rows, matrices, history_rows = [], [], []
-    for run in runs:
+    export_runs = [reference, *runs] if args.comparison == "random-split" else runs
+    for run in export_runs:
         for mode, result in run["tests"].items():
             for scene, values in result["scenes"].items():
                 for name, item in values["classes"].items():
@@ -429,10 +701,18 @@ def main(argv=None):
                         matrices.append({"run": Path(run["run_dir"]).name, "test_tta": mode, "scene": scene,
                                          "gt_class": CLASSES[r], "predicted_class": CLASSES[c], "pixels": count})
         for row in run["history"]:
-            history_rows.append({"run": Path(run["run_dir"]).name, "val_tta": run["val_tta"], "epoch": row["epoch"],
-                                 "training_loss": row["training_loss"]["loss_total"],
-                                 "moon5_miou": row["validation"]["scenes"]["Moon_5"]["miou"],
-                                 "backbones_frozen": row.get("backbones_frozen"), "seconds": row.get("seconds")})
+            if args.comparison == "random-split":
+                if run is reference:
+                    continue
+                history_rows.append({"run": Path(run["run_dir"]).name, "val_tta": run["val_tta"], "epoch": row["epoch"],
+                                     "training_loss": row["training_loss"]["loss_total"],
+                                     "validation_miou": row["validation"]["miou"], "selection_scene": "custom_validation",
+                                     "backbones_frozen": row.get("backbones_frozen"), "seconds": row.get("seconds")})
+            else:
+                history_rows.append({"run": Path(run["run_dir"]).name, "val_tta": run["val_tta"], "epoch": row["epoch"],
+                                     "training_loss": row["training_loss"]["loss_total"],
+                                     "moon5_miou": row["validation"]["scenes"]["Moon_5"]["miou"],
+                                     "backbones_frozen": row.get("backbones_frozen"), "seconds": row.get("seconds")})
     write_csv(output / "metrics.csv", rows, list(rows[0]))
     write_csv(output / "confusion_matrices.csv", matrices, list(matrices[0]))
     write_csv(output / "history.csv", history_rows, list(history_rows[0]))
@@ -442,15 +722,24 @@ def main(argv=None):
                "protocol": {"test_images": 5004, "scene_image_counts": SCENES,
                             "weighted_score": "(Moon_2 + Moon_4 + 2*Moon_9)/4", "official_platform_score": False},
                "runs": runs, "reference": reference, "comparison": args.comparison,
-               "between_run_weighted_score_change": runs[1]["tests"][runs[1]["val_tta"]]["weighted_score"] - runs[0]["tests"][runs[0]["val_tta"]]["weighted_score"],
-               "different_checkpoints": runs[0]["checkpoint_sha256"] != runs[1]["checkpoint_sha256"],
+               "between_run_weighted_score_change": (changes[args.reference_tta]["weighted_score_change"] if args.comparison == "random-split" else
+                   runs[1]["tests"][runs[1]["val_tta"]]["weighted_score"] - runs[0]["tests"][runs[0]["val_tta"]]["weighted_score"]),
+               "different_checkpoints": (reference["checkpoint_sha256"] != runs[0]["checkpoint_sha256"] if args.comparison == "random-split" else
+                   runs[0]["checkpoint_sha256"] != runs[1]["checkpoint_sha256"]),
                "causal_tta_effect_established": False, "statistical_significance_tested": False,
                "curves": curves, "curve_note": curve_note}
+    if args.comparison == "random-split":
+        summary.update(reference_tta=args.reference_tta, same_tta_comparisons=changes,
+                       validation_scores_directly_comparable=False, official_test_used_for_recipe_selection=True,
+                       checkpoint_selection_uses_test=False, test_is_previously_unseen_holdout=False,
+                       comparison_is_single_factor_ablation=False)
     temporary = output / "summary.json.tmp"
     temporary.write_text(json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False) + "\n")
     temporary.replace(output / "summary.json")
     temporary = output / "report_zh.md.tmp"
-    temporary.write_text(report(runs, output, curves, curve_note, reference, comparison=args.comparison))
+    temporary.write_text(random_split_report(runs[0], reference, args.reference_tta, changes, output, curves, curve_note)
+                         if args.comparison == "random-split" else
+                         report(runs, output, curves, curve_note, reference, comparison=args.comparison))
     temporary.replace(output / "report_zh.md")
     print(json.dumps({"state": "complete", "report": str(output / "report_zh.md"),
                       "metrics": str(output / "metrics.csv"), "summary": str(output / "summary.json")}, ensure_ascii=False))

@@ -131,16 +131,66 @@ def completed_tracker(output, policy):
     summary = read_json(output / "summary.json")
     completed = summary["completed_epochs"]
     records = []
+    custom = summary.get("selection_scene") == "custom_validation"
+    custom_identity = None
     for epoch in range(1, completed + 1):
         record = read_json(output / f"validation_epoch_{epoch:03d}.json")
         validation = record["validation"]
-        if (record["epoch"] != epoch or record.get("partial") or validation.get("partial")
-                or validation["image_count"] != 1599 or set(validation["scenes"]) != {"Moon_5"}):
+        identity = validation.get("data_identity", {})
+        if custom or identity.get("custom_split") is True:
+            scenes = validation.get("scenes", {})
+            allowed = {"Moon_1", "Moon_3", "Moon_5", "Moon_6", "Moon_7", "Moon_8"}
+            if (not custom or summary.get("partial") is not False
+                    or summary.get("official_test_used_for_selection") is not False
+                    or record["epoch"] != epoch or record.get("partial") is not False
+                    or record.get("selection_scene") != "custom_validation"
+                    or validation.get("partial") is not False or validation.get("image_count") != 1601
+                    or identity.get("custom_split") is not True or identity.get("split") != "val"
+                    or identity.get("protocol") != "random_original_source_family_4_to_1"
+                    or identity.get("image_count") != 1601 or identity.get("validation_image_count") != 1601
+                    or identity.get("partial") is not False or len(scenes) < 2 or not set(scenes).issubset(allowed)
+                    or set(identity.get("validation_scenes", [])) != set(scenes)
+                    or any(type(row.get("image_count")) is not int or row["image_count"] < 1 for row in scenes.values())
+                    or sum(row["image_count"] for row in scenes.values()) != 1601):
+                raise ValueError(f"Early stopping requires complete 1601-image custom validation: {output}, epoch {epoch}")
+            if custom_identity is not None and identity != custom_identity:
+                raise ValueError("Custom validation identity changed within completed history")
+            custom_identity = identity
+            if record.get("selection_score") != validation.get("miou"):
+                raise ValueError("Custom checkpoint selection score differs from pooled validation mIoU")
+        elif (record["epoch"] != epoch or record.get("partial") or validation.get("partial")
+              or validation["image_count"] != 1599 or set(validation["scenes"]) != {"Moon_5"}):
             raise ValueError(f"Early stopping requires complete Moon_5 validation: {output}, epoch {epoch}")
         records.append(record)
-    tracker = PatienceTracker(**policy)
+    tracker_policy = dict(policy)
+    if custom:
+        if tracker_policy.get("metric", "custom_validation_miou") != "custom_validation_miou":
+            raise ValueError("Custom validation cannot use the Moon_5 patience metric")
+        tracker_policy["metric"] = "custom_validation_miou"
+    tracker = PatienceTracker(**tracker_policy)
     tracker.replay(records, completed_epochs=completed)
     return summary, tracker
+
+
+def analysis_command(config):
+    """Build the final analysis command without launching it."""
+    comparison = config.get("comparison", "tta")
+    runs = config["runs"]
+    if comparison == "random-split":
+        if len(runs) != 1 or config.get("reference_tta") not in ("none", "hflip") or not config.get("reference_run"):
+            raise ValueError("Random-split monitoring needs one new run, reference_run and reference_tta")
+        reference = resolve(config["reference_run"])
+        current = resolve(runs[0]["output"])
+        if reference == current:
+            raise ValueError("Random-split reference and new experiment must be different runs")
+        return [sys.executable, "-B", str(PROJECT / "code/analyze_experiments.py"),
+                "--comparison", "random-split", "--run-off", str(reference), "--run-on", str(current),
+                "--reference-tta", config["reference_tta"], "--output", str(resolve(config["analysis_output"]))]
+    if comparison not in ("tta", "hard-pixels") or len(runs) != 2:
+        raise ValueError("Scene-protocol monitoring needs two runs and comparison tta or hard-pixels")
+    return [sys.executable, "-B", str(PROJECT / "code/analyze_experiments.py"),
+            "--run-off", str(resolve(runs[0]["output"])), "--run-on", str(resolve(runs[1]["output"])),
+            "--output", str(resolve(config["analysis_output"])), "--comparison", comparison]
 
 
 def checkpoint_digest(path):
@@ -364,6 +414,7 @@ def main():
             summary, tracker = completed_tracker(run_output, config["policy"])
             print(json.dumps({"run": run["name"], "status": summary["status"], **tracker.state_dict()}, ensure_ascii=False))
         return
+    final_analysis_command = analysis_command(config)
     output = resolve(config["output"])
     output.mkdir(parents=True, exist_ok=True)
     lock = (output / "monitor.lock").open("a")
@@ -383,15 +434,10 @@ def main():
                 state.update(status="monitoring", updated_at=now())
                 write_json(path, state)
             if all(run["phase"] == "evaluated" for run in state["runs"].values()):
-                command = [sys.executable, "-B", str(PROJECT / "code/analyze_experiments.py"),
-                           "--run-off", str(resolve(config["runs"][0]["output"])),
-                           "--run-on", str(resolve(config["runs"][1]["output"])),
-                           "--output", str(resolve(config["analysis_output"])),
-                           "--comparison", config.get("comparison", "tta")]
-                subprocess.run(command, cwd=PROJECT, check=True)
+                subprocess.run(final_analysis_command, cwd=PROJECT, check=True)
                 state.update(status="ready_to_publish", analysis_output=str(resolve(config["analysis_output"])), completed_at=now())
                 write_json(path, state)
-                print("Both experiments evaluated; final analysis ready for Git publication.", flush=True)
+                print("Configured experiments evaluated; final analysis ready for Git publication.", flush=True)
                 return
             time.sleep(config.get("poll_seconds", 5))
     except BaseException as error:

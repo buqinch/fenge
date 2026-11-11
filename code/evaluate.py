@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate a fixed checkpoint on Moon_5 or explicitly on complete Moon_2/4/9."""
+"""Evaluate a checkpoint on its saved validation split or complete Moon_2/4/9."""
 from __future__ import annotations
 
 import argparse
@@ -79,8 +79,14 @@ def main(argv=None):
         torch.cuda.set_device(device)
     model = build_model(config, pretrained=False).to(device)
     model.load_state_dict(checkpoint["model"], strict=True)
-    manifest = path(args.manifest) if args.manifest else DEFAULT_MANIFEST if args.split == "val" else DEFAULT_TEST_MANIFEST
+    saved_validation_manifest = checkpoint.get("run_config", {}).get("manifest", DEFAULT_MANIFEST)
+    manifest = path(args.manifest) if args.manifest else path(saved_validation_manifest) if args.split == "val" else DEFAULT_TEST_MANIFEST
     dataset = LunarDataset(manifest, args.split, config.input_size, max_samples=args.max_samples)
+    saved_val_identity = checkpoint.get("data_identity", {}).get("val", {})
+    if args.split == "val" and args.manifest is None and saved_val_identity:
+        if (dataset.identity["manifest_sha256"] != saved_val_identity.get("manifest_sha256")
+                or (not dataset.partial and dataset.identity != saved_val_identity)):
+            raise ValueError("The checkpoint's saved validation manifest or dataset identity has changed")
     loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers, shuffle=False,
                         drop_last=False, pin_memory=device.type == "cuda")
     image_exporter = None

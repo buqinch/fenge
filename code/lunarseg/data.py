@@ -1,4 +1,4 @@
-"""Fixed scene splits and palette-safe loading of the LuSNAR dataset."""
+"""Scene/source-family splits and palette-safe loading of the LuSNAR dataset."""
 from __future__ import annotations
 
 import hashlib
@@ -37,6 +37,11 @@ def resolve_record_path(root: Path, value: str) -> Path:
     return path if path.is_absolute() else root / path
 
 
+def _canonical_sha256(value) -> str:
+    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":")).encode()).hexdigest()
+
+
 def decode_palette_label(image: Image.Image) -> np.ndarray:
     """Original P-mode palette indices are NOT our training class IDs."""
     rgb = np.asarray(image.convert("RGB"), dtype=np.uint8)
@@ -50,11 +55,11 @@ def decode_palette_label(image: Image.Image) -> np.ndarray:
 
 
 class LunarDataset(Dataset):
-    """All train/val assignments come from the original scene manifest.
+    """Load the scene protocol or a validated literal source-family split.
 
     Offline augmentation may only enter training. Its sources are checked against
-    the original training identities before paths are accepted. Test labels are
-    read from their original archives, including the verified Moon_4 archive.
+    the original training pool and, for a custom split, its new training families.
+    Test labels remain in their independent archives, including verified Moon_4.
     """
 
     def __init__(self, manifest: str | Path = DEFAULT_MANIFEST, split: str = "train",
@@ -84,7 +89,15 @@ class LunarDataset(Dataset):
         self.records: list[dict] = []
         self.identity = {"manifest": str(self.manifest), "manifest_sha256": sha256_file(self.manifest),
                          "split": split, "train_source": train_source if split == "train" else None}
-        if split == "test":
+        if source.get("schema") == "lusnar_random_split_v1":
+            if split == "test":
+                raise ValueError("Use the independent Moon_2/4/9 test manifest for test evaluation")
+            if (augmented_manifest is not None or augmentation_groups or selection_manifest is not None
+                    or train_source != "original"):
+                raise ValueError("The custom split already embeds its complete training selection; "
+                                 "do not add augmentation manifests/groups, train_source overrides or a selection manifest")
+            self._load_random_split(source)
+        elif split == "test":
             records = source.get("records")
             if not isinstance(records, list):
                 raise ValueError("Test manifest must contain records")
@@ -148,9 +161,196 @@ class LunarDataset(Dataset):
             self.records = self.records[:max_samples]
         self.partial = len(self.records) != self.complete_count
         source_ids = sorted({row["source_id"] for row in self.records})
+        ordered_hash = (_canonical_sha256(self.records) if self.identity.get("custom_split") else
+                        hashlib.sha256(json.dumps(self.records, sort_keys=True).encode()).hexdigest())
         self.identity.update(image_count=len(self.records), complete_image_count=self.complete_count,
                              partial=self.partial, unique_source_count=len(source_ids),
-                             ordered_samples_sha256=hashlib.sha256(json.dumps(self.records, sort_keys=True).encode()).hexdigest())
+                             ordered_samples_sha256=ordered_hash)
+
+    def _load_random_split(self, source: dict):
+        """Replay a literal source-family split, validating both halves together.
+
+        No random selection occurs while loading or resuming. The source
+        manifests establish the complete original pool and legal augmentation
+        provenance; the new literal lists establish the new train/val roles.
+        """
+        protocol = "random_original_source_family_4_to_1"
+        if source.get("split_protocol") != protocol or source.get("class_names") != list(CLASS_NAMES):
+            raise ValueError("Custom split protocol or class order differs from the five-class definition")
+        if type(source.get("seed")) is not int or source["seed"] < 0:
+            raise ValueError("Custom split seed must be a nonnegative integer")
+        if source.get("test_scenes_used", False) is not False:
+            raise ValueError("Custom original pool cannot contain independent test scenes")
+        splits, original_split = source.get("splits"), source.get("original_split")
+        if (not isinstance(splits, dict) or set(splits) != {"train", "val"}
+                or any(not isinstance(rows, list) or not rows for rows in splits.values())):
+            raise ValueError("Custom split must contain nonempty literal train and val lists")
+        if (not isinstance(original_split, dict)
+                or set(original_split) != {"train_source_ids", "val_source_ids"}
+                or any(not isinstance(ids, list) or any(not isinstance(sid, str) for sid in ids)
+                       for ids in original_split.values())):
+            raise ValueError("Custom split must declare literal original source-family lists")
+        if source.get("splits_sha256") != _canonical_sha256(splits):
+            raise ValueError("Custom split literal lists SHA256 mismatch")
+        if source.get("original_split_sha256") != _canonical_sha256(original_split):
+            raise ValueError("Custom original source-family lists SHA256 mismatch")
+        ordered = source.get("ordered_samples_sha256")
+        if (not isinstance(ordered, dict) or set(ordered) != {"train", "val"}
+                or any(ordered[split] != _canonical_sha256(rows) for split, rows in splits.items())):
+            raise ValueError("Custom split ordered sample SHA256 mismatch")
+
+        provenance = {}
+        for prefix in ("source", "augmented"):
+            raw_path = source.get(prefix + "_manifest")
+            if not isinstance(raw_path, str) or not Path(raw_path).is_absolute():
+                raise ValueError(f"Custom {prefix} manifest path must be absolute")
+            path = Path(raw_path).resolve()
+            fingerprint = sha256_file(path)
+            if source.get(prefix + "_manifest_sha256") != fingerprint:
+                raise ValueError(f"Custom {prefix} manifest SHA256 mismatch")
+            document = json.loads(path.read_text())
+            if document.get("class_names") != list(CLASS_NAMES) or not isinstance(document.get("samples"), list):
+                raise ValueError(f"Invalid custom {prefix} source manifest")
+            provenance[prefix] = (path, fingerprint, document)
+        original_path, original_sha, original_document = provenance["source"]
+        augmented_path, augmented_sha, augmented_document = provenance["augmented"]
+        if (augmented_document.get("validation_or_test_used") is not False
+                or not isinstance(augmented_document.get("source_manifest"), str)
+                or Path(augmented_document["source_manifest"]).resolve() != original_path
+                or augmented_document.get("source_manifest_sha256") != original_sha):
+            raise ValueError("Augmentation provenance differs from the original pool or includes validation/test sources")
+
+        resolved_paths = {}
+        def canonical_path(root, value):
+            if not isinstance(value, str):
+                raise ValueError("Sample image/mask paths must be strings")
+            path = str(resolve_record_path(root, value))
+            if path not in resolved_paths:
+                resolved_paths[path] = str(Path(path).resolve())
+            return resolved_paths[path]
+
+        originals, old_train_ids = {}, set()
+        source_images, source_masks = set(), set()
+        for row in original_document["samples"]:
+            scene, sid = row.get("scene"), str(row.get("sample_id"))
+            expected = "train" if scene in TRAIN_SCENES else "val" if scene in VAL_SCENES else None
+            if expected is None or row.get("split") != expected:
+                raise ValueError("Original pool contains an invalid scene/split or an independent test scene")
+            source_id = f"{scene}/{sid}"
+            image = canonical_path(original_path.parent, row.get("image"))
+            mask = canonical_path(original_path.parent, row.get("mask"))
+            if (source_id in originals or image in source_images or mask in source_masks
+                    or image in source_masks or mask in source_images or image == mask):
+                raise ValueError("Original pool contains duplicate source identities or image/mask paths")
+            originals[source_id] = {"scene": scene, "sample_id": sid, "source_id": source_id,
+                                    "image": image, "mask": mask, "source_kind": "original"}
+            source_images.add(image)
+            source_masks.add(mask)
+            if expected == "train":
+                old_train_ids.add(source_id)
+        train_ids, val_ids = (set(original_split[name]) for name in ("train_source_ids", "val_source_ids"))
+        pool_size = len(originals)
+        if (pool_size < 2 or len(train_ids) != len(original_split["train_source_ids"])
+                or len(val_ids) != len(original_split["val_source_ids"]) or train_ids & val_ids
+                or train_ids | val_ids != set(originals)
+                or len(train_ids) != pool_size * 4 // 5 or len(val_ids) != pool_size - pool_size * 4 // 5):
+            raise ValueError("Custom original families must partition the complete original pool 4:1 without overlap")
+        if (source.get("original_pool_source_ids_sha256") is not None
+                and source["original_pool_source_ids_sha256"] != _canonical_sha256(sorted(originals))):
+            raise ValueError("Custom original pool source-ID SHA256 mismatch")
+
+        augmented = {}
+        for row in augmented_document["samples"]:
+            source_id = f"{row.get('source_scene')}/{row.get('source_sample_id')}"
+            if row.get("split") != "train" or source_id not in old_train_ids:
+                raise ValueError("Augmentation source is outside the legal original training pool")
+            group = row.get("primary_group", row.get("focus_group"))
+            if group not in ("crater", "mountain_rock", "mixed"):
+                raise ValueError("Unknown augmentation group in source manifest")
+            scene, sid = row["source_scene"], str(row.get("sample_id"))
+            key = (scene, sid)
+            image = canonical_path(augmented_path.parent, row.get("image"))
+            mask = canonical_path(augmented_path.parent, row.get("mask"))
+            if (key in augmented or image in source_images or mask in source_masks
+                    or image in source_masks or mask in source_images or image == mask):
+                raise ValueError("Augmentation pool contains duplicate identities or original/augmented image/mask paths")
+            augmented[key] = {"scene": scene, "sample_id": sid, "source_id": source_id,
+                              "image": image, "mask": mask, "source_kind": "augmented", "augmentation_group": group}
+            source_images.add(image)
+            source_masks.add(mask)
+
+        augmentation_counts = source.get("augmentation_counts")
+        if (not isinstance(augmentation_counts, dict) or set(augmentation_counts) != {"crater", "mountain_rock"}
+                or any(type(count) is not int or count < 1 for count in augmentation_counts.values())):
+            raise ValueError("Custom split must declare positive crater and mountain_rock augmentation counts")
+        actual_groups = dict.fromkeys(augmentation_counts, 0)
+        actual_originals = {"train": set(), "val": set()}
+        seen_ids, seen_images, seen_masks = set(), set(), set()
+        for split, rows in splits.items():
+            for row in rows:
+                if not isinstance(row, dict) or row.get("split") != split:
+                    raise ValueError("Custom sample has an invalid split assignment")
+                scene, sid, kind = row.get("scene"), str(row.get("sample_id")), row.get("source_kind")
+                if scene not in TRAIN_SCENES | VAL_SCENES:
+                    raise ValueError("Independent test scenes are excluded from custom train/val")
+                source_id = row.get("source_id")
+                expected_ids = train_ids if split == "train" else val_ids
+                if source_id not in expected_ids:
+                    raise ValueError("Custom split leaks an original source family across train/val")
+                if kind == "original":
+                    candidate = originals.get(source_id)
+                    if row.get("augmentation_group") is not None:
+                        raise ValueError("Original samples cannot declare an augmentation group")
+                    if source_id in actual_originals[split]:
+                        raise ValueError("Duplicate original family in custom split")
+                    actual_originals[split].add(source_id)
+                elif kind == "augmented" and split == "train":
+                    candidate = augmented.get((scene, sid))
+                    group = row.get("augmentation_group")
+                    if group not in actual_groups or candidate is None or candidate["augmentation_group"] != group:
+                        raise ValueError("Custom augmented sample/group is absent from the source manifest")
+                    actual_groups[group] += 1
+                else:
+                    raise ValueError("Custom validation must contain only originals; training kinds must be original/augmented")
+                if candidate is None or any(row.get(field) != candidate[field] for field in
+                                            ("scene", "sample_id", "source_id", "source_kind", "image", "mask")):
+                    raise ValueError("Custom sample identity, source or paths differ from source provenance")
+                for field in ("image", "mask"):
+                    if (not Path(row[field]).is_absolute()
+                            or canonical_path(self.manifest.parent, row[field]) != row[field]):
+                        raise ValueError("Custom sample paths must be absolute canonical paths")
+                image, mask, key = row["image"], row["mask"], (scene, sid)
+                if (key in seen_ids or image in seen_images or mask in seen_masks
+                        or image in seen_masks or mask in seen_images or image == mask):
+                    raise ValueError("Custom split contains duplicate sample identities or image/mask paths")
+                seen_ids.add(key)
+                seen_images.add(image)
+                seen_masks.add(mask)
+        if actual_originals != {"train": train_ids, "val": val_ids} or actual_groups != augmentation_counts:
+            raise ValueError("Custom literal samples do not contain the complete originals/declared augmentations")
+        expected_counts = {"original_pool": pool_size, "train_original": len(train_ids), "val_original": len(val_ids),
+                           "train_augmented": sum(actual_groups.values()), "train_total": len(splits["train"]),
+                           "val_total": len(splits["val"])}
+        counts = source.get("counts")
+        if (not isinstance(counts, dict) or counts != expected_counts
+                or any(type(count) is not int for count in counts.values())):
+            raise ValueError("Custom split declared counts differ from literal samples")
+        if sha256_file(original_path) != original_sha or sha256_file(augmented_path) != augmented_sha:
+            raise ValueError("A source manifest changed while validating the custom split")
+        self.records = [dict(row) for row in splits[self.split]]
+        self.identity.update(protocol=protocol, custom_split=True,
+                             train_source="embedded_custom_manifest" if self.split == "train" else None,
+                             selection_metric="validation_all_scenes_miou", selection_scope="custom_val_originals",
+                             split_seed=source["seed"], split_counts=counts, augmentation_counts=augmentation_counts,
+                             source_manifest=str(original_path), source_manifest_sha256=original_sha,
+                             augmented_manifest=str(augmented_path), augmented_manifest_sha256=augmented_sha,
+                             original_split_sha256=source["original_split_sha256"], splits_sha256=source["splits_sha256"],
+                             literal_ordered_samples_sha256=ordered[self.split],
+                             train_original_source_ids_sha256=_canonical_sha256(sorted(train_ids)),
+                             val_original_source_ids_sha256=_canonical_sha256(sorted(val_ids)),
+                             validation_scenes=sorted({row["scene"] for row in splits["val"]}),
+                             validation_image_count=len(splits["val"]),
+                             independent_test_scenes=sorted(TEST_SCENES))
 
     def _apply_selection(self, path: Path):
         """Validate a fixed sample list against the complete legal candidates.

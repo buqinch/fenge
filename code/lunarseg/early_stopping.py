@@ -1,8 +1,8 @@
 """Pure validation-history patience logic for an external training monitor.
 
 This module never imports the trainer, changes a checkpoint, or stops a process.
-Feed only completed Moon_5 epochs, using summary.json's completed_epochs as the
-history boundary. Best-checkpoint selection remains independent of this policy.
+Feed only completed validation epochs, using summary.json's completed_epochs as
+the history boundary. Best-checkpoint selection remains independent of policy.
 """
 from __future__ import annotations
 
@@ -20,7 +20,8 @@ class PatienceTracker:
     counter. Repeated observations of an identical epoch/score are idempotent.
     """
 
-    def __init__(self, patience: int = 5, min_delta: float = 0.0005, start_epoch: int = 4):
+    def __init__(self, patience: int = 5, min_delta: float = 0.0005, start_epoch: int = 4,
+                 metric: str = "Moon_5_miou"):
         if type(patience) is not int or patience < 0:
             raise ValueError("patience must be a nonnegative integer")
         if type(start_epoch) is not int or start_epoch < 1:
@@ -29,9 +30,12 @@ class PatienceTracker:
             raise ValueError("min_delta must be a finite nonnegative number")
         if not math.isfinite(min_delta) or min_delta < 0:
             raise ValueError("min_delta must be a finite nonnegative number")
+        if metric not in ("Moon_5_miou", "custom_validation_miou"):
+            raise ValueError("metric must be Moon_5_miou or custom_validation_miou")
         self.patience = patience
         self.min_delta = float(min_delta)
         self.start_epoch = start_epoch
+        self.metric = metric
         self.anchor_score: float | None = None
         self.anchor_epoch: int | None = None
         self.bad_epochs = 0
@@ -49,7 +53,7 @@ class PatienceTracker:
     @property
     def policy(self) -> dict:
         return {"patience": self.patience, "min_delta": self.min_delta,
-                "start_epoch": self.start_epoch, "metric": "Moon_5_miou",
+                "start_epoch": self.start_epoch, "metric": self.metric,
                 "threshold_comparison": "score >= anchor + min_delta"}
 
     def update(self, epoch: int, miou: float) -> bool:
@@ -96,7 +100,8 @@ class PatienceTracker:
                 if self.bad_epochs >= self.patience:
                     self.stopped = True
                     self.stop_epoch = epoch
-                    self.stop_reason = (f"Moon_5 mIoU failed to improve by at least {self.min_delta:g} "
+                    label = "Moon_5 mIoU" if self.metric == "Moon_5_miou" else "custom validation mIoU"
+                    self.stop_reason = (f"{label} failed to improve by at least {self.min_delta:g} "
                                         f"above anchor {self.anchor_score:.12g} for {self.patience} "
                                         f"consecutive eligible epochs; stop at completed epoch {epoch}")
         return self.stopped
@@ -115,7 +120,7 @@ class PatienceTracker:
         """Restore only the same policy, checking the state against its history."""
         if state.get("schema") != "lusnar_patience_tracker_v1" or state.get("policy") != self.policy:
             raise ValueError("Patience state has a different policy; replay history under the new explicit policy")
-        rebuilt = type(self)(self.patience, self.min_delta, self.start_epoch)
+        rebuilt = type(self)(self.patience, self.min_delta, self.start_epoch, metric=self.metric)
         rebuilt.replay(state.get("observations", []), completed_epochs=state["last_epoch"])
         fields = ("anchor_score", "anchor_epoch", "bad_epochs", "last_epoch", "stopped", "stop_epoch", "stop_reason")
         if any(getattr(rebuilt, field) != state.get(field) for field in fields):
@@ -126,7 +131,8 @@ class PatienceTracker:
     @classmethod
     def from_state_dict(cls, state: dict) -> "PatienceTracker":
         policy = state["policy"]
-        tracker = cls(policy["patience"], policy["min_delta"], policy["start_epoch"])
+        tracker = cls(policy["patience"], policy["min_delta"], policy["start_epoch"],
+                      metric=policy.get("metric", "Moon_5_miou"))
         tracker.load_state_dict(state)
         return tracker
 
@@ -134,8 +140,9 @@ class PatienceTracker:
         """Consume history up to summary.completed_epochs, never an in-flight row.
 
         Accepts compact {epoch, miou} observations or the trainer's JSONL records
-        containing validation.scenes.Moon_5.miou. Calling this repeatedly with
-        the full history is safe. All eligible completed epochs must be present.
+        containing validation.scenes.Moon_5.miou under the scene protocol, or
+        validation.miou with a custom-split identity under the custom protocol.
+        Replaying full history is safe. All eligible completed epochs must exist.
         """
         if type(completed_epochs) is not int or completed_epochs < 0:
             raise ValueError("completed_epochs must be a nonnegative integer")
@@ -152,9 +159,16 @@ class PatienceTracker:
                 score = row["miou"]
             else:
                 try:
-                    score = row["validation"]["scenes"]["Moon_5"]["miou"]
+                    if self.metric == "custom_validation_miou":
+                        validation = row["validation"]
+                        if validation["data_identity"].get("custom_split") is not True:
+                            raise ValueError("Custom validation history must identify its custom source-family split")
+                        score = validation["miou"]
+                    else:
+                        score = row["validation"]["scenes"]["Moon_5"]["miou"]
                 except (KeyError, TypeError) as error:
-                    raise ValueError("History must provide the Moon_5 validation mIoU") from error
+                    label = "custom pooled validation" if self.metric == "custom_validation_miou" else "Moon_5 validation"
+                    raise ValueError(f"History must provide the {label} mIoU") from error
             self.update(row["epoch"], score)
         if self.enabled and completed_epochs >= self.start_epoch and self.last_epoch != completed_epochs:
             raise ValueError("History is missing the summary's latest completed validation epoch")

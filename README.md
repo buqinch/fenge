@@ -75,6 +75,53 @@ ConvNeXt 使用 [timm 维护者发布的 DINOv3 LVD1689M 权重](https://hugging
 
 增强清单：`/media/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json`。`crater`、`mountain_rock`、`mixed` 各 2000 张，均来自训练场景，额外读取相对路径 `image/mask` 和 `primary_group`。6000 个裁剪来自 2872 个原图，不是 6000 个独立场景，不能随机拆入验证集。
 
+### 自定义随机 4:1 划分
+
+新增保存清单为 `result/selections/random80_seed42_20261112.json`。按用户选择，仅合并旧训练场景和 Moon_5 的 **8002 张原始图**，不纳入 Moon_2/4/9。先按来源 ID 排序，以 seed 42 完整打乱，前 `floor(8002×4/5)=6401` 张作为原图训练集，余下 1601 张作为验证集；字面顺序、源文件哈希及抽选算法均已保存，读取和续训不重新划分。
+
+| 用途 | 原始图 | 大坑增强 | 山体增强 | 总数 |
+|---|---:|---:|---:|---:|
+| 自定义训练 | 6401 | 1500 | 1500 | **9401** |
+| 自定义验证 | 1601 | 0 | 0 | **1601** |
+| Moon_2/4/9 测试 | 5004 | 0 | 0 | **5004** |
+
+4:1 比例作用于原始图，增强随后追加到训练集。原图和其所有增强版本作为同一来源管理，增强只允许来自新的 6401 个训练来源。新验证来源对应的大坑增强 372 张、山体增强 375 张全部排除；剩余候选分别为 1628、1625 张，再以同一 RNG 各无放回抽取 1500 张，组合训练列表最后再次打乱。验证集不包含增强图，训练／验证来源交集为空；没有用增强图凑验证数量。
+
+构建与独立核验均使用现有入口：
+
+```bash
+python code/select_training_data.py --mode random-split --seed 42 \
+  --output result/selections/random80_seed42_20261112.json
+python code/verify.py --split-only \
+  --split-manifest result/selections/random80_seed42_20261112.json \
+  --output result/random_split_verification.json
+```
+
+清单 SHA256 为 `29da57bc3a846e5ae38ba8bd55919e8813f3da954695ffa53552d2e4094e7187`。构建时已只读核验全部 **11002 张训练／验证 ID 标签**的 L 模式与 0–4 范围。独立核验还重演 seed 抽选、逐条核对来源和顺序、检查泄漏／重复／篡改拒绝，并按 split×scene×group 实读 21 对图像与标签；报告见 [random_split_verification.json](result/random_split_verification.json)。图片仍引用 NAS 原文件，不另复制数据。
+
+新训练配置为 `config/dual_region_random80_1024.json`，其 manifest 已完整包含原图和增强图，因此不再叠加旧的 `selection_manifest` 或其他 `augmented_manifest`。训练选轮使用全部 1601 张自定义验证图的汇总混淆矩阵 mIoU，标记 `custom_validation`。`evaluate.py --split val` 默认读取检查点保存的验证清单；`--split test` 仍读取完整 Moon_2/4/9。
+
+已按要求停止原两组训练并完成各最佳权重的两种完整测试。当前原损失组最佳为第 10 轮、困难像素组最佳为第 7 轮；四个历史检查点的全部 8 份成绩使用相同的 5004 张标签与评分公式，逐份核对了检查点 SHA256。
+
+| 最佳检查点 | 单视图 S | 水平翻转 TTA S |
+|---|---:|---:|
+| 最初单视图组，第 5 轮 | 87.0732% | 87.2468% |
+| 上一轮 TTA 组，第 12 轮 | 88.2424% | 88.3044% |
+| 本轮原损失对照，第 10 轮 | 88.1130% | **88.3678%** |
+| 本轮困难像素辅助，第 7 轮 | 87.5780% | 87.8410% |
+
+因此新随机划分采用原损失方案（`hard_pixel_weight=0`）和 hflip 验证，保留 1024、batch 8、seed 42、原学习率／冻结计划，从原始预训练重新训练。方案选择清单为 `result/selections/random80_selected_recipe_20261112.json`，包含所有候选结果、选中权重与测试结果 SHA256，以及新划分哈希和实际训练参数。旧最佳分割权重见过新验证集中的部分原图，原始预训练初始化可避免这部分监督历史重叠。
+
+```bash
+python code/train.py --config config/dual_region_random80_1024.json --device cuda:3
+python code/monitor_experiments.py --config config/early_stopping_random80.json
+python code/publish_results.py --config config/early_stopping_random80.json
+```
+
+新结果目录为 `result/dual_region_random80_1024/`；独立监控保存在 `result/random80_monitor/`。仍按完整验证集连续 5 轮没有增加 0.05 个百分点早停，结束后自动测试新最佳检查点的 none／hflip 两种完整 Moon_2/4/9，分析写入 `result/random80_analysis/` 并自动提交推送。新旧测试按相同 TTA 分别比较，图像、权重和验证划分的来源都保留在记录中。
+
+新划分允许同一场景出现在训练和验证中，与原先整场景留出 Moon_5 的口径不同，新旧验证 mIoU 不能直接作为提升对比。本轮按用户要求使用 Moon_2/4/9 的结果选择训练方案，后续在这三个场景上的结果属于同一已查看测试集上的对照；相关选择依据会保存在运行记录中。
+
 ## 训练与断点续训
 
 当前实验使用固定随机选择的 **8000 张训练图**：5000 张原始图、1500 张 `mountain_rock` 山岩交界增强、1500 张 `crater` 大坑增强。Moon_5 的完整 1599 张继续用于每轮评估与选轮。实际 **batch size 8、累积 1**，有效 batch 也是 8。
@@ -124,7 +171,7 @@ python code/train.py --config config/dual_region_augmented_tta_1024.json --resum
 
 本轮从**原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 预训练**重新训练两组，融合层和区域头以相同 seed 42 初始化；不从已有第 12 轮权重微调。两组固定使用上述同一份 8000 张训练清单、1024 整图、batch 8、累积 1、前 3 轮冻结骨干、最多 30 轮、相同学习率和 Moon_5 水平翻转 TTA 验证。只改变训练损失中的困难像素辅助权重，推理保留山体系数 α=1。
 
-已于 **2026-11-12 00:04（北京时间）**在 GPU 3/4 启动原损失对照和困难像素实验。两份实际 `run_config.json` 仅输出目录及 λ 不同，初始全模型 SHA256 都是 `48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`；核对记录在 `result/hard_pixel_monitor/initialization_check.json`。训练和自动后续流程仍在运行，当前不能据运行检查或训练损失判断分割收益。
+两组于 **2026-11-12 00:04（北京时间）**在 GPU 3/4 启动，现已按要求停止：原损失组完成 10 轮、最佳第 10 轮；困难像素组完成 9 轮、最佳第 7 轮。两份实际 `run_config.json` 仅输出目录及 λ 不同，初始全模型 SHA256 都是 `48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`；核对记录在 `result/hard_pixel_monitor/initialization_check.json`。完整测试及分析已完成，见 `result/hard_pixel_analysis/`；新随机划分的方案选择结果见上节。
 
 ```bash
 python code/train.py --config config/dual_region_augmented_tta_1024.json \

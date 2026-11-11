@@ -1,0 +1,160 @@
+{
+  "schema": "lusnar_test_selected_recipe_v1",
+  "created_at_utc": "2026-11-11T17:36:15.400889+00:00",
+  "selected_using_test": true,
+  "selection_metric": "S=(Moon_2 mIoU + Moon_4 mIoU + 2*Moon_9 mIoU)/4",
+  "selection_rule": "Maximum complete 5004-image weighted S among the existing four best checkpoints and both inference modes; each checkpoint epoch was chosen on its own Moon_5 validation",
+  "selected_run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8",
+  "selected_checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/best.pt",
+  "selected_checkpoint_sha256": "96c2c7a7df646cd1a21876e7a3a5c651d14298face3d0a3bbd64f9dafbf93356",
+  "selected_checkpoint_epoch": 10,
+  "selected_test_tta": "hflip",
+  "selected_weighted_score": 0.8836778870423398,
+  "selected_metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/test_hflip_metrics.json",
+  "selected_metrics_sha256": "6d85c280b5017a47471855273b0eb71f312d79de27bd256df2a49ea57d91798a",
+  "training_recipe": {
+    "decoder": "region",
+    "backbone": "dual",
+    "input_size": 1024,
+    "num_queries": 32,
+    "decoder_layers": 4,
+    "hard_pixel_weight": 0.0,
+    "hard_pixel_quota": 256,
+    "batch_size": 8,
+    "accumulation": 1,
+    "head_lr": 0.0001,
+    "backbone_lr": 1e-05,
+    "freeze_epochs": 3,
+    "epochs": 30,
+    "val_tta": "hflip",
+    "seed": 42
+  },
+  "initialization_mode": "original_pretrained",
+  "initialization_basis": "User previously selected restarting from original pretrained backbones; retain the selected training recipe without transferring lunar-trained weights into the new random validation split",
+  "validation_independent_of_prior_lunar_training": true,
+  "new_split_manifest": "/home/lzc/workspace/fenge/result/selections/random80_seed42_20261112.json",
+  "new_split_manifest_sha256": "29da57bc3a846e5ae38ba8bd55919e8813f3da954695ffa53552d2e4094e7187",
+  "candidate_results": [
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/best.pt",
+      "checkpoint_sha256": "96c2c7a7df646cd1a21876e7a3a5c651d14298face3d0a3bbd64f9dafbf93356",
+      "checkpoint_epoch": 10,
+      "tta": "hflip",
+      "weighted_score": 0.8836778870423398,
+      "scene_miou": {
+        "Moon_2": 0.9267653915049945,
+        "Moon_4": 0.9162364993965365,
+        "Moon_9": 0.8458548286339143
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/test_hflip_metrics.json",
+      "metrics_sha256": "6d85c280b5017a47471855273b0eb71f312d79de27bd256df2a49ea57d91798a"
+    },
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/best.pt",
+      "checkpoint_sha256": "ff4d8f32a91c1d6dce06b0f06e482c2aa246a18eda2995b452b4f0c878c33eb2",
+      "checkpoint_epoch": 12,
+      "tta": "hflip",
+      "weighted_score": 0.8830443668934227,
+      "scene_miou": {
+        "Moon_2": 0.9302281236391504,
+        "Moon_4": 0.9205287951061155,
+        "Moon_9": 0.8407102744142125
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_hflip_metrics.json",
+      "metrics_sha256": "76bee456dd65699e557366391fb184654076b56c95384302a6e1b1a324bd9742"
+    },
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/best.pt",
+      "checkpoint_sha256": "ff4d8f32a91c1d6dce06b0f06e482c2aa246a18eda2995b452b4f0c878c33eb2",
+      "checkpoint_epoch": 12,
+      "tta": "none",
+      "weighted_score": 0.8824244465052578,
+      "scene_miou": {
+        "Moon_2": 0.9307419793424276,
+        "Moon_4": 0.9191911171252345,
+        "Moon_9": 0.8398823447766846
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/test_metrics.json",
+      "metrics_sha256": "bc33afdc3a7ec1a095774f7496c8dfc5e2a8f9d92e47f2b5dcf539aee2a79d4c"
+    },
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/best.pt",
+      "checkpoint_sha256": "96c2c7a7df646cd1a21876e7a3a5c651d14298face3d0a3bbd64f9dafbf93356",
+      "checkpoint_epoch": 10,
+      "tta": "none",
+      "weighted_score": 0.8811302189077175,
+      "scene_miou": {
+        "Moon_2": 0.926690248269878,
+        "Moon_4": 0.9131325777025902,
+        "Moon_9": 0.8423490248292008
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_control_8000_bs8/test_metrics.json",
+      "metrics_sha256": "14a732b1ba8b482d40ad9f681fc380428cfbe1facc8a309660deacd99754a802"
+    },
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/best.pt",
+      "checkpoint_sha256": "7f341f060a0aa316c3013d0e8bad2f268bb8a92ae7eba98529c32b29def15453",
+      "checkpoint_epoch": 7,
+      "tta": "hflip",
+      "weighted_score": 0.8784097277229723,
+      "scene_miou": {
+        "Moon_2": 0.9288104527297255,
+        "Moon_4": 0.9124843645394426,
+        "Moon_9": 0.8361720468113605
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_hflip_metrics.json",
+      "metrics_sha256": "e6a3e750e494077ec0804390b30cab40a8278e0db957320228d355706b0f3e21"
+    },
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/best.pt",
+      "checkpoint_sha256": "7f341f060a0aa316c3013d0e8bad2f268bb8a92ae7eba98529c32b29def15453",
+      "checkpoint_epoch": 7,
+      "tta": "none",
+      "weighted_score": 0.8757803440413382,
+      "scene_miou": {
+        "Moon_2": 0.9290415421027314,
+        "Moon_4": 0.9103534015415864,
+        "Moon_9": 0.8318632162605175
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_metrics.json",
+      "metrics_sha256": "65f3697f719dec7ddf308a8b10badb31427021b71726185faaec5d05e628e68b"
+    },
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/best.pt",
+      "checkpoint_sha256": "10baa725baf8bb8d01cfcfe36624be5969d6fbb333f7e0f1345414f34cc9b043",
+      "checkpoint_epoch": 5,
+      "tta": "hflip",
+      "weighted_score": 0.8724676096041081,
+      "scene_miou": {
+        "Moon_2": 0.9198218319526698,
+        "Moon_4": 0.8892774208685303,
+        "Moon_9": 0.840385592797616
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/test_hflip_metrics.json",
+      "metrics_sha256": "cb144b2946b22a8f0f5d2f19b70dc5b4ac33e0f1d62c4f722dfd2a1917884f2b"
+    },
+    {
+      "run": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8",
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/best.pt",
+      "checkpoint_sha256": "10baa725baf8bb8d01cfcfe36624be5969d6fbb333f7e0f1345414f34cc9b043",
+      "checkpoint_epoch": 5,
+      "tta": "none",
+      "weighted_score": 0.8707318176369632,
+      "scene_miou": {
+        "Moon_2": 0.9167137533577041,
+        "Moon_4": 0.8862710628070442,
+        "Moon_9": 0.8399712271915524
+      },
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8/test_metrics.json",
+      "metrics_sha256": "43e7804344b97f41ed1e8378b4370067b60db52dbc5efaced2f8aa4c983220cc"
+    }
+  ],
+  "test_comparison_interpretation": "Moon_2/4/9 are excluded from training data but have been used for recipe selection; later evaluation is a comparison on an already inspected test set"
+}
