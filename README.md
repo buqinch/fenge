@@ -94,7 +94,9 @@ python code/select_training_data.py --config config/train_selection_8000.json
 | `config/dual_region_augmented_1024.json` | 原图单视图 | `result/dual_region_balanced8000_bs8` | GPU 3 |
 | `config/dual_region_augmented_tta_1024.json` | 原图＋水平翻转，2 视图 | `result/dual_region_balanced8000_bs8_tta` | GPU 4 |
 
-无 TTA 组已按要求在完成第 9 轮后停止，第 10 轮未完成部分不计入完成轮数；最佳检查点为第 5 轮，完整 Moon_5 mIoU 为 87.7176%。已在 GPU 3 完成其完整 Moon_2/4/9 的 `none`、`hflip` 测试，各 5004 张，两次均未保存图片。单视图加权 S 为 **87.0732%**，同一权重加水平翻转 TTA 后为 **87.2468%**；逐场景、逐类结果及混淆分析见 [测试分析](result/dual_region_balanced8000_bs8/test_comparison_zh.md)。TTA 训练组也已按要求在完成第 14 轮后停止，最佳第 12 轮 Moon_5 mIoU 为 **88.4815%**；其最终测试和两组联合报告由后台流程继续完成，状态记录在 `result/experiment_monitor/state.json`。
+无 TTA 组已按要求在完成第 9 轮后停止，第 10 轮未完成部分不计入完成轮数；最佳检查点为第 5 轮，完整 Moon_5 mIoU 为 87.7176%。已在 GPU 3 完成其完整 Moon_2/4/9 的 `none`、`hflip` 测试，各 5004 张，两次均未保存图片。单视图加权 S 为 **87.0732%**，同一权重加水平翻转 TTA 后为 **87.2468%**；逐场景、逐类结果及混淆分析见 [测试分析](result/dual_region_balanced8000_bs8/test_comparison_zh.md)。
+
+TTA 训练组也已按要求在完成第 14 轮后停止，最佳第 12 轮 Moon_5 mIoU 为 **88.4815%**。已在 GPU 4 完成其两种完整测试：单视图 S 为 **88.2424%**，翻转 TTA S 为 **88.3044%**。同一检查点的 TTA 增益为 0.0620 个百分点；两组不同检查点之间的增益不能全部归因于 TTA。四次完整测试、逐类混淆矩阵和曲线见 [两组完整分析](result/analysis/report_zh.md)，流程与发布记录位于 `result/experiment_monitor/`。
 
 重新开展同配置实验时，在两个终端分别运行，并为新实验指定新的结果目录：
 
