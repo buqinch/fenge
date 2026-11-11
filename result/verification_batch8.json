@@ -1,0 +1,89 @@
+{
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "device": "cuda:3",
+  "input_size": 1024,
+  "batch_size": 8,
+  "matching": {
+    "query_permutation_invariant": true,
+    "semantic_class_mask_gradients": true
+  },
+  "data": {
+    "manifest": "/media/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "scenes": {
+      "train": [
+        "Moon_1",
+        "Moon_3",
+        "Moon_6",
+        "Moon_7",
+        "Moon_8"
+      ],
+      "val": [
+        "Moon_5"
+      ]
+    },
+    "counts": {
+      "train": 6403,
+      "val": 1599
+    },
+    "id_mask_samples_checked": 2
+  },
+  "models": [
+    {
+      "decoder": "region",
+      "config": {
+        "decoder": "region",
+        "backbone": "dual",
+        "input_size": 1024,
+        "num_classes": 5,
+        "num_queries": 32,
+        "decoder_layers": 4,
+        "width": 128,
+        "branch_width": 64,
+        "attention_heads": 8,
+        "dropout": 0.0,
+        "weight_dir": "/home/lzc/workspace/fenge/model",
+        "convnext_checkpoint": null
+      },
+      "input_shapes": {
+        "convnext": [
+          8,
+          3,
+          1024,
+          1024
+        ],
+        "mobile": [
+          8,
+          3,
+          1024,
+          1024
+        ]
+      },
+      "semantic_shape": [
+        8,
+        5,
+        1024,
+        1024
+      ],
+      "parameter_count": 32880918,
+      "branch_gradient_l1": {
+        "convnext": 38590.89761574194,
+        "mobile": 370.7760963235269
+      },
+      "losses": {
+        "loss_semantic_ce": 1.6339808702468872,
+        "loss_semantic_dice": 0.8023719191551208,
+        "loss_region_class": 1.558510661125183,
+        "loss_region_mask": 0.5672186017036438,
+        "loss_region_dice": 0.7821195721626282,
+        "loss_auxiliary": 20.005386352539062,
+        "loss_total": 19.174280166625977
+      },
+      "checkpoint_strict_roundtrip": true,
+      "optimizer_step": true,
+      "seconds": 3.393,
+      "peak_cuda_allocated_bytes": 20950200832
+    }
+  ],
+  "status": "passed"
+}
