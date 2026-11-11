@@ -1,0 +1,50 @@
+{
+  "pid": 426117,
+  "started_at_utc": "2026-11-11T15:45:05.023167+00:00",
+  "physical_gpu": 4,
+  "gpu_uuid": "GPU-8d434121-b643-9338-c35e-fdfc76bf8052",
+  "command": [
+    "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+    "-B",
+    "-u",
+    "code/evaluate.py",
+    "--checkpoint",
+    "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/best.pt",
+    "--split",
+    "val",
+    "--tta",
+    "hflip",
+    "--batch-size",
+    "2",
+    "--workers",
+    "4",
+    "--amp",
+    "bf16",
+    "--device",
+    "cuda:0",
+    "--mountain-alphas",
+    "1",
+    "0.95",
+    "0.90",
+    "0.85",
+    "0.80",
+    "--output",
+    "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/val_hflip_mountain_sweep_metrics.json"
+  ],
+  "environment_overrides": {
+    "CUDA_VISIBLE_DEVICES": "GPU-8d434121-b643-9338-c35e-fdfc76bf8052",
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "output": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/val_hflip_mountain_sweep_metrics.json",
+  "log": "/home/lzc/workspace/fenge/result/dual_region_balanced8000_bs8_tta/val_hflip_mountain_sweep.log",
+  "base_git_commit": "da9ecfceebbbbb4f0dd229e35f13cfd90b72581e",
+  "source_sha256": {
+    "code/evaluate.py": "037eaee67fefe5b864b871bf732344e085e3f41f8b7f1047df34f6f95af65f66",
+    "code/lunarseg/metrics.py": "9432b5eb79ecc8f62263da43e1e668fad2d4728b7b8a75d365b34ae40cb79bb3",
+    "code/lunarseg/model.py": "7918ccb48b06ef01d58913c6207fd70a694980c66e4a2b0968836d993f4b45c4"
+  },
+  "status": "completed",
+  "completed_result_sha256": "2c4ea60714c67dca9ef6f78ba439d729892e98d7b88d1ea4e13fadc4c0461143"
+}

@@ -1,0 +1,84 @@
+{
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "device": "cpu",
+  "calibration_only": true,
+  "mountain_calibration": {
+    "alpha_values": [
+      1.0,
+      0.95,
+      0.9,
+      0.85,
+      0.8
+    ],
+    "alpha_one_exact_identity": true,
+    "negative_logits_downweighted_in_log_domain": true,
+    "hflip_probabilities_scaled_directly": true,
+    "normalization_preserves_argmax": true,
+    "other_classes_unchanged": true,
+    "non_mountain_classes_cannot_swap": true,
+    "invalid_alpha_rejected": true,
+    "argmax_ties_use_first_class_index": true,
+    "input_scores_not_mutated": true
+  },
+  "mountain_sweep": {
+    "alpha_values": [
+      1.0,
+      0.95,
+      0.9,
+      0.85,
+      0.8
+    ],
+    "cases": [
+      {
+        "score_type": "pixel_logits",
+        "tta_mode": "none",
+        "image_count": 3,
+        "batch_count": 2,
+        "actual_sweep_forward_calls": 2,
+        "all_five_alphas_match_independent_single_alpha_confusion_matrices": true,
+        "alpha_one_matches_original_result": true,
+        "single_dataset_pass": true,
+        "continuous_resize_before_argmax": true,
+        "diagnostics_match_pixel_counts": true
+      },
+      {
+        "score_type": "pixel_logits",
+        "tta_mode": "hflip",
+        "image_count": 3,
+        "batch_count": 2,
+        "actual_sweep_forward_calls": 4,
+        "all_five_alphas_match_independent_single_alpha_confusion_matrices": true,
+        "alpha_one_matches_original_result": true,
+        "single_dataset_pass": true,
+        "continuous_resize_before_argmax": true,
+        "diagnostics_match_pixel_counts": true
+      },
+      {
+        "score_type": "region_log_probabilities",
+        "tta_mode": "none",
+        "image_count": 3,
+        "batch_count": 2,
+        "actual_sweep_forward_calls": 2,
+        "all_five_alphas_match_independent_single_alpha_confusion_matrices": true,
+        "alpha_one_matches_original_result": true,
+        "single_dataset_pass": true,
+        "continuous_resize_before_argmax": true,
+        "diagnostics_match_pixel_counts": true
+      },
+      {
+        "score_type": "region_log_probabilities",
+        "tta_mode": "hflip",
+        "image_count": 3,
+        "batch_count": 2,
+        "actual_sweep_forward_calls": 4,
+        "all_five_alphas_match_independent_single_alpha_confusion_matrices": true,
+        "alpha_one_matches_original_result": true,
+        "single_dataset_pass": true,
+        "continuous_resize_before_argmax": true,
+        "diagnostics_match_pixel_counts": true
+      }
+    ]
+  },
+  "status": "passed"
+}

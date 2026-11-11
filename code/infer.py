@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from contextlib import nullcontext
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from PIL import Image
 from torch.nn import functional as F
 
 from lunarseg.model import ModelConfig, build_model
-from lunarseg.metrics import predict_semantic_scores, tta_metadata
+from lunarseg.metrics import adjust_mountain_scores, predict_semantic_scores, tta_metadata
 
 
 PALETTE = np.asarray([[187, 70, 156], [232, 250, 80], [120, 0, 200], [173, 69, 31], [34, 201, 248]], dtype=np.uint8)
@@ -31,8 +32,12 @@ def main() -> None:
     parser.add_argument("--amp", choices=("none", "bf16", "fp16"), default="none")
     parser.add_argument("--tta", choices=("none", "hflip"), default="none",
                         help="hflip averages original/undo-flipped class probabilities; none keeps single-view inference")
+    parser.add_argument("--mountain-alpha", type=float, default=1.0,
+                        help="Multiply final mountain class probability by this positive factor before argmax")
     parser.add_argument("--overlay", action="store_true")
     args = parser.parse_args()
+    if not math.isfinite(args.mountain_alpha) or args.mountain_alpha <= 0:
+        parser.error("mountain-alpha must be finite and greater than zero")
     device = torch.device(args.device)
     if device.type == "cuda" and not torch.cuda.is_available():
         parser.error("CUDA is unavailable in this session; use an accessible GPU or --device cpu")
@@ -80,6 +85,7 @@ def main() -> None:
                 scores = predict_semantic_scores(model, image, tta=args.tta)
             # Interpolate continuous class scores before assigning class IDs.
             scores = F.interpolate(scores.float(), size=(original_size[1], original_size[0]), mode="bilinear", align_corners=False)
+            scores = adjust_mountain_scores(scores, mountain_alpha=args.mountain_alpha, tta=args.tta)
             mask = scores.argmax(1)[0].cpu().numpy().astype(np.uint8)
             relative = path.relative_to(source_root)
             # Keep the original suffix in the directory name to avoid collisions
@@ -108,6 +114,10 @@ def main() -> None:
         "checkpoint": str(args.checkpoint.resolve()), "checkpoint_sha256": digest.hexdigest(),
         "model_config": config.to_dict(), "device": str(device), "amp": args.amp,
         **tta_metadata(args.tta), "continuous_scores_resized_before_argmax": True,
+        "mountain_alpha": args.mountain_alpha,
+        "mountain_score_adjustment": "Multiply final continuous class-3 probability by alpha after resizing, before argmax; "
+                                     "single-view logits/log-probabilities use +log(alpha), hflip probabilities use *alpha; "
+                                     "other classes unchanged; alpha=1 preserves original scores",
         "class_names": CLASS_NAMES, "palette_rgb": PALETTE.tolist(),
         "image_count": len(rows), "images": rows,
     }

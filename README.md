@@ -192,6 +192,33 @@ TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`�
 
 评估先累计每个场景的像素混淆矩阵，再对 GT 实际出现的类别计算 mIoU。完整测试的加权分数为 `S=(Moon_2+Moon_4+2×Moon_9)/4`，不是单图 mIoU 的平均值，也不是官方平台提交分数。测试结果只用于最终评估，不用于选轮或调参。
 
+### 山体分数系数验证
+
+现有 `evaluate.py` 支持 `--mountain-alphas 1 0.95 0.90 0.85 0.80`，只在 Moon_5 比较系数。每批只生成一次原有推理结果，再分别累计五组混淆矩阵；单视图每批一次前向，水平翻转 TTA 每批两次前向，不因系数数量增加模型前向次数。
+
+```bash
+python code/evaluate.py --checkpoint result/dual_region_balanced8000_bs8/best.pt \
+  --split val --tta none --device cuda:3 --mountain-alphas 1 0.95 0.90 0.85 0.80
+python code/evaluate.py --checkpoint result/dual_region_balanced8000_bs8_tta/best.pt \
+  --split val --tta hflip --device cuda:4 --mountain-alphas 1 0.95 0.90 0.85 0.80
+```
+
+最终尺寸的五类连续概率仅修改 `S_mountain *= alpha`，其他四类不变，然后 argmax；不是“山体概率大于 alpha”的阈值。单视图内部保存 logits（区域头为 log 概率），实现用山体通道 `+ log(alpha)`，与乘概率再 argmax 等价；不能直接乘负 logit。TTA 已经输出平均概率，直接乘系数。所有图片共用同一个系数，α=1 保持原始分数。
+
+结果默认保存为原实验目录的 `val_mountain_sweep_metrics.json` 或 `val_hflip_mountain_sweep_metrics.json`，顶层指标是 α=1 的参考值，`mountain_score_sweep.candidates` 包含每个系数的完整逐类指标、精确率/召回率、混淆矩阵，以及减少的山体误检和损失的正确山体像素数。额外统计 GT 山体面积占比在 0–1% 的图片中山体像素召回率；这是小面积图片的代理指标，不等同于真实小山实例统计。
+
+只有完整 1599 张 Moon_5 才输出推荐：在山体 IoU 和总 mIoU 都提高的系数中选总 mIoU 最高者，相同分数优先较大的系数；没有同时改善则保留 1。推荐不会自动写入模型或配置，默认一直为 1。验证确定后，可在现有 `evaluate.py`、`infer.py` 命令添加 `--mountain-alpha 0.95` 等单个系数，并保存在结果元数据中。非 1 系数的评估指标和图片目录会附加系数，例如 `test_hflip_mountain_0p95`，避免覆盖原始结果；多系数扫描不导出图片，先选定一个系数再开启 `--save-images`。
+
+仅检查分数缩放及单次前向复用逻辑，无需读取权重或数据：
+
+```bash
+python code/verify.py --calibration-only
+```
+
+检查覆盖负 logits、区域 log 概率、TTA 平均概率、插值后缩放、α=1 精确不变，以及两种解码输出下五系数扫描与独立评估一致性。报告位于 `result/calibration_verification.json`。
+
+本次两组完整 Moon_5 已完成，α=1 均逐项复现历史最佳混淆矩阵。最终 TTA 组降低系数后总 mIoU 全部略降，应保留 **α=1（88.4815%）**；α=0.80 时山体 IoU 提高 0.4066 个百分点，但总 mIoU 降为 88.4336%。第一组单视图在 α=0.80 时由 87.7176% 小幅提高到 87.7906%。完整五系数表、逐类代价和小面积山体召回统计见 [山体分数验证分析](result/analysis/report_zh.md#moon_5-山体分数系数验证)。
+
 ### 可选保存评估图片
 
 `evaluate.py` 默认不保存图片，需要逐图查看时开启 `--save-images`。常规两视角测试使用默认关闭选项；按后续要求，已额外完成一次无 TTA 组第 5 轮最佳权重的完整单视图图片导出。
