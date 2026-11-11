@@ -1,0 +1,188 @@
+{
+  "epoch": 8,
+  "training_loss": {
+    "loss_semantic_ce": 0.011156591910868882,
+    "loss_semantic_dice": 0.03541289756074548,
+    "loss_region_class": 0.0009949403142873053,
+    "loss_region_mask": 0.0048613850849214945,
+    "loss_region_dice": 0.01793762465007603,
+    "loss_auxiliary": 0.1069487219415605,
+    "loss_hard_pixels": 0.7743414255976677,
+    "loss_hard_pixels_weighted": 0.154868287935853,
+    "loss_total": 0.29914656922221183,
+    "loss_base": 0.14427828128635883,
+    "hard_to_base_ratio": 1.0733998669451534
+  },
+  "hard_pixel_diagnostics": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/hard_pixel_diagnostics_epoch_008.json",
+  "validation": {
+    "miou": 0.8851830893160427,
+    "class_iou": {
+      "regolith": 0.9897560675138234,
+      "rock": 0.7629715577490586,
+      "crater": 0.8854285980613822,
+      "mountain": 0.7929558562005802,
+      "sky": 0.9948033670553692
+    },
+    "class_precision": {
+      "regolith": 0.9966313694113654,
+      "rock": 0.804937509311788,
+      "crater": 0.9426350788142482,
+      "mountain": 0.8881405140766558,
+      "sky": 0.9989381306710332
+    },
+    "class_recall": {
+      "regolith": 0.9930783036806295,
+      "rock": 0.9360382749029204,
+      "crater": 0.9358558508088725,
+      "mountain": 0.8809359637467098,
+      "sky": 0.995856459451751
+    },
+    "gt_present_classes": [
+      "regolith",
+      "rock",
+      "crater",
+      "mountain",
+      "sky"
+    ],
+    "pixel_accuracy": 0.9887591410309468,
+    "confusion_matrix_gt_rows_pred_cols": [
+      [
+        1167798697,
+        3265062,
+        1273050,
+        3366756,
+        234619
+      ],
+      [
+        1875045,
+        34139524,
+        6904,
+        405913,
+        44973
+      ],
+      [
+        1443130,
+        8710,
+        21182312,
+        9,
+        0
+      ],
+      [
+        339880,
+        4786815,
+        9115,
+        39042260,
+        140997
+      ],
+      [
+        289124,
+        212528,
+        0,
+        1144615,
+        395662986
+      ]
+    ],
+    "absent_gt_policy": "Average only classes present in scene ground truth",
+    "image_count": 1599,
+    "scenes": {
+      "Moon_5": {
+        "miou": 0.8851830893160427,
+        "class_iou": {
+          "regolith": 0.9897560675138234,
+          "rock": 0.7629715577490586,
+          "crater": 0.8854285980613822,
+          "mountain": 0.7929558562005802,
+          "sky": 0.9948033670553692
+        },
+        "class_precision": {
+          "regolith": 0.9966313694113654,
+          "rock": 0.804937509311788,
+          "crater": 0.9426350788142482,
+          "mountain": 0.8881405140766558,
+          "sky": 0.9989381306710332
+        },
+        "class_recall": {
+          "regolith": 0.9930783036806295,
+          "rock": 0.9360382749029204,
+          "crater": 0.9358558508088725,
+          "mountain": 0.8809359637467098,
+          "sky": 0.995856459451751
+        },
+        "gt_present_classes": [
+          "regolith",
+          "rock",
+          "crater",
+          "mountain",
+          "sky"
+        ],
+        "pixel_accuracy": 0.9887591410309468,
+        "confusion_matrix_gt_rows_pred_cols": [
+          [
+            1167798697,
+            3265062,
+            1273050,
+            3366756,
+            234619
+          ],
+          [
+            1875045,
+            34139524,
+            6904,
+            405913,
+            44973
+          ],
+          [
+            1443130,
+            8710,
+            21182312,
+            9,
+            0
+          ],
+          [
+            339880,
+            4786815,
+            9115,
+            39042260,
+            140997
+          ],
+          [
+            289124,
+            212528,
+            0,
+            1144615,
+            395662986
+          ]
+        ],
+        "absent_gt_policy": "Average only classes present in scene ground truth",
+        "image_count": 1599
+      }
+    },
+    "input_size": 1024,
+    "partial": false,
+    "data_identity": {
+      "manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+      "manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+      "split": "val",
+      "train_source": null,
+      "image_count": 1599,
+      "complete_image_count": 1599,
+      "partial": false,
+      "unique_source_count": 1599,
+      "ordered_samples_sha256": "7ca2b3f8e5095f7c8418b0c142b41fb09e96920c5610ee9ab51d6911ef2d7725"
+    },
+    "test_time_augmentation": true,
+    "tta_mode": "hflip",
+    "tta_views": [
+      "original",
+      "horizontal_flip"
+    ],
+    "continuous_scores_resized_before_argmax": true,
+    "official_platform_score": false
+  },
+  "best_miou": 0.8863850485161775,
+  "best_epoch": 7,
+  "backbones_frozen": false,
+  "seconds": 527.0786209330108,
+  "partial": false,
+  "global_update": 8000
+}

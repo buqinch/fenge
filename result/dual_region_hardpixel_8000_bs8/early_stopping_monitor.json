@@ -1,0 +1,192 @@
+{
+  "name": "directional_hard_pixels",
+  "output": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8",
+  "launch_sha256": "6a8ec4b1262c7cead19bc4df3f9c81f70d42c9fa37c2b6f30c5bbeea796d3604",
+  "primary_tta": "hflip",
+  "training_process_identity": {
+    "pid": 458939,
+    "starttime_ticks": 8587891,
+    "command": [
+      "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+      "-B",
+      "-u",
+      "code/train.py",
+      "--config",
+      "config/dual_region_augmented_tta_1024.json",
+      "--output",
+      "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8",
+      "--device",
+      "cuda:0",
+      "--hard-pixel-weight",
+      "0.2",
+      "--hard-pixel-quota",
+      "256"
+    ],
+    "cwd": "/home/lzc/workspace/fenge",
+    "pgid": 458939
+  },
+  "completed_epochs": 9,
+  "phase": "evaluated",
+  "best_epoch": 7,
+  "best_validation_miou": 0.8863850485161775,
+  "early_stopping": {
+    "schema": "lusnar_patience_tracker_v1",
+    "policy": {
+      "patience": 5,
+      "min_delta": 0.0005,
+      "start_epoch": 4,
+      "metric": "Moon_5_miou",
+      "threshold_comparison": "score >= anchor + min_delta"
+    },
+    "anchor_score": 0.8863850485161775,
+    "anchor_epoch": 7,
+    "bad_epochs": 2,
+    "last_epoch": 9,
+    "stopped": false,
+    "stop_epoch": null,
+    "stop_reason": null,
+    "last_event": "no_significant_improvement",
+    "observations": [
+      {
+        "epoch": 1,
+        "miou": 0.791160610592415
+      },
+      {
+        "epoch": 2,
+        "miou": 0.8068913968691962
+      },
+      {
+        "epoch": 3,
+        "miou": 0.8230370598889778
+      },
+      {
+        "epoch": 4,
+        "miou": 0.870000947309088
+      },
+      {
+        "epoch": 5,
+        "miou": 0.8695339466056373
+      },
+      {
+        "epoch": 6,
+        "miou": 0.8829551515616755
+      },
+      {
+        "epoch": 7,
+        "miou": 0.8863850485161775
+      },
+      {
+        "epoch": 8,
+        "miou": 0.8851830893160427
+      },
+      {
+        "epoch": 9,
+        "miou": 0.8824574091136201
+      }
+    ]
+  },
+  "best_checkpoint_sha256": "7f341f060a0aa316c3013d0e8bad2f268bb8a92ae7eba98529c32b29def15453",
+  "stopped_at": "2026-11-11T17:23:16.179093+00:00",
+  "best_checkpoint_epoch": 7,
+  "best_checkpoint_fingerprint": [
+    2065,
+    235678237,
+    395335194,
+    1794416367276892276,
+    1794416368789903622
+  ],
+  "evaluations": {
+    "hflip": {
+      "launch_id": "ccb3a1fb81074fe4ba6bf3d364b22eda",
+      "tta": "hflip",
+      "output": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_hflip_metrics.json",
+      "log": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_hflip.log",
+      "started_at": "2026-11-11T17:23:19.239473+00:00",
+      "checkpoint_sha256": "7f341f060a0aa316c3013d0e8bad2f268bb8a92ae7eba98529c32b29def15453",
+      "checkpoint_epoch": 7,
+      "command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "-u",
+        "/home/lzc/workspace/fenge/code/evaluate.py",
+        "--checkpoint",
+        "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/best.pt",
+        "--split",
+        "test",
+        "--batch-size",
+        "2",
+        "--workers",
+        "4",
+        "--device",
+        "cuda:0",
+        "--amp",
+        "bf16",
+        "--tta",
+        "hflip",
+        "--output",
+        "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_hflip_metrics.json"
+      ],
+      "gpu_uuid": "GPU-8d434121-b643-9338-c35e-fdfc76bf8052",
+      "registration": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/evaluation_hflip_launch.json",
+      "pid": 574281,
+      "starttime_ticks": 9059693,
+      "worker_command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "/home/lzc/workspace/fenge/code/monitor_experiments.py",
+        "--evaluation-worker",
+        "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/evaluation_hflip_intent.json"
+      ],
+      "cwd": "/home/lzc/workspace/fenge",
+      "registered_at": "2026-11-11T17:23:21.311712+00:00",
+      "completed_at": "2026-11-11T17:28:25.136350+00:00",
+      "weighted_score": 0.8784097277229723
+    },
+    "none": {
+      "launch_id": "60391e5fa2534f209fa71ead5c8128ce",
+      "tta": "none",
+      "output": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_metrics.json",
+      "log": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test.log",
+      "started_at": "2026-11-11T17:28:25.136683+00:00",
+      "checkpoint_sha256": "7f341f060a0aa316c3013d0e8bad2f268bb8a92ae7eba98529c32b29def15453",
+      "checkpoint_epoch": 7,
+      "command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "-u",
+        "/home/lzc/workspace/fenge/code/evaluate.py",
+        "--checkpoint",
+        "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/best.pt",
+        "--split",
+        "test",
+        "--batch-size",
+        "2",
+        "--workers",
+        "4",
+        "--device",
+        "cuda:0",
+        "--amp",
+        "bf16",
+        "--tta",
+        "none",
+        "--output",
+        "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/test_metrics.json"
+      ],
+      "gpu_uuid": "GPU-8d434121-b643-9338-c35e-fdfc76bf8052",
+      "registration": "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/evaluation_none_launch.json",
+      "pid": 583298,
+      "starttime_ticks": 9090283,
+      "worker_command": [
+        "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+        "-B",
+        "/home/lzc/workspace/fenge/code/monitor_experiments.py",
+        "--evaluation-worker",
+        "/home/lzc/workspace/fenge/result/dual_region_hardpixel_8000_bs8/evaluation_none_intent.json"
+      ],
+      "cwd": "/home/lzc/workspace/fenge",
+      "registered_at": "2026-11-11T17:28:27.292515+00:00",
+      "completed_at": "2026-11-11T17:33:31.023449+00:00",
+      "weighted_score": 0.8757803440413382
+    }
+  }
+}

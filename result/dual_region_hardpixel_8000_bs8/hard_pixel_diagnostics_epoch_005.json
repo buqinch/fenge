@@ -1,0 +1,2017 @@
+{
+  "schema": "lusnar_hard_pixel_diagnostics_v1",
+  "epoch": 5,
+  "enabled": true,
+  "hard_pixel_weight": 0.2,
+  "hard_pixel_quota": 256,
+  "training_data_identity": {
+    "manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+    "split": "train",
+    "train_source": "combined",
+    "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+    "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+    "augmentation_groups": [
+      "crater",
+      "mountain_rock"
+    ],
+    "selection_manifest": "/home/lzc/workspace/fenge/result/selections/train8000_seed42_20261111.json",
+    "selection_manifest_sha256": "e0f402ff6cc738b8450e0d9877124643d849d3a857f4f21c9b31c04d3d2be815",
+    "selection_seed": 42,
+    "selection_counts": {
+      "original": 5000,
+      "crater": 1500,
+      "mountain_rock": 1500
+    },
+    "candidate_image_count": 10403,
+    "image_count": 8000,
+    "complete_image_count": 8000,
+    "partial": false,
+    "unique_source_count": 5492,
+    "ordered_samples_sha256": "7c8a78fda6d04a37542ff4929e5e4f42b33990cd204aae0c801a753248990196"
+  },
+  "training_source_counts": {
+    "augmented/mountain_rock": 1500,
+    "augmented/crater": 1500,
+    "original": 5000
+  },
+  "training_batches": 1000,
+  "direction_definition": "GT class ID -> current predicted class ID; training data only",
+  "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
+  "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
+  "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
+  "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
+  "training_loss": {
+    "loss_semantic_ce": 0.013749387766234576,
+    "loss_semantic_dice": 0.0420810857526958,
+    "loss_region_class": 0.0015892895423530718,
+    "loss_region_mask": 0.00662295199232176,
+    "loss_region_dice": 0.023241160470992325,
+    "loss_auxiliary": 0.1491088424399495,
+    "loss_hard_pixels": 0.839898835003376,
+    "loss_hard_pixels_weighted": 0.16797976972907783,
+    "loss_total": 0.35789916445314884,
+    "loss_base": 0.18991939472407102,
+    "hard_to_base_ratio": 0.8844792811873231
+  },
+  "directions": {
+    "0->3": {
+      "candidate_count": 1824563,
+      "selected_count": 1366598,
+      "selected_ce_sum": 1333479.8594360352,
+      "candidate_boundary_count": 1794677,
+      "selected_boundary_count": 1356901,
+      "candidate_boundary_fraction": 0.983620187409259,
+      "selected_boundary_fraction": 0.9929042776295589,
+      "selected_mean_ce": 0.9757659966105872,
+      "highest_ce_examples": [
+        {
+          "scene": "Moon_6",
+          "sample_id": "mountain_rock_0008",
+          "source_id": "Moon_6/1693382753856807936",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_0008.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_0008.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 280,
+          "points": [
+            {
+              "training_x": 590,
+              "training_y": 237,
+              "unflipped_input_x": 590,
+              "unflipped_input_y": 237,
+              "gt": 0,
+              "pred": 3,
+              "ce": 11.160417556762695,
+              "gt_boundary": true,
+              "source_x": 590,
+              "source_y": 237
+            },
+            {
+              "training_x": 595,
+              "training_y": 237,
+              "unflipped_input_x": 595,
+              "unflipped_input_y": 237,
+              "gt": 0,
+              "pred": 3,
+              "ce": 7.747401714324951,
+              "gt_boundary": true,
+              "source_x": 595,
+              "source_y": 237
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_3",
+          "sample_id": "mountain_rock_0792",
+          "source_id": "Moon_3/1693290469074219008",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_0792.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_0792.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 205,
+          "points": [
+            {
+              "training_x": 780,
+              "training_y": 477,
+              "unflipped_input_x": 780,
+              "unflipped_input_y": 477,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.613821029663086,
+              "gt_boundary": true,
+              "source_x": 780,
+              "source_y": 477
+            },
+            {
+              "training_x": 781,
+              "training_y": 477,
+              "unflipped_input_x": 781,
+              "unflipped_input_y": 477,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.544733047485352,
+              "gt_boundary": true,
+              "source_x": 781,
+              "source_y": 477
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_3",
+          "sample_id": "mountain_rock_0152",
+          "source_id": "Moon_3/1693290355222296064",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_0152.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_0152.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 177,
+          "points": [
+            {
+              "training_x": 942,
+              "training_y": 556,
+              "unflipped_input_x": 81,
+              "unflipped_input_y": 556,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.363761901855469,
+              "gt_boundary": true,
+              "source_x": 81,
+              "source_y": 556
+            },
+            {
+              "training_x": 943,
+              "training_y": 556,
+              "unflipped_input_x": 80,
+              "unflipped_input_y": 556,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.30980110168457,
+              "gt_boundary": true,
+              "source_x": 80,
+              "source_y": 556
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "1693382751640089344",
+          "source_id": "Moon_6/1693382751640089344",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382751640089344.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382751640089344.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 276,
+          "points": [
+            {
+              "training_x": 517,
+              "training_y": 273,
+              "unflipped_input_x": 517,
+              "unflipped_input_y": 273,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.269261360168457,
+              "gt_boundary": true,
+              "source_x": 517,
+              "source_y": 273
+            },
+            {
+              "training_x": 512,
+              "training_y": 273,
+              "unflipped_input_x": 512,
+              "unflipped_input_y": 273,
+              "gt": 0,
+              "pred": 3,
+              "ce": 7.405893325805664,
+              "gt_boundary": true,
+              "source_x": 512,
+              "source_y": 273
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_8",
+          "sample_id": "crater_1176",
+          "source_id": "Moon_8/1693502056198593536",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_1176.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_1176.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 501,
+          "points": [
+            {
+              "training_x": 505,
+              "training_y": 29,
+              "unflipped_input_x": 518,
+              "unflipped_input_y": 29,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.249662399291992,
+              "gt_boundary": true,
+              "source_x": 518,
+              "source_y": 29
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_3",
+          "sample_id": "mountain_rock_1478",
+          "source_id": "Moon_3/1693290438900109824",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_1478.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_1478.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 730,
+          "points": [
+            {
+              "training_x": 694,
+              "training_y": 368,
+              "unflipped_input_x": 329,
+              "unflipped_input_y": 368,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.121793746948242,
+              "gt_boundary": true,
+              "source_x": 329,
+              "source_y": 368
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "1693382749548373504",
+          "source_id": "Moon_6/1693382749548373504",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382749548373504.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382749548373504.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 430,
+          "points": [
+            {
+              "training_x": 516,
+              "training_y": 273,
+              "unflipped_input_x": 516,
+              "unflipped_input_y": 273,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.026578903198242,
+              "gt_boundary": true,
+              "source_x": 516,
+              "source_y": 273
+            },
+            {
+              "training_x": 540,
+              "training_y": 277,
+              "unflipped_input_x": 540,
+              "unflipped_input_y": 277,
+              "gt": 0,
+              "pred": 3,
+              "ce": 5.016860008239746,
+              "gt_boundary": true,
+              "source_x": 540,
+              "source_y": 277
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "mountain_rock_0161",
+          "source_id": "Moon_1/1693274836633608704",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_0161.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_0161.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 231,
+          "points": [
+            {
+              "training_x": 39,
+              "training_y": 568,
+              "unflipped_input_x": 39,
+              "unflipped_input_y": 568,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.020252227783203,
+              "gt_boundary": true,
+              "source_x": 39,
+              "source_y": 568
+            },
+            {
+              "training_x": 39,
+              "training_y": 569,
+              "unflipped_input_x": 39,
+              "unflipped_input_y": 569,
+              "gt": 0,
+              "pred": 3,
+              "ce": 10.013078689575195,
+              "gt_boundary": true,
+              "source_x": 39,
+              "source_y": 569
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        }
+      ]
+    },
+    "3->0": {
+      "candidate_count": 469608,
+      "selected_count": 441137,
+      "selected_ce_sum": 372552.0785217285,
+      "candidate_boundary_count": 457074,
+      "selected_boundary_count": 434767,
+      "candidate_boundary_fraction": 0.9733096540093014,
+      "selected_boundary_fraction": 0.9855600414383741,
+      "selected_mean_ce": 0.8445269349923686,
+      "highest_ce_examples": [
+        {
+          "scene": "Moon_3",
+          "sample_id": "crater_0365",
+          "source_id": "Moon_3/1693290410720218368",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0365.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0365.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 698,
+          "points": [
+            {
+              "training_x": 6,
+              "training_y": 6,
+              "unflipped_input_x": 6,
+              "unflipped_input_y": 6,
+              "gt": 3,
+              "pred": 0,
+              "ce": 10.578248023986816,
+              "gt_boundary": false,
+              "source_x": 6,
+              "source_y": 6
+            },
+            {
+              "training_x": 7,
+              "training_y": 6,
+              "unflipped_input_x": 7,
+              "unflipped_input_y": 6,
+              "gt": 3,
+              "pred": 0,
+              "ce": 10.510001182556152,
+              "gt_boundary": false,
+              "source_x": 7,
+              "source_y": 6
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "1693274799476164096",
+          "source_id": "Moon_1/1693274799476164096",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_1/color/1693274799476164096.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_1/1693274799476164096.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 240,
+          "points": [
+            {
+              "training_x": 293,
+              "training_y": 363,
+              "unflipped_input_x": 293,
+              "unflipped_input_y": 363,
+              "gt": 3,
+              "pred": 0,
+              "ce": 9.284957885742188,
+              "gt_boundary": true,
+              "source_x": 293,
+              "source_y": 363
+            },
+            {
+              "training_x": 294,
+              "training_y": 363,
+              "unflipped_input_x": 294,
+              "unflipped_input_y": 363,
+              "gt": 3,
+              "pred": 0,
+              "ce": 9.211719512939453,
+              "gt_boundary": true,
+              "source_x": 294,
+              "source_y": 363
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "crater_0258",
+          "source_id": "Moon_6/1693382785426597888",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0258.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0258.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 288,
+          "points": [
+            {
+              "training_x": 119,
+              "training_y": 538,
+              "unflipped_input_x": 904,
+              "unflipped_input_y": 538,
+              "gt": 3,
+              "pred": 0,
+              "ce": 9.260176658630371,
+              "gt_boundary": true,
+              "source_x": 904,
+              "source_y": 538
+            },
+            {
+              "training_x": 120,
+              "training_y": 538,
+              "unflipped_input_x": 903,
+              "unflipped_input_y": 538,
+              "gt": 3,
+              "pred": 0,
+              "ce": 9.21927547454834,
+              "gt_boundary": true,
+              "source_x": 903,
+              "source_y": 538
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "crater_0505",
+          "source_id": "Moon_6/1693382784326604800",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0505.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0505.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 168,
+          "points": [
+            {
+              "training_x": 243,
+              "training_y": 335,
+              "unflipped_input_x": 243,
+              "unflipped_input_y": 335,
+              "gt": 3,
+              "pred": 0,
+              "ce": 7.538931369781494,
+              "gt_boundary": true,
+              "source_x": 243,
+              "source_y": 335
+            },
+            {
+              "training_x": 261,
+              "training_y": 330,
+              "unflipped_input_x": 261,
+              "unflipped_input_y": 330,
+              "gt": 3,
+              "pred": 0,
+              "ce": 3.3261733055114746,
+              "gt_boundary": true,
+              "source_x": 261,
+              "source_y": 330
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_3",
+          "sample_id": "crater_0177",
+          "source_id": "Moon_3/1693290412153708800",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0177.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0177.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 175,
+          "points": [
+            {
+              "training_x": 1001,
+              "training_y": 11,
+              "unflipped_input_x": 1001,
+              "unflipped_input_y": 11,
+              "gt": 3,
+              "pred": 0,
+              "ce": 7.09117317199707,
+              "gt_boundary": true,
+              "source_x": 1001,
+              "source_y": 11
+            },
+            {
+              "training_x": 1000,
+              "training_y": 11,
+              "unflipped_input_x": 1000,
+              "unflipped_input_y": 11,
+              "gt": 3,
+              "pred": 0,
+              "ce": 7.062460899353027,
+              "gt_boundary": true,
+              "source_x": 1000,
+              "source_y": 11
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "crater_1916",
+          "source_id": "Moon_6/1693382862247736064",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_1916.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_1916.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 678,
+          "points": [
+            {
+              "training_x": 258,
+              "training_y": 9,
+              "unflipped_input_x": 258,
+              "unflipped_input_y": 9,
+              "gt": 3,
+              "pred": 0,
+              "ce": 6.787595272064209,
+              "gt_boundary": true,
+              "source_x": 258,
+              "source_y": 9
+            },
+            {
+              "training_x": 258,
+              "training_y": 8,
+              "unflipped_input_x": 258,
+              "unflipped_input_y": 8,
+              "gt": 3,
+              "pred": 0,
+              "ce": 6.485156059265137,
+              "gt_boundary": true,
+              "source_x": 258,
+              "source_y": 8
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "1693274799692817408",
+          "source_id": "Moon_1/1693274799692817408",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_1/color/1693274799692817408.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_1/1693274799692817408.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 254,
+          "points": [
+            {
+              "training_x": 737,
+              "training_y": 367,
+              "unflipped_input_x": 286,
+              "unflipped_input_y": 367,
+              "gt": 3,
+              "pred": 0,
+              "ce": 6.5632524490356445,
+              "gt_boundary": true,
+              "source_x": 286,
+              "source_y": 367
+            },
+            {
+              "training_x": 739,
+              "training_y": 366,
+              "unflipped_input_x": 284,
+              "unflipped_input_y": 366,
+              "gt": 3,
+              "pred": 0,
+              "ce": 6.345518589019775,
+              "gt_boundary": true,
+              "source_x": 284,
+              "source_y": 366
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_3",
+          "sample_id": "mountain_rock_1966",
+          "source_id": "Moon_3/1693290426949655296",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_1966.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_1966.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 287,
+          "points": [
+            {
+              "training_x": 578,
+              "training_y": 338,
+              "unflipped_input_x": 445,
+              "unflipped_input_y": 338,
+              "gt": 3,
+              "pred": 0,
+              "ce": 5.993011474609375,
+              "gt_boundary": true,
+              "source_x": 445,
+              "source_y": 338
+            },
+            {
+              "training_x": 579,
+              "training_y": 338,
+              "unflipped_input_x": 444,
+              "unflipped_input_y": 338,
+              "gt": 3,
+              "pred": 0,
+              "ce": 5.770492076873779,
+              "gt_boundary": true,
+              "source_x": 444,
+              "source_y": 338
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        }
+      ]
+    },
+    "2->0": {
+      "candidate_count": 3389395,
+      "selected_count": 1023602,
+      "selected_ce_sum": 1146202.874382019,
+      "candidate_boundary_count": 2911337,
+      "selected_boundary_count": 1001254,
+      "candidate_boundary_fraction": 0.8589547692139747,
+      "selected_boundary_fraction": 0.9781672954918025,
+      "selected_mean_ce": 1.119773969161861,
+      "highest_ce_examples": [
+        {
+          "scene": "Moon_8",
+          "sample_id": "1693502103191670016",
+          "source_id": "Moon_8/1693502103191670016",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_8/color/1693502103191670016.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_8/1693502103191670016.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 927,
+          "points": [
+            {
+              "training_x": 65,
+              "training_y": 370,
+              "unflipped_input_x": 958,
+              "unflipped_input_y": 370,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.84005355834961,
+              "gt_boundary": true,
+              "source_x": 958,
+              "source_y": 370
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "1693385341610228224",
+          "source_id": "Moon_7/1693385341610228224",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385341610228224.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385341610228224.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 541,
+          "points": [
+            {
+              "training_x": 927,
+              "training_y": 842,
+              "unflipped_input_x": 927,
+              "unflipped_input_y": 842,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.723518371582031,
+              "gt_boundary": true,
+              "source_x": 927,
+              "source_y": 842
+            },
+            {
+              "training_x": 402,
+              "training_y": 803,
+              "unflipped_input_x": 402,
+              "unflipped_input_y": 803,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.669978141784668,
+              "gt_boundary": true,
+              "source_x": 402,
+              "source_y": 803
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "1693385338841792512",
+          "source_id": "Moon_7/1693385338841792512",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385338841792512.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385338841792512.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 457,
+          "points": [
+            {
+              "training_x": 143,
+              "training_y": 440,
+              "unflipped_input_x": 880,
+              "unflipped_input_y": 440,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.619159698486328,
+              "gt_boundary": true,
+              "source_x": 880,
+              "source_y": 440
+            },
+            {
+              "training_x": 707,
+              "training_y": 360,
+              "unflipped_input_x": 316,
+              "unflipped_input_y": 360,
+              "gt": 2,
+              "pred": 0,
+              "ce": 2.613760232925415,
+              "gt_boundary": true,
+              "source_x": 316,
+              "source_y": 360
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "1693385337950008064",
+          "source_id": "Moon_7/1693385337950008064",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385337950008064.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385337950008064.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 798,
+          "points": [
+            {
+              "training_x": 806,
+              "training_y": 418,
+              "unflipped_input_x": 806,
+              "unflipped_input_y": 418,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.588114738464355,
+              "gt_boundary": true,
+              "source_x": 806,
+              "source_y": 418
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "1693385340391614976",
+          "source_id": "Moon_7/1693385340391614976",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385340391614976.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385340391614976.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 269,
+          "points": [
+            {
+              "training_x": 870,
+              "training_y": 548,
+              "unflipped_input_x": 870,
+              "unflipped_input_y": 548,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.579419136047363,
+              "gt_boundary": true,
+              "source_x": 870,
+              "source_y": 548
+            },
+            {
+              "training_x": 437,
+              "training_y": 556,
+              "unflipped_input_x": 437,
+              "unflipped_input_y": 556,
+              "gt": 2,
+              "pred": 0,
+              "ce": 11.976835250854492,
+              "gt_boundary": true,
+              "source_x": 437,
+              "source_y": 556
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "1693385340943873024",
+          "source_id": "Moon_7/1693385340943873024",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385340943873024.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385340943873024.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 543,
+          "points": [
+            {
+              "training_x": 1001,
+              "training_y": 612,
+              "unflipped_input_x": 22,
+              "unflipped_input_y": 612,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.575098991394043,
+              "gt_boundary": true,
+              "source_x": 22,
+              "source_y": 612
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "1693385340725129216",
+          "source_id": "Moon_7/1693385340725129216",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385340725129216.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385340725129216.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 505,
+          "points": [
+            {
+              "training_x": 903,
+              "training_y": 586,
+              "unflipped_input_x": 120,
+              "unflipped_input_y": 586,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.558005332946777,
+              "gt_boundary": true,
+              "source_x": 120,
+              "source_y": 586
+            },
+            {
+              "training_x": 555,
+              "training_y": 590,
+              "unflipped_input_x": 468,
+              "unflipped_input_y": 590,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.387048721313477,
+              "gt_boundary": true,
+              "source_x": 468,
+              "source_y": 590
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "1693385339167020032",
+          "source_id": "Moon_7/1693385339167020032",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385339167020032.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385339167020032.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 827,
+          "points": [
+            {
+              "training_x": 474,
+              "training_y": 469,
+              "unflipped_input_x": 549,
+              "unflipped_input_y": 469,
+              "gt": 2,
+              "pred": 0,
+              "ce": 12.553775787353516,
+              "gt_boundary": true,
+              "source_x": 549,
+              "source_y": 469
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        }
+      ]
+    },
+    "0->2": {
+      "candidate_count": 5822288,
+      "selected_count": 1429859,
+      "selected_ce_sum": 1554303.8581848145,
+      "candidate_boundary_count": 4864985,
+      "selected_boundary_count": 1329856,
+      "candidate_boundary_fraction": 0.8355795865817699,
+      "selected_boundary_fraction": 0.9300609360783126,
+      "selected_mean_ce": 1.087032957924393,
+      "highest_ce_examples": [
+        {
+          "scene": "Moon_6",
+          "sample_id": "crater_0018",
+          "source_id": "Moon_6/1693382827404289024",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0018.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0018.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 971,
+          "points": [
+            {
+              "training_x": 944,
+              "training_y": 381,
+              "unflipped_input_x": 944,
+              "unflipped_input_y": 381,
+              "gt": 0,
+              "pred": 2,
+              "ce": 9.902223587036133,
+              "gt_boundary": true,
+              "source_x": 944,
+              "source_y": 381
+            },
+            {
+              "training_x": 943,
+              "training_y": 381,
+              "unflipped_input_x": 943,
+              "unflipped_input_y": 381,
+              "gt": 0,
+              "pred": 2,
+              "ce": 9.798296928405762,
+              "gt_boundary": true,
+              "source_x": 943,
+              "source_y": 381
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "1693382810729552640",
+          "source_id": "Moon_6/1693382810729552640",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382810729552640.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382810729552640.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 472,
+          "points": [
+            {
+              "training_x": 713,
+              "training_y": 321,
+              "unflipped_input_x": 713,
+              "unflipped_input_y": 321,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.914644241333008,
+              "gt_boundary": true,
+              "source_x": 713,
+              "source_y": 321
+            },
+            {
+              "training_x": 714,
+              "training_y": 321,
+              "unflipped_input_x": 714,
+              "unflipped_input_y": 321,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.872966766357422,
+              "gt_boundary": true,
+              "source_x": 714,
+              "source_y": 321
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "crater_0786",
+          "source_id": "Moon_6/1693382788293554944",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0786.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0786.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 450,
+          "points": [
+            {
+              "training_x": 300,
+              "training_y": 598,
+              "unflipped_input_x": 300,
+              "unflipped_input_y": 598,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.907332420349121,
+              "gt_boundary": true,
+              "source_x": 300,
+              "source_y": 598
+            },
+            {
+              "training_x": 300,
+              "training_y": 599,
+              "unflipped_input_x": 300,
+              "unflipped_input_y": 599,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.900315284729004,
+              "gt_boundary": true,
+              "source_x": 300,
+              "source_y": 599
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "crater_0078",
+          "source_id": "Moon_6/1693382814046420480",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0078.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0078.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 73,
+          "points": [
+            {
+              "training_x": 765,
+              "training_y": 357,
+              "unflipped_input_x": 258,
+              "unflipped_input_y": 357,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.900373458862305,
+              "gt_boundary": true,
+              "source_x": 258,
+              "source_y": 357
+            },
+            {
+              "training_x": 764,
+              "training_y": 357,
+              "unflipped_input_x": 259,
+              "unflipped_input_y": 357,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.78805923461914,
+              "gt_boundary": true,
+              "source_x": 259,
+              "source_y": 357
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "1693382813054511104",
+          "source_id": "Moon_6/1693382813054511104",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382813054511104.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382813054511104.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 504,
+          "points": [
+            {
+              "training_x": 271,
+              "training_y": 341,
+              "unflipped_input_x": 752,
+              "unflipped_input_y": 341,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.781816482543945,
+              "gt_boundary": true,
+              "source_x": 752,
+              "source_y": 341
+            },
+            {
+              "training_x": 270,
+              "training_y": 341,
+              "unflipped_input_x": 753,
+              "unflipped_input_y": 341,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.600564956665039,
+              "gt_boundary": true,
+              "source_x": 753,
+              "source_y": 341
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "crater_0416",
+          "source_id": "Moon_7/1693385287911954688",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0416.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0416.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 170,
+          "points": [
+            {
+              "training_x": 980,
+              "training_y": 750,
+              "unflipped_input_x": 43,
+              "unflipped_input_y": 750,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.727470397949219,
+              "gt_boundary": true,
+              "source_x": 43,
+              "source_y": 750
+            },
+            {
+              "training_x": 974,
+              "training_y": 748,
+              "unflipped_input_x": 49,
+              "unflipped_input_y": 748,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.632193565368652,
+              "gt_boundary": true,
+              "source_x": 49,
+              "source_y": 748
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "1693382815804696320",
+          "source_id": "Moon_6/1693382815804696320",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382815804696320.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382815804696320.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 387,
+          "points": [
+            {
+              "training_x": 3,
+              "training_y": 361,
+              "unflipped_input_x": 1020,
+              "unflipped_input_y": 361,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.540253639221191,
+              "gt_boundary": true,
+              "source_x": 1020,
+              "source_y": 361
+            },
+            {
+              "training_x": 2,
+              "training_y": 361,
+              "unflipped_input_x": 1021,
+              "unflipped_input_y": 361,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.272355079650879,
+              "gt_boundary": true,
+              "source_x": 1021,
+              "source_y": 361
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "1693382812171181824",
+          "source_id": "Moon_6/1693382812171181824",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382812171181824.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382812171181824.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 577,
+          "points": [
+            {
+              "training_x": 273,
+              "training_y": 333,
+              "unflipped_input_x": 750,
+              "unflipped_input_y": 333,
+              "gt": 0,
+              "pred": 2,
+              "ce": 8.265168190002441,
+              "gt_boundary": true,
+              "source_x": 750,
+              "source_y": 333
+            },
+            {
+              "training_x": 273,
+              "training_y": 332,
+              "unflipped_input_x": 750,
+              "unflipped_input_y": 332,
+              "gt": 0,
+              "pred": 2,
+              "ce": 7.972026348114014,
+              "gt_boundary": true,
+              "source_x": 750,
+              "source_y": 332
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        }
+      ]
+    },
+    "3->1": {
+      "candidate_count": 1655751,
+      "selected_count": 1258874,
+      "selected_ce_sum": 1199985.351196289,
+      "candidate_boundary_count": 1614514,
+      "selected_boundary_count": 1241857,
+      "candidate_boundary_fraction": 0.9750946851307957,
+      "selected_boundary_fraction": 0.986482364398661,
+      "selected_mean_ce": 0.9532211732042198,
+      "highest_ce_examples": [
+        {
+          "scene": "Moon_3",
+          "sample_id": "1693290419099370240",
+          "source_id": "Moon_3/1693290419099370240",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_3/color/1693290419099370240.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_3/1693290419099370240.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 821,
+          "points": [
+            {
+              "training_x": 82,
+              "training_y": 270,
+              "unflipped_input_x": 82,
+              "unflipped_input_y": 270,
+              "gt": 3,
+              "pred": 1,
+              "ce": 11.795331954956055,
+              "gt_boundary": true,
+              "source_x": 82,
+              "source_y": 270
+            },
+            {
+              "training_x": 87,
+              "training_y": 272,
+              "unflipped_input_x": 87,
+              "unflipped_input_y": 272,
+              "gt": 3,
+              "pred": 1,
+              "ce": 11.795331001281738,
+              "gt_boundary": true,
+              "source_x": 87,
+              "source_y": 272
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "1693274799476164096",
+          "source_id": "Moon_1/1693274799476164096",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_1/color/1693274799476164096.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_1/1693274799476164096.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 240,
+          "points": [
+            {
+              "training_x": 293,
+              "training_y": 364,
+              "unflipped_input_x": 293,
+              "unflipped_input_y": 364,
+              "gt": 3,
+              "pred": 1,
+              "ce": 9.553109169006348,
+              "gt_boundary": true,
+              "source_x": 293,
+              "source_y": 364
+            },
+            {
+              "training_x": 292,
+              "training_y": 364,
+              "unflipped_input_x": 292,
+              "unflipped_input_y": 364,
+              "gt": 3,
+              "pred": 1,
+              "ce": 9.293828010559082,
+              "gt_boundary": true,
+              "source_x": 292,
+              "source_y": 364
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "mountain_rock_1071",
+          "source_id": "Moon_1/1693274741568879104",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_1071.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_1071.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 194,
+          "points": [
+            {
+              "training_x": 702,
+              "training_y": 442,
+              "unflipped_input_x": 702,
+              "unflipped_input_y": 442,
+              "gt": 3,
+              "pred": 1,
+              "ce": 9.512825012207031,
+              "gt_boundary": true,
+              "source_x": 702,
+              "source_y": 442
+            },
+            {
+              "training_x": 705,
+              "training_y": 441,
+              "unflipped_input_x": 705,
+              "unflipped_input_y": 441,
+              "gt": 3,
+              "pred": 1,
+              "ce": 9.11386775970459,
+              "gt_boundary": true,
+              "source_x": 705,
+              "source_y": 441
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_8",
+          "sample_id": "1693502143827666944",
+          "source_id": "Moon_8/1693502143827666944",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_8/color/1693502143827666944.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_8/1693502143827666944.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 164,
+          "points": [
+            {
+              "training_x": 186,
+              "training_y": 300,
+              "unflipped_input_x": 186,
+              "unflipped_input_y": 300,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.741996765136719,
+              "gt_boundary": true,
+              "source_x": 186,
+              "source_y": 300
+            },
+            {
+              "training_x": 186,
+              "training_y": 299,
+              "unflipped_input_x": 186,
+              "unflipped_input_y": 299,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.565353393554688,
+              "gt_boundary": true,
+              "source_x": 186,
+              "source_y": 299
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "1693274741568879104",
+          "source_id": "Moon_1/1693274741568879104",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_1/color/1693274741568879104.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_1/1693274741568879104.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 511,
+          "points": [
+            {
+              "training_x": 407,
+              "training_y": 302,
+              "unflipped_input_x": 407,
+              "unflipped_input_y": 302,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.622925758361816,
+              "gt_boundary": true,
+              "source_x": 407,
+              "source_y": 302
+            },
+            {
+              "training_x": 408,
+              "training_y": 299,
+              "unflipped_input_x": 408,
+              "unflipped_input_y": 299,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.616189002990723,
+              "gt_boundary": true,
+              "source_x": 408,
+              "source_y": 299
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_8",
+          "sample_id": "1693502121733905152",
+          "source_id": "Moon_8/1693502121733905152",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_8/color/1693502121733905152.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_8/1693502121733905152.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 106,
+          "points": [
+            {
+              "training_x": 1023,
+              "training_y": 297,
+              "unflipped_input_x": 0,
+              "unflipped_input_y": 297,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.479788780212402,
+              "gt_boundary": true,
+              "source_x": 0,
+              "source_y": 297
+            },
+            {
+              "training_x": 1023,
+              "training_y": 296,
+              "unflipped_input_x": 0,
+              "unflipped_input_y": 296,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.273056983947754,
+              "gt_boundary": true,
+              "source_x": 0,
+              "source_y": 296
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "crater_0505",
+          "source_id": "Moon_6/1693382784326604800",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0505.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0505.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 168,
+          "points": [
+            {
+              "training_x": 246,
+              "training_y": 335,
+              "unflipped_input_x": 246,
+              "unflipped_input_y": 335,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.242924690246582,
+              "gt_boundary": true,
+              "source_x": 246,
+              "source_y": 335
+            },
+            {
+              "training_x": 245,
+              "training_y": 335,
+              "unflipped_input_x": 245,
+              "unflipped_input_y": 335,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.081075668334961,
+              "gt_boundary": true,
+              "source_x": 245,
+              "source_y": 335
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_7",
+          "sample_id": "crater_0748",
+          "source_id": "Moon_7/1693385227725769728",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0748.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0748.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 655,
+          "points": [
+            {
+              "training_x": 978,
+              "training_y": 498,
+              "unflipped_input_x": 45,
+              "unflipped_input_y": 498,
+              "gt": 3,
+              "pred": 1,
+              "ce": 8.200529098510742,
+              "gt_boundary": true,
+              "source_x": 45,
+              "source_y": 498
+            },
+            {
+              "training_x": 654,
+              "training_y": 498,
+              "unflipped_input_x": 369,
+              "unflipped_input_y": 498,
+              "gt": 3,
+              "pred": 1,
+              "ce": 2.7197728157043457,
+              "gt_boundary": true,
+              "source_x": 369,
+              "source_y": 498
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        }
+      ]
+    },
+    "1->3": {
+      "candidate_count": 1566332,
+      "selected_count": 1273012,
+      "selected_ce_sum": 1332951.2084655762,
+      "candidate_boundary_count": 1538453,
+      "selected_boundary_count": 1259757,
+      "candidate_boundary_fraction": 0.9822010914671985,
+      "selected_boundary_fraction": 0.9895876865261286,
+      "selected_mean_ce": 1.0470845588773525,
+      "highest_ce_examples": [
+        {
+          "scene": "Moon_1",
+          "sample_id": "mountain_rock_0176",
+          "source_id": "Moon_1/1693274727218486784",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_0176.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_0176.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 378,
+          "points": [
+            {
+              "training_x": 917,
+              "training_y": 358,
+              "unflipped_input_x": 106,
+              "unflipped_input_y": 358,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.399186134338379,
+              "gt_boundary": true,
+              "source_x": 106,
+              "source_y": 358
+            },
+            {
+              "training_x": 917,
+              "training_y": 359,
+              "unflipped_input_x": 106,
+              "unflipped_input_y": 359,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.312616348266602,
+              "gt_boundary": true,
+              "source_x": 106,
+              "source_y": 359
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "1693274799476164096",
+          "source_id": "Moon_1/1693274799476164096",
+          "source_kind": "original",
+          "augmentation_group": null,
+          "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_1/color/1693274799476164096.png",
+          "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_1/1693274799476164096.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 240,
+          "points": [
+            {
+              "training_x": 66,
+              "training_y": 289,
+              "unflipped_input_x": 66,
+              "unflipped_input_y": 289,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.176019668579102,
+              "gt_boundary": true,
+              "source_x": 66,
+              "source_y": 289
+            },
+            {
+              "training_x": 69,
+              "training_y": 290,
+              "unflipped_input_x": 69,
+              "unflipped_input_y": 290,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.14666748046875,
+              "gt_boundary": true,
+              "source_x": 69,
+              "source_y": 290
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "mountain_rock_1785",
+          "source_id": "Moon_1/1693274724752036608",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_1785.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_1785.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 565,
+          "points": [
+            {
+              "training_x": 106,
+              "training_y": 357,
+              "unflipped_input_x": 917,
+              "unflipped_input_y": 357,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.139399528503418,
+              "gt_boundary": true,
+              "source_x": 917,
+              "source_y": 357
+            },
+            {
+              "training_x": 106,
+              "training_y": 356,
+              "unflipped_input_x": 917,
+              "unflipped_input_y": 356,
+              "gt": 1,
+              "pred": 3,
+              "ce": 10.876551628112793,
+              "gt_boundary": true,
+              "source_x": 917,
+              "source_y": 356
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_8",
+          "sample_id": "mountain_rock_0280",
+          "source_id": "Moon_8/1693502093915780864",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_0280.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_0280.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 882,
+          "points": [
+            {
+              "training_x": 261,
+              "training_y": 249,
+              "unflipped_input_x": 762,
+              "unflipped_input_y": 249,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.082623481750488,
+              "gt_boundary": true,
+              "source_x": 762,
+              "source_y": 249
+            },
+            {
+              "training_x": 261,
+              "training_y": 250,
+              "unflipped_input_x": 762,
+              "unflipped_input_y": 250,
+              "gt": 1,
+              "pred": 3,
+              "ce": 3.409769058227539,
+              "gt_boundary": true,
+              "source_x": 762,
+              "source_y": 250
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "mountain_rock_1513",
+          "source_id": "Moon_1/1693274726451800320",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_1513.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_1513.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 595,
+          "points": [
+            {
+              "training_x": 106,
+              "training_y": 358,
+              "unflipped_input_x": 917,
+              "unflipped_input_y": 358,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.052151679992676,
+              "gt_boundary": true,
+              "source_x": 917,
+              "source_y": 358
+            },
+            {
+              "training_x": 106,
+              "training_y": 359,
+              "unflipped_input_x": 917,
+              "unflipped_input_y": 359,
+              "gt": 1,
+              "pred": 3,
+              "ce": 10.899080276489258,
+              "gt_boundary": true,
+              "source_x": 917,
+              "source_y": 359
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_1",
+          "sample_id": "mountain_rock_1221",
+          "source_id": "Moon_1/1693274726893473792",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_1221.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_1221.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 222,
+          "points": [
+            {
+              "training_x": 106,
+              "training_y": 358,
+              "unflipped_input_x": 106,
+              "unflipped_input_y": 358,
+              "gt": 1,
+              "pred": 3,
+              "ce": 11.044646263122559,
+              "gt_boundary": true,
+              "source_x": 106,
+              "source_y": 358
+            },
+            {
+              "training_x": 106,
+              "training_y": 359,
+              "unflipped_input_x": 106,
+              "unflipped_input_y": 359,
+              "gt": 1,
+              "pred": 3,
+              "ce": 10.867332458496094,
+              "gt_boundary": true,
+              "source_x": 106,
+              "source_y": 359
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_8",
+          "sample_id": "crater_0048",
+          "source_id": "Moon_8/1693502145597530112",
+          "source_kind": "augmented",
+          "augmentation_group": "crater",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/images/crater_0048.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/crater/labels/crater_0048.png",
+          "horizontal_flipped": true,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 485,
+          "points": [
+            {
+              "training_x": 568,
+              "training_y": 37,
+              "unflipped_input_x": 455,
+              "unflipped_input_y": 37,
+              "gt": 1,
+              "pred": 3,
+              "ce": 10.972640037536621,
+              "gt_boundary": true,
+              "source_x": 455,
+              "source_y": 37
+            },
+            {
+              "training_x": 567,
+              "training_y": 37,
+              "unflipped_input_x": 456,
+              "unflipped_input_y": 37,
+              "gt": 1,
+              "pred": 3,
+              "ce": 10.945240020751953,
+              "gt_boundary": true,
+              "source_x": 456,
+              "source_y": 37
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        },
+        {
+          "scene": "Moon_6",
+          "sample_id": "mountain_rock_0353",
+          "source_id": "Moon_6/1693382827404289024",
+          "source_kind": "augmented",
+          "augmentation_group": "mountain_rock",
+          "image": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/images/mountain_rock_0353.png",
+          "mask": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/groups/mountain_rock/labels/mountain_rock_0353.png",
+          "horizontal_flipped": false,
+          "input_height": 1024,
+          "input_width": 1024,
+          "batch_number": 618,
+          "points": [
+            {
+              "training_x": 465,
+              "training_y": 222,
+              "unflipped_input_x": 465,
+              "unflipped_input_y": 222,
+              "gt": 1,
+              "pred": 3,
+              "ce": 10.927881240844727,
+              "gt_boundary": true,
+              "source_x": 465,
+              "source_y": 222
+            }
+          ],
+          "native_width": 1024,
+          "native_height": 1024
+        }
+      ]
+    }
+  },
+  "partial_epoch": false,
+  "images_seen": 8000
+}

@@ -1,0 +1,127 @@
+{
+  "schema": "lusnar_hard_pixel_diagnostics_v1",
+  "epoch": 4,
+  "enabled": false,
+  "hard_pixel_weight": 0.0,
+  "hard_pixel_quota": 256,
+  "training_data_identity": {
+    "manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+    "split": "train",
+    "train_source": "combined",
+    "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+    "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+    "augmentation_groups": [
+      "crater",
+      "mountain_rock"
+    ],
+    "selection_manifest": "/home/lzc/workspace/fenge/result/selections/train8000_seed42_20261111.json",
+    "selection_manifest_sha256": "e0f402ff6cc738b8450e0d9877124643d849d3a857f4f21c9b31c04d3d2be815",
+    "selection_seed": 42,
+    "selection_counts": {
+      "original": 5000,
+      "crater": 1500,
+      "mountain_rock": 1500
+    },
+    "candidate_image_count": 10403,
+    "image_count": 8000,
+    "complete_image_count": 8000,
+    "partial": false,
+    "unique_source_count": 5492,
+    "ordered_samples_sha256": "7c8a78fda6d04a37542ff4929e5e4f42b33990cd204aae0c801a753248990196"
+  },
+  "training_source_counts": {
+    "augmented/mountain_rock": 1500,
+    "augmented/crater": 1500,
+    "original": 5000
+  },
+  "training_batches": 1000,
+  "direction_definition": "GT class ID -> current predicted class ID; training data only",
+  "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
+  "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
+  "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
+  "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
+  "training_loss": {
+    "loss_semantic_ce": 0.017716671848669648,
+    "loss_semantic_dice": 0.041320815078914164,
+    "loss_region_class": 0.003701336013727996,
+    "loss_region_mask": 0.008824357253499329,
+    "loss_region_dice": 0.026983437123708428,
+    "loss_auxiliary": 0.23126570814102887,
+    "loss_total": 0.2531782361716032,
+    "loss_hard_pixels": 0.0,
+    "loss_hard_pixels_weighted": 0.0,
+    "loss_base": 0.2531782361716032,
+    "hard_to_base_ratio": 0.0
+  },
+  "directions": {
+    "0->3": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "3->0": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "2->0": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "0->2": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "3->1": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "1->3": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    }
+  },
+  "partial_epoch": false,
+  "images_seen": 8000
+}
