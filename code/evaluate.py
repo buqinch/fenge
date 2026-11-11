@@ -33,6 +33,10 @@ def main(argv=None):
     parser.add_argument("--tta", choices=("none", "hflip"), default="none",
                         help="none or original plus horizontal-flip continuous-score averaging")
     parser.add_argument("--max-samples", type=int, default=None)
+    parser.add_argument("--save-images", action="store_true", default=False,
+                        help="Optionally save scored class-ID/color predictions and RGB/GT/prediction comparisons")
+    parser.add_argument("--image-output-root", default=str(PROJECT.parent / "fenge_result"),
+                        help="Image root; each checkpoint's experiment directory name is preserved underneath")
     allowed = {action.dest for action in parser._actions}
     if set(defaults) - allowed:
         parser.error(f"Unknown evaluation config keys: {sorted(set(defaults) - allowed)}")
@@ -61,7 +65,12 @@ def main(argv=None):
     dataset = LunarDataset(manifest, args.split, config.input_size, max_samples=args.max_samples)
     loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers, shuffle=False,
                         drop_last=False, pin_memory=device.type == "cuda")
-    result = evaluate_loader(model, loader, device, args.amp, tta=args.tta)
+    image_exporter = None
+    if args.save_images:
+        from lunarseg.visualization import EvaluationImageExporter
+        image_exporter = EvaluationImageExporter(path(args.image_output_root), checkpoint_path.parent.name,
+                                                 args.split, args.tta)
+    result = evaluate_loader(model, loader, device, args.amp, tta=args.tta, image_exporter=image_exporter)
     result.update(checkpoint=str(checkpoint_path.resolve()), checkpoint_sha256=sha256_file(checkpoint_path),
                   checkpoint_epoch=checkpoint.get("epoch"), split=args.split,
                   checkpoint_partial_training=checkpoint.get("partial", False),
@@ -69,13 +78,21 @@ def main(argv=None):
                             + (f"{config.input_size} original + horizontal-flip score averaging" if args.tta == "hflip" else "single view")
                             + "; no label postprocessing"),
                   evaluation_only=True)
+    if image_exporter is not None:
+        result["saved_images"] = image_exporter.finalize(result["image_count"], metadata={
+            "checkpoint": result["checkpoint"], "checkpoint_sha256": result["checkpoint_sha256"],
+            "checkpoint_epoch": result["checkpoint_epoch"], "input_size": config.input_size,
+            "partial": result["partial"], "continuous_scores_resized_before_argmax": True})
     suffix = ("_hflip" if args.tta == "hflip" else "") + ("_partial" if dataset.partial else "")
     output = path(args.output) if args.output else checkpoint_path.parent / f"{args.split}{suffix}_metrics.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
-    print(json.dumps({"output": str(output), "image_count": result["image_count"], "partial": result["partial"],
+    printed = {"output": str(output), "image_count": result["image_count"], "partial": result["partial"],
                       "miou": result["miou"], "scene_miou": {s: v["miou"] for s, v in result["scenes"].items()},
-                      "weighted_score": result.get("weighted_score")}, ensure_ascii=False), flush=True)
+                      "weighted_score": result.get("weighted_score")}
+    if "saved_images" in result:
+        printed["saved_images"] = result["saved_images"]
+    print(json.dumps(printed, ensure_ascii=False), flush=True)
 
 
 if __name__ == "__main__":

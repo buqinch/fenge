@@ -79,7 +79,7 @@ def predict_semantic_scores(model, images, tta="none"):
 
 
 @torch.inference_mode()
-def evaluate_loader(model, loader, device, amp="bf16", tta="none"):
+def evaluate_loader(model, loader, device, amp="bf16", tta="none", image_exporter=None):
     augmentation = tta_metadata(tta)
     was_training = model.training
     model.eval()
@@ -98,6 +98,8 @@ def evaluate_loader(model, loader, device, amp="bf16", tta="none"):
             entry = scenes.setdefault(scene, {"matrix": ConfusionMatrix(), "image_count": 0})
             entry["matrix"].update(targets[i], prediction[i])
             entry["image_count"] += 1
+        if image_exporter is not None:
+            image_exporter(batch, targets, prediction)
         count += len(images)
     model.train(was_training)
     result = total.compute()

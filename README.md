@@ -94,6 +94,8 @@ python code/select_training_data.py --config config/train_selection_8000.json
 | `config/dual_region_augmented_1024.json` | 原图单视图 | `result/dual_region_balanced8000_bs8` | GPU 3 |
 | `config/dual_region_augmented_tta_1024.json` | 原图＋水平翻转，2 视图 | `result/dual_region_balanced8000_bs8_tta` | GPU 4 |
 
+无 TTA 组已按要求在完成第 9 轮后停止，第 10 轮未完成部分不计入完成轮数；最佳检查点为第 5 轮，完整 Moon_5 mIoU 为 87.7176%。本次在 GPU 3 上安排其完整 Moon_2/4/9 的 `none`、`hflip` 测试，两次均不启用图片保存。TTA 组继续训练，并采用下述 0.05 个百分点、patience 5 的监控策略。这些状态不代表新的完整测试成绩已经产生。
+
 重新开展同配置实验时，在两个终端分别运行，并为新实验指定新的结果目录：
 
 ```bash
@@ -160,6 +162,20 @@ python code/analyze_experiments.py \
 
 分析会核验完整测试数量、数据清单与检查点 SHA256、Moon_5 选轮以及混淆矩阵评分。运行尚未停止或完整结果缺失时会报错，不生成最终分析。不同实验选出的检查点可能不同，组间成绩变化不能全部归因于 TTA；每个固定检查点内部的 `none/hflip` 对照才隔离了本次推理视角的变化。最终测试完成之前，不将流程验证或中途 Moon_5 成绩当成新的完整测试结论。
 
+后台发布入口会等待监控状态成为 `ready_to_publish`，再只提交本次两组实验记录、最终分析及对应监控记录，推送至 `origin main`：
+
+```bash
+python code/publish_results.py
+```
+
+仅检查一次，结果未就绪时立即返回：
+
+```bash
+python code/publish_results.py --once
+```
+
+发布状态保存在 `result/experiment_monitor/publication.json`。如果推送失败，已创建的本地 commit 及错误记录会保留；完成 GitHub 登录后可再次运行 `--once` 重试推送。只有该状态记录为 `published` 才表示发布入口已成功推送，启动发布进程本身不代表远端发布成功。
+
 ## 评估和推理
 
 验证集和最终测试评估分别运行：
@@ -173,6 +189,37 @@ python code/evaluate.py --checkpoint result/dual_region_balanced8000_bs8_tta/bes
 TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`）；独立评估和推理使用 `--tta none|hflip`。开启后，两次前向都使用 1024×1024 输入，将翻转图的五类预测概率翻回原坐标，再与原图概率平均，最后统一插值和 argmax。关闭时保持原有单次推理路径。TTA 不保证精度一定提升，比较时可对同一固定检查点分别评估两种模式。
 
 评估先累计每个场景的像素混淆矩阵，再对 GT 实际出现的类别计算 mIoU。完整测试的加权分数为 `S=(Moon_2+Moon_4+2×Moon_9)/4`，不是单图 mIoU 的平均值，也不是官方平台提交分数。测试结果只用于最终评估，不用于选轮或调参。
+
+### 可选保存评估图片
+
+`evaluate.py` 默认不保存图片。未来需要逐图查看时，可单独开启 `--save-images`；本次正在 GPU 3 上执行的完整测试保持关闭，不重启或更改其选项。
+
+```bash
+python code/evaluate.py \
+  --checkpoint result/dual_region_balanced8000_bs8/best.pt \
+  --split test --tta none --device cuda:3 \
+  --output result/dual_region_balanced8000_bs8/test_with_images_metrics.json \
+  --save-images
+```
+
+默认图片根目录为 **`/home/lzc/workspace/fenge_result`**，独立于代码仓库。第一层实验文件夹与检查点所在 `fenge/result` 实验目录同名，再按 split、TTA 模式、场景和样本分开，避免跨场景同名覆盖：
+
+```text
+/home/lzc/workspace/fenge_result/
+└── dual_region_balanced8000_bs8/
+    └── test_none/
+        ├── index.json
+        └── Moon_2/
+            └── <sample_id>/
+                ├── prediction_ids.png
+                ├── prediction_color.png
+                ├── ground_truth_ids.png
+                └── comparison.jpg
+```
+
+`prediction_ids.png`、`ground_truth_ids.png` 都是单通道类别 ID（0–4）；彩图使用固定五类调色板。对照 JPG 并排显示原图 RGB、真值和预测，使用实际评估输入反归一化还原的 RGB，以及评分时已经解码的 GT ID，三者空间位置和尺寸一致。原始 LuSNAR 的每一幅图和掩码均为 1024×1024。图片导出发生在预测和混淆矩阵累积之后，不改变 TTA、连续分数插值、argmax 或评分口径。
+
+开启后保存本次评估的全部图片，`index.json` 记录保存数量、相对路径及检查点来源，指标 JSON 的 `saved_images` 记录目录与索引。可用 `--image-output-root /your/image/root` 更换根目录；不传 `--save-images` 时不会创建图片目录。图片保留在独立目录，不作为本次 Git 结果发布内容。
 
 单图或目录推理：
 
