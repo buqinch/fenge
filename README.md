@@ -94,7 +94,7 @@ python code/select_training_data.py --config config/train_selection_8000.json
 | `config/dual_region_augmented_1024.json` | 原图单视图 | `result/dual_region_balanced8000_bs8` | GPU 3 |
 | `config/dual_region_augmented_tta_1024.json` | 原图＋水平翻转，2 视图 | `result/dual_region_balanced8000_bs8_tta` | GPU 4 |
 
-无 TTA 组已按要求在完成第 9 轮后停止，第 10 轮未完成部分不计入完成轮数；最佳检查点为第 5 轮，完整 Moon_5 mIoU 为 87.7176%。本次在 GPU 3 上安排其完整 Moon_2/4/9 的 `none`、`hflip` 测试，两次均不启用图片保存。TTA 组继续训练，并采用下述 0.05 个百分点、patience 5 的监控策略。这些状态不代表新的完整测试成绩已经产生。
+无 TTA 组已按要求在完成第 9 轮后停止，第 10 轮未完成部分不计入完成轮数；最佳检查点为第 5 轮，完整 Moon_5 mIoU 为 87.7176%。已在 GPU 3 完成其完整 Moon_2/4/9 的 `none`、`hflip` 测试，各 5004 张，两次均未保存图片。单视图加权 S 为 **87.0732%**，同一权重加水平翻转 TTA 后为 **87.2468%**；逐场景、逐类结果及混淆分析见 [测试分析](result/dual_region_balanced8000_bs8/test_comparison_zh.md)。TTA 训练组继续运行，并采用下述 0.05 个百分点、patience 5 的监控策略；两组联合报告将在剩余测试完成后生成。
 
 重新开展同配置实验时，在两个终端分别运行，并为新实验指定新的结果目录：
 
@@ -192,7 +192,7 @@ TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`�
 
 ### 可选保存评估图片
 
-`evaluate.py` 默认不保存图片。未来需要逐图查看时，可单独开启 `--save-images`；本次正在 GPU 3 上执行的完整测试保持关闭，不重启或更改其选项。
+`evaluate.py` 默认不保存图片。未来需要逐图查看时，可单独开启 `--save-images`；本次完整 Moon_2/4/9 测试均保持关闭。
 
 ```bash
 python code/evaluate.py \
