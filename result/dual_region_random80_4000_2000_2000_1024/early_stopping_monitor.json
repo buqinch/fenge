@@ -1,0 +1,57 @@
+{
+  "name": "random80_4000_2000_2000",
+  "output": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024",
+  "launch_sha256": "1ccd1093e5f061ba9a1bb0686b3ffbeb4b2501983f0de01318d4dacce809754f",
+  "primary_tta": "multiscale_hflip",
+  "evaluation_specs": [
+    {
+      "tta": "multiscale_hflip",
+      "tta_sizes": [
+        1024,
+        768
+      ]
+    }
+  ],
+  "training_process_identity": {
+    "pid": 1139824,
+    "starttime_ticks": 12714067,
+    "command": [
+      "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+      "-B",
+      "-u",
+      "code/train.py",
+      "--config",
+      "/home/lzc/workspace/fenge/config/dual_region_random80_4000_2000_2000_1024.json"
+    ],
+    "cwd": "/home/lzc/workspace/fenge",
+    "pgid": 1139824
+  },
+  "completed_epochs": 1,
+  "phase": "training",
+  "best_epoch": 1,
+  "best_validation_miou": 0.9220850139642423,
+  "early_stopping": {
+    "schema": "lusnar_patience_tracker_v1",
+    "policy": {
+      "patience": 5,
+      "min_delta": 0.0005,
+      "start_epoch": 4,
+      "metric": "custom_validation_miou",
+      "threshold_comparison": "score >= anchor + min_delta"
+    },
+    "anchor_score": null,
+    "anchor_epoch": null,
+    "bad_epochs": 0,
+    "last_epoch": 1,
+    "stopped": false,
+    "stop_epoch": null,
+    "stop_reason": null,
+    "last_event": "before_start_epoch",
+    "observations": [
+      {
+        "epoch": 1,
+        "miou": 0.9220850139642423
+      }
+    ]
+  }
+}
