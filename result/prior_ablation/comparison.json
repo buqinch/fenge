@@ -1,10 +1,76 @@
 {
-  "updated_at": "2026-11-12T05:44:43.168651+00:00",
+  "updated_at": "2026-11-12T05:52:38.559042+00:00",
   "complete": false,
   "validation_only_selection": true,
   "initialization": "original_pretrained_backbones_and_identical_random_main_head",
-  "common_initial_tensor_sha256": null,
-  "runs": [],
+  "common_initial_tensor_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+  "runs": [
+    {
+      "name": "control",
+      "control": null,
+      "status": "running",
+      "completed_epochs": 1,
+      "best_epoch": 1,
+      "best_validation_miou": 0.9149259640740901,
+      "class_iou": {
+        "regolith": 0.9899628614887442,
+        "rock": 0.8351479755834184,
+        "crater": 0.8068949279756851,
+        "mountain": 0.9469343241837767,
+        "sky": 0.9956897311388269
+      },
+      "class_precision": {
+        "regolith": 0.9972119188520085,
+        "rock": 0.8831411873635747,
+        "crater": 0.8342365747492205,
+        "mountain": 0.97547824012625,
+        "sky": 0.9979590837840502
+      },
+      "class_recall": {
+        "regolith": 0.9927104991891483,
+        "rock": 0.9389047061216406,
+        "crater": 0.9609674319328331,
+        "mountain": 0.9700250104323631,
+        "sky": 0.9977213663991508
+      },
+      "directions": {
+        "2->0": {
+          "pixels": 845435,
+          "gt_conditional_rate": 0.03780864546050513
+        },
+        "0->2": {
+          "pixels": 4211699,
+          "gt_conditional_rate": 0.003641899023589147
+        },
+        "2->3": {
+          "pixels": 500,
+          "gt_conditional_rate": 2.2360468551991063e-05
+        },
+        "3->1": {
+          "pixels": 757357,
+          "gt_conditional_rate": 0.012734343123977298
+        },
+        "1->3": {
+          "pixels": 290617,
+          "gt_conditional_rate": 0.008147468972532776
+        }
+      },
+      "global_update": 1000,
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/best.pt",
+      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/validation_epoch_001.json",
+      "scenes": {
+        "Moon_1": 0.9660469378110339,
+        "Moon_3": 0.9091907839602943,
+        "Moon_5": 0.9079828168976436,
+        "Moon_6": 0.9040952636051127,
+        "Moon_7": 0.9102953224862225,
+        "Moon_8": 0.9049768843142558
+      },
+      "training_seconds": 473.96894024001085,
+      "delta_vs_control_pp": null,
+      "comparison_budget_equal": false
+    }
+  ],
   "selected_run": null,
   "interpretation": "Independent single-seed ablations. Shared maximum update budget and patience policy; actual early-stop epochs may differ. Paired geometry must be compared to geometry_control. No combined model has been tested."
 }
