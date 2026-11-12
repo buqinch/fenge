@@ -1,0 +1,933 @@
+{
+  "schema": "lusnar_shadow_b0_visual_review_v1",
+  "created_at": "2026-11-12T05:06:39.723024+00:00",
+  "status": "complete",
+  "review_kind": "qualitative_assistant_visual_inspection_not_shadow_ground_truth_annotation",
+  "baseline": {
+    "checkpoint": "/home/lzc/workspace/fenge/result/shadow_b0_random80_epoch029/b0.pt",
+    "checkpoint_sha256": "ed1e2096ccd3be31b7ba40ac07c4dbd7849ed1823cb942f4b802706fe1cc6828",
+    "checkpoint_epoch": 29,
+    "tta": "none",
+    "input_size": 1024,
+    "split": "fixed_custom_validation_1601"
+  },
+  "selection": {
+    "selected_panel_path": "/home/lzc/workspace/fenge/result/shadow_b0_random80_epoch029/selected_panel.json",
+    "selected_panel_sha256": "c106f150f2719f00a7e26e79306ac5504341b036c1d5091cce6f89290d580a78",
+    "overview_index_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/overview_index.json",
+    "overview_index_sha256": "303fd754459e74f9792887de28cef0bdf73df78da9456ef9310c436fe6c96a30",
+    "selected_case_count": 40,
+    "overview_pages_visually_inspected": 4,
+    "overview_case_count": 40,
+    "detailed_npz_crop_case_count": 8,
+    "detailed_per_group": {
+      "dark_crater_missed": 2,
+      "bright_crater_missed": 2,
+      "dark_mountain_rock_confusion": 2,
+      "dark_correct": 2
+    },
+    "sampling_is_representative": false,
+    "selection_bias": "固定40图按错误或暗区正确条件挑选；这8图又作目的性代表/反例选择，不能估计总体失效比例或阴影因果。"
+  },
+  "method": {
+    "viewed": "实际查看4张总览与8张从原始NPZ数值裁出的局部对照；另查看暗坑前两例完整panel。",
+    "crop_coordinate_system": "原始1024x1024网格，xyxy右下开区间；推理尺寸未变。",
+    "rgb_exposure_changed": false,
+    "probability_display_range": [
+      0,
+      1
+    ],
+    "numeric_ground_truth_basis": "源mask与NPZ ground_truth_ids逐像素相等，未将JPG作GT",
+    "brightness_is_shadow_ground_truth": false,
+    "physical_shadow_labels_are_tentative": true,
+    "human_shadow_annotations_created": false,
+    "source_and_prediction_integrity_verified_for_detailed_cases": true
+  },
+  "qualitative_label_vocabulary": [
+    "疑似投影阴影",
+    "坑内自遮阴",
+    "材质或朝向暗",
+    "近黑无纹理",
+    "无法判定"
+  ],
+  "findings": [
+    "8个细看例子中的坑错误主要是薄坑缘或一个画面边缘截断小目标；没有观察到一个完整大坑的暗色内部整块被漏掉。此结论仅限这些细看例子。",
+    "两例亮坑同样有薄边界错误；两例山岩互混在同图亮区也存在，无法把它们专属归因于低亮度。",
+    "暗区正确组包含疑似自遮阴的大坑与暗岩石面，模型保留其主体，构成低亮度并不必然导致失效的反例。",
+    "RGB中可见的坑状/暗凹纹理若GT为月壤，不计作模型漏坑；黑色天空从地表亮度分析排除。",
+    "6个错误案例的所选误分像素均没有Y<=0.02的近黑像素；不支持从这些案例判断近黑无纹理是主要失效模式。",
+    "这些图像不足以单独确认投影阴影为主要瓶颈，也不足以证明阴影不影响模型；最终实验gate需结合全量配对统计及混杂控制。"
+  ],
+  "gate_decision": "本审阅不启动或批准模块实验；由主任务结合全量统计决定。",
+  "cases": [
+    {
+      "group": "dark_crater_missed",
+      "scene": "Moon_6",
+      "sample_id": "1693382863905625088",
+      "source_id": "Moon_6/1693382863905625088",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_crater_missed/Moon_6/1693382863905625088/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_crater_missed/Moon_6/1693382863905625088/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_crater_missed/Moon_6/1693382863905625088/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/dark_crater_missed_Moon_6_1693382863905625088_roi.png",
+      "roi_xyxy": [
+        0,
+        164,
+        512,
+        676
+      ],
+      "largest_target_component_bbox_xyxy": [
+        0,
+        404,
+        13,
+        435
+      ],
+      "largest_target_component_pixels": 228,
+      "selected_condition_pixels": 228,
+      "gt_crater_pixels_whole_image": 244,
+      "all_crater_missed_pixels": 244,
+      "all_crater_recall": 0.0,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 170,
+        "medium": 23,
+        "bright": 159
+      },
+      "selected_error_luminance_quantiles": [
+        0.08627451211214066,
+        0.20857450366020203,
+        0.4487576484680176
+      ],
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 0,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "无法判定"
+      ],
+      "observation": "GT 坑只在画面左侧留下一小块楔形截断区域，预测为月壤；RGB 对应灰暗有纹理斜面。无法从被截断的局部判定投影阴影或完整坑形。周围可见的其他暗凹地在 GT 中为月壤，不能计作坑漏检。",
+      "spatial_pattern": "small_truncated_object_at_image_border",
+      "counterexample": "100% 坑漏分仅涉及整图 244 个 GT 坑像素，不等于一个大坑整体消失。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "dark_crater_missed",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 228,
+          "direction_error_pixels": 228,
+          "direction_error_rate": 1.0,
+          "crater_to_regolith_pixels": 228,
+          "crater_to_mountain_pixels": 0
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382863905625088.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382863905625088.png",
+        "source_image_sha256": "b1c67d6fae14bd49c35adf4aa2fab440b4310fb27f303a7e5324c75bc8ac168a",
+        "source_mask_sha256": "ab9669e2b8678c843c9902c6ef35c3861709542627c8240019c0ba1d30a1625b",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 228,
+        "direction_error_pixels": 228,
+        "direction_error_rate": 1.0,
+        "crater_to_regolith_pixels": 228,
+        "crater_to_mountain_pixels": 0
+      },
+      "file_sha256": {
+        "panel": "646e7497004ea0065e527e903c0930801d57331e7f715dbbbc083481b7f206f9",
+        "probabilities": "4559b924f2182651d15bf3ab70ff11dbb3b418789e9ef2980b62b2a405770b2d",
+        "metrics": "3a903adcd12e05ffa2c5caa25730bf1fcdb9eb87855246b0cb7feb39d74465cc",
+        "review_crop": "551cc69f25c490d95bc4c4b69c83cde6c22f590540e2c9a84bc935fb58421177"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": 135,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 6,
+        "y": 419,
+        "gt": 2,
+        "pred": 0,
+        "brightness_group": 0,
+        "luminance": 0.10980392247438431,
+        "local_std": 0.1706721931695938,
+        "probabilities_class_0_to_4": [
+          0.9999996423721313,
+          2.9343823371164035e-07,
+          1.6261364521596988e-07,
+          2.6287144905268178e-08,
+          2.6287144905268178e-08
+        ]
+      }
+    },
+    {
+      "group": "dark_crater_missed",
+      "scene": "Moon_3",
+      "sample_id": "1693290403749172224",
+      "source_id": "Moon_3/1693290403749172224",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_crater_missed/Moon_3/1693290403749172224/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_crater_missed/Moon_3/1693290403749172224/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_crater_missed/Moon_3/1693290403749172224/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/dark_crater_missed_Moon_3_1693290403749172224_roi.png",
+      "roi_xyxy": [
+        512,
+        161,
+        1024,
+        673
+      ],
+      "largest_target_component_bbox_xyxy": [
+        848,
+        416,
+        861,
+        418
+      ],
+      "largest_target_component_pixels": 17,
+      "selected_condition_pixels": 115,
+      "gt_crater_pixels_whole_image": 57020,
+      "all_crater_missed_pixels": 296,
+      "all_crater_recall": 0.9948088390038583,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 41,
+        "medium": 23,
+        "bright": 35
+      },
+      "selected_error_luminance_quantiles": [
+        0.10980392247438431,
+        0.40759140253067017,
+        0.44904080033302307
+      ],
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 0,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "坑内自遮阴",
+        "无法判定"
+      ],
+      "observation": "可见完整的大坑碗状明暗变化，右侧较暗；GT 坑主体和预测几乎重合，P(crater) 在主体连续且较高。坑到土错误主要是下缘细带，无法将这些边界像素的暗认定为投影阴影。坑内自遮阴只是外观假说。",
+      "spatial_pattern": "thin_lower_crater_boundary",
+      "counterexample": "明显暗部的大坑主体仍保留，整图坑召回率约 99.48%。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "dark_crater_missed",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 6671,
+          "direction_error_pixels": 115,
+          "direction_error_rate": 0.017238794783390795,
+          "crater_to_regolith_pixels": 115,
+          "crater_to_mountain_pixels": 0
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_3/color/1693290403749172224.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_3/1693290403749172224.png",
+        "source_image_sha256": "214446e6e3a6be64f7c65062413c97b5364e947cd62dde8ad193c010b201a2b9",
+        "source_mask_sha256": "01a67f622d0c1625b85f88fed0948a0f8fd4c92c35268a02ef4bf668bcbcc778",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 6671,
+        "direction_error_pixels": 115,
+        "direction_error_rate": 0.017238794783390795,
+        "crater_to_regolith_pixels": 115,
+        "crater_to_mountain_pixels": 0
+      },
+      "file_sha256": {
+        "panel": "316cf26d81b0db390dbb7996fda26933c15f95876667fb9c3d1fe0ebd4c6b007",
+        "probabilities": "11823d7df0930bf410eca569443f3ab0922acd0c3e3e8539068c43cd314f99cc",
+        "metrics": "54df3dc42508ded213faa22a49af4d76d3314f77dcb9ffd6a822ee534e64307a",
+        "review_crop": "3530fb5af3d2968196dc3343dddc189229cb711d308b0bf2c568d54ee829ae60"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": 115,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 854,
+        "y": 417,
+        "gt": 2,
+        "pred": 0,
+        "brightness_group": 0,
+        "luminance": 0.40198197960853577,
+        "local_std": 0.10817614197731018,
+        "probabilities_class_0_to_4": [
+          0.7237687110900879,
+          2.1952907047761983e-08,
+          0.2762312591075897,
+          2.5143748416667222e-08,
+          2.1952907047761983e-08
+        ]
+      }
+    },
+    {
+      "group": "bright_crater_missed",
+      "scene": "Moon_6",
+      "sample_id": "1693382836587804160",
+      "source_id": "Moon_6/1693382836587804160",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/bright_crater_missed/Moon_6/1693382836587804160/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/bright_crater_missed/Moon_6/1693382836587804160/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/bright_crater_missed/Moon_6/1693382836587804160/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/bright_crater_missed_Moon_6_1693382836587804160_roi.png",
+      "roi_xyxy": [
+        349,
+        72,
+        861,
+        584
+      ],
+      "largest_target_component_bbox_xyxy": [
+        578,
+        328,
+        633,
+        329
+      ],
+      "largest_target_component_pixels": 55,
+      "selected_condition_pixels": 92,
+      "gt_crater_pixels_whole_image": 973,
+      "all_crater_missed_pixels": 150,
+      "all_crater_recall": 0.8458376156217883,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 1,
+        "medium": 7,
+        "bright": 101
+      },
+      "selected_error_luminance_quantiles": [
+        0.6274667382240295,
+        0.7596627175807953,
+        0.8254799842834473
+      ],
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 0,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "无法判定"
+      ],
+      "observation": "GT 坑是远处横向很薄的一条区域，预测保留其主体但轮廓厚度和局部范围不同。所选亮像素错误落在薄坑缘；没有看到大面积亮坑内部被整块改成月壤。",
+      "spatial_pattern": "thin_distant_crater_boundary",
+      "counterexample": "高亮处同样有边界错误；整图坑 IoU 还受预测面积扩张影响，不能只按漏分解释。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "bright_crater_missed",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 630,
+          "direction_error_pixels": 92,
+          "direction_error_rate": 0.14603174603174604,
+          "crater_to_regolith_pixels": 92,
+          "crater_to_mountain_pixels": 0
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382836587804160.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382836587804160.png",
+        "source_image_sha256": "b04d41649dc52b582b5160e64e3972772a6705447ad3548f146135352728b859",
+        "source_mask_sha256": "06e0cc52d673877c24bba3cc5ec0a26898b7b25f0807c3ad306db0cf1a35d3ea",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 630,
+        "direction_error_pixels": 92,
+        "direction_error_rate": 0.14603174603174604,
+        "crater_to_regolith_pixels": 92,
+        "crater_to_mountain_pixels": 0
+      },
+      "file_sha256": {
+        "panel": "3b6c8ce8633f865f9965a28b9952e6264e1ab45571eda5f141f185300eef10a9",
+        "probabilities": "7c66fb3348fce440d732493469dded0c43567314e9775bd9d4f3d8e3db2141d7",
+        "metrics": "19e42383c3b08c7e02517f9ad30227ed6fd5c48f7f8ab549824d678a5bcd5b55",
+        "review_crop": "fa945dbff890a7a943e2f1bc9e9acc2ed5ac40b4c9fbc3583482e7b84e2c4e44"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": 92,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 605,
+        "y": 328,
+        "gt": 2,
+        "pred": 0,
+        "brightness_group": 2,
+        "luminance": 0.7722612023353577,
+        "local_std": 0.09900689125061035,
+        "probabilities_class_0_to_4": [
+          0.5238093137741089,
+          4.6061811076469894e-07,
+          0.4761902689933777,
+          1.1623564333262948e-08,
+          1.1623564333262948e-08
+        ]
+      }
+    },
+    {
+      "group": "bright_crater_missed",
+      "scene": "Moon_8",
+      "sample_id": "1693502043836106240",
+      "source_id": "Moon_8/1693502043836106240",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/bright_crater_missed/Moon_8/1693502043836106240/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/bright_crater_missed/Moon_8/1693502043836106240/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/bright_crater_missed/Moon_8/1693502043836106240/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/bright_crater_missed_Moon_8_1693502043836106240_roi.png",
+      "roi_xyxy": [
+        0,
+        56,
+        512,
+        568
+      ],
+      "largest_target_component_bbox_xyxy": [
+        123,
+        312,
+        187,
+        313
+      ],
+      "largest_target_component_pixels": 64,
+      "selected_condition_pixels": 205,
+      "gt_crater_pixels_whole_image": 1535,
+      "all_crater_missed_pixels": 208,
+      "all_crater_recall": 0.8644951140065147,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 0,
+        "medium": 1,
+        "bright": 164
+      },
+      "selected_error_luminance_quantiles": [
+        0.6288666725158691,
+        0.7963615655899048,
+        0.8775772452354431
+      ],
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 0,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "无法判定"
+      ],
+      "observation": "远处 GT 坑呈扁平细条，预测仍有对应连续坑条，主要误差沿上下缘。RGB 的前景暗坑状纹理多数属于 GT 月壤，不用于判定坑漏检。",
+      "spatial_pattern": "thin_distant_crater_boundary",
+      "counterexample": "所选亮区有误分但未见整块大坑消失，说明边界与远距离尺度也需要区分。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "bright_crater_missed",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 1483,
+          "direction_error_pixels": 205,
+          "direction_error_rate": 0.13823331085637222,
+          "crater_to_regolith_pixels": 205,
+          "crater_to_mountain_pixels": 0
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_8/color/1693502043836106240.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_8/1693502043836106240.png",
+        "source_image_sha256": "fa7ca1d7ef5d4801b86b3c96594061314a58b6657b5c3d9ebf62088c4c9369f2",
+        "source_mask_sha256": "272ff8bd94d10ec7fdc77a9a83885179fa307f1dacbfcfaa871b7bea64455e65",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 1483,
+        "direction_error_pixels": 205,
+        "direction_error_rate": 0.13823331085637222,
+        "crater_to_regolith_pixels": 205,
+        "crater_to_mountain_pixels": 0
+      },
+      "file_sha256": {
+        "panel": "6a73324a4cebd303d54e9431821ae0fa467e15708744ca0dc6ff18d041afe8b5",
+        "probabilities": "b4b085ce8024fcb833bb57f8d1a6366e7ec56f4deb481db1550331a4234f63bc",
+        "metrics": "1ba61a52f58ccfa410b90fc77c57a30ddd8e27622f4cb74ad3f1a33919b50f1d",
+        "review_crop": "35e31efaa53b7b8f84776054ec494289e8cb20b2c5ab8a4d28ae6c39d90e2755"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": 205,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 154,
+        "y": 312,
+        "gt": 2,
+        "pred": 0,
+        "brightness_group": 2,
+        "luminance": 0.8072721362113953,
+        "local_std": 0.1260434240102768,
+        "probabilities_class_0_to_4": [
+          0.5914778709411621,
+          1.9478935428196564e-05,
+          0.4085026979446411,
+          1.0906177294600639e-08,
+          1.0906177294600639e-08
+        ]
+      }
+    },
+    {
+      "group": "dark_mountain_rock_confusion",
+      "scene": "Moon_5",
+      "sample_id": "1693360213595874048",
+      "source_id": "Moon_5/1693360213595874048",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_mountain_rock_confusion/Moon_5/1693360213595874048/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_mountain_rock_confusion/Moon_5/1693360213595874048/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_mountain_rock_confusion/Moon_5/1693360213595874048/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/dark_mountain_rock_confusion_Moon_5_1693360213595874048_roi.png",
+      "roi_xyxy": [
+        512,
+        54,
+        1024,
+        566
+      ],
+      "largest_target_component_bbox_xyxy": [
+        994,
+        292,
+        1024,
+        323
+      ],
+      "largest_target_component_pixels": 373,
+      "selected_condition_pixels": 521,
+      "gt_crater_pixels_whole_image": 0,
+      "all_crater_missed_pixels": 0,
+      "all_crater_recall": null,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 521,
+        "medium": 55,
+        "bright": 300
+      },
+      "selected_error_luminance_quantiles": [
+        0.08627451211214066,
+        0.08627451211214066,
+        0.44902509450912476
+      ],
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 182,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "材质或朝向暗",
+        "无法判定"
+      ],
+      "observation": "山体右端与岩石接触处有很暗的面，GT 岩石在画面右边缘伸出的小片被接到山体；方向图为岩石到山体的紫红色片。暗面较平坦，亮度无法独立分离材质、朝向与遮阴，且同图亮区亦有山岩互混。",
+      "spatial_pattern": "rock_mountain_contact_and_image_border",
+      "counterexample": "暗处同方向错误 521px，亮处也有 300px；不能称该混淆仅发生在暗处。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "dark_mountain_rock_confusion",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 22941,
+          "direction_error_pixels": 521,
+          "direction_error_rate": 0.0227104311058803,
+          "mountain_to_rock_pixels": 96,
+          "rock_to_mountain_pixels": 425
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_5/color/1693360213595874048.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_5/1693360213595874048.png",
+        "source_image_sha256": "f1cc2e89ea71d1a01575079496ee0b5f64e8cc01f26cf9d424f0d4a122a8b82a",
+        "source_mask_sha256": "a5d892c090fc23c009bf465e8640865d5d258374c3ed7ce56cee1092448cd211",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 22941,
+        "direction_error_pixels": 521,
+        "direction_error_rate": 0.0227104311058803,
+        "mountain_to_rock_pixels": 96,
+        "rock_to_mountain_pixels": 425
+      },
+      "file_sha256": {
+        "panel": "aed8f59a0e1cd408fc83cabb5af897033f56f7702b764c3ad1342408d0675969",
+        "probabilities": "140fa5f8a9f8d74e18f442a869b9057e4e53b6c324547e7408554f917343ce07",
+        "metrics": "9f322bf7154cb113d262afb59f10a9fd2bf694c5e853b82caa8219e0c3824c00",
+        "review_crop": "3b4ab76fdb84cbc1daf17f7e0ca3e456d60ef5a207aed686fcac2e0157bb799b"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": 301,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 1010,
+        "y": 308,
+        "gt": 1,
+        "pred": 3,
+        "brightness_group": 0,
+        "luminance": 0.08627451211214066,
+        "local_std": 0.004642817657440901,
+        "probabilities_class_0_to_4": [
+          1.0011707907153777e-08,
+          8.083870852715336e-07,
+          1.0011707907153777e-08,
+          0.9999991655349731,
+          1.0011707907153777e-08
+        ]
+      }
+    },
+    {
+      "group": "dark_mountain_rock_confusion",
+      "scene": "Moon_1",
+      "sample_id": "1693274798167865600",
+      "source_id": "Moon_1/1693274798167865600",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_mountain_rock_confusion/Moon_1/1693274798167865600/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_mountain_rock_confusion/Moon_1/1693274798167865600/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_mountain_rock_confusion/Moon_1/1693274798167865600/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/dark_mountain_rock_confusion_Moon_1_1693274798167865600_roi.png",
+      "roi_xyxy": [
+        0,
+        50,
+        512,
+        562
+      ],
+      "largest_target_component_bbox_xyxy": [
+        54,
+        300,
+        56,
+        313
+      ],
+      "largest_target_component_pixels": 13,
+      "selected_condition_pixels": 67,
+      "gt_crater_pixels_whole_image": 0,
+      "all_crater_missed_pixels": 0,
+      "all_crater_recall": null,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 67,
+        "medium": 43,
+        "bright": 462
+      },
+      "selected_error_luminance_quantiles": [
+        0.08627451211214066,
+        0.23754823207855225,
+        0.41791999340057373
+      ],
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 0,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "材质或朝向暗",
+        "疑似投影阴影"
+      ],
+      "observation": "近景大岩石有明显明暗面，左方地面有疑似投影阴影；GT 岩石主体及其暗面大体保留。山岩互混主要是轮廓附近零星细线，不能把邻近地面暗影当成整块岩石失效的证据。",
+      "spatial_pattern": "sparse_rock_silhouette_errors",
+      "counterexample": "同图山岩互混暗 67px、亮 462px；亮面也有同方向混淆。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "dark_mountain_rock_confusion",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 37283,
+          "direction_error_pixels": 67,
+          "direction_error_rate": 0.001797065686774133,
+          "mountain_to_rock_pixels": 0,
+          "rock_to_mountain_pixels": 67
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_1/color/1693274798167865600.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_1/1693274798167865600.png",
+        "source_image_sha256": "5ee3d991b6fe80a9adea9f5b92e98d8308da669acfd08f3f6a3023f19895ed54",
+        "source_mask_sha256": "9b53fb9c9c1e10cef27608e99283a0e1d36571a11f9160d64aa50e0e74cee3b2",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 37283,
+        "direction_error_pixels": 67,
+        "direction_error_rate": 0.001797065686774133,
+        "mountain_to_rock_pixels": 0,
+        "rock_to_mountain_pixels": 67
+      },
+      "file_sha256": {
+        "panel": "1a86bdb6b96bd1351884a1184c47f0c7568f71efd30adc7ebe258e57bce8ccc9",
+        "probabilities": "7ef4446971c17c9ee0caa71f93191bebda74ffbede88f2a2c33f73cfacd7d6ff",
+        "metrics": "85b2bb0b9623a83732a731b4047722890b7c7c54ad198bf3bb52255be66ed953",
+        "review_crop": "76f2e5f67183aac033b80f897dac900072a4e73407d18eb9573603207213a382"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": 67,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 55,
+        "y": 306,
+        "gt": 1,
+        "pred": 3,
+        "brightness_group": 0,
+        "luminance": 0.23137255012989044,
+        "local_std": 0.2920343577861786,
+        "probabilities_class_0_to_4": [
+          7.99456216782346e-08,
+          0.3809507489204407,
+          2.3652553693409573e-08,
+          0.6190449595451355,
+          4.117430307815084e-06
+        ]
+      }
+    },
+    {
+      "group": "dark_correct",
+      "scene": "Moon_7",
+      "sample_id": "1693385394043741696",
+      "source_id": "Moon_7/1693385394043741696",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_correct/Moon_7/1693385394043741696/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_correct/Moon_7/1693385394043741696/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_correct/Moon_7/1693385394043741696/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/dark_correct_Moon_7_1693385394043741696_roi.png",
+      "roi_xyxy": [
+        218,
+        133,
+        986,
+        901
+      ],
+      "largest_target_component_bbox_xyxy": [
+        100,
+        373,
+        1024,
+        676
+      ],
+      "largest_target_component_pixels": 127185,
+      "selected_condition_pixels": 132976,
+      "gt_crater_pixels_whole_image": 223884,
+      "all_crater_missed_pixels": 390,
+      "all_crater_recall": 0.9982580264779976,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 0,
+        "medium": 2,
+        "bright": 97
+      },
+      "selected_error_luminance_quantiles": null,
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 0,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "坑内自遮阴"
+      ],
+      "observation": "大坑内有宽而连续的暗带，外观符合疑似坑内自遮阴；GT 与预测保留完整坑主体，暗带在连续 P(crater) 图中仍是高概率坑。错误主要是坑边缘细线。",
+      "spatial_pattern": "large_dark_crater_interior_retained",
+      "counterexample": "大面积疑似自遮阴暗部仍正确；整图 223884 个 GT 坑像素仅漏 390 个，召回约 99.83%。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "dark_correct",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 133333,
+          "correct_target_pixels": 132976,
+          "target_recall": 0.9973224933062332
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_7/color/1693385394043741696.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_7/1693385394043741696.png",
+        "source_image_sha256": "34de0dbd16486084e5a89cb2eb0ae4ff6d29f33e28883de81ee85334866a94b7",
+        "source_mask_sha256": "14dfd92e6c6a4d776d8d0fcc57f9242cdd373c1f9592a8b69b0e87a9b2133502",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 133333,
+        "correct_target_pixels": 132976,
+        "target_recall": 0.9973224933062332
+      },
+      "file_sha256": {
+        "panel": "e883d01c511fcf451881dc38f4db68288cd9648cb9d8230d2de1e17106d6e7dc",
+        "probabilities": "5bde0beb77681f965a35fdeab297f301f74ab643afe8ad33595384a0956fcb24",
+        "metrics": "fe7d8b0eeb404cb0dc26f6c80f80d96cc93dfef2b9f1621a238b0e85b591bc13",
+        "review_crop": "ee3e7a8a52f445b4eb5bbd93d13aa00f79b5e1f67b55216a1a8afb3ebebffae4"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": null,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 561,
+        "y": 524,
+        "gt": 2,
+        "pred": 2,
+        "brightness_group": 0,
+        "luminance": 0.08627451211214066,
+        "local_std": 0.1783316731452942,
+        "probabilities_class_0_to_4": [
+          0.0006290288874879479,
+          1.0005413386693363e-08,
+          0.9993705153465271,
+          2.780572572191886e-08,
+          5.249353307590354e-07
+        ]
+      }
+    },
+    {
+      "group": "dark_correct",
+      "scene": "Moon_1",
+      "sample_id": "1693274843058784000",
+      "source_id": "Moon_1/1693274843058784000",
+      "panel_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_correct/Moon_1/1693274843058784000/panel.jpg",
+      "npz_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_correct/Moon_1/1693274843058784000/probabilities.npz",
+      "metrics_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_correct/Moon_1/1693274843058784000/metrics.json",
+      "review_crop_path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/visual_review/dark_correct_Moon_1_1693274843058784000_roi.png",
+      "roi_xyxy": [
+        256,
+        0,
+        1024,
+        768
+      ],
+      "largest_target_component_bbox_xyxy": [
+        661,
+        32,
+        1024,
+        572
+      ],
+      "largest_target_component_pixels": 86487,
+      "selected_condition_pixels": 107984,
+      "gt_crater_pixels_whole_image": 0,
+      "all_crater_missed_pixels": 0,
+      "all_crater_recall": null,
+      "mountain_rock_direction_error_pixels_by_brightness": {
+        "dark": 8,
+        "medium": 15,
+        "bright": 117
+      },
+      "selected_error_luminance_quantiles": null,
+      "selected_error_nearblack_pixels": 0,
+      "selected_error_flat_pixels": 0,
+      "npz_ground_truth_used": true,
+      "labels": [
+        "材质或朝向暗",
+        "疑似投影阴影"
+      ],
+      "observation": "岩石暗面与地面三角形暗区都清楚可见；后者外观疑似岩石投影阴影。预测保留岩石的明暗两面和主体轮廓，投影到地面的暗区仍按 GT 月壤处理，未被误当岩石或山体。",
+      "spatial_pattern": "dark_rock_faces_and_ground_shadow_retained",
+      "counterexample": "暗岩石并非必然被错分；所选暗目标正确像素 107984 个。",
+      "qualitative_interpretation_is_tentative": true,
+      "source_metadata": {
+        "group": "dark_correct",
+        "selection_statistics": {
+          "eligible": true,
+          "target_gt_pixels": 108302,
+          "correct_target_pixels": 107984,
+          "target_recall": 0.9970637661354361
+        },
+        "source_image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_1/color/1693274843058784000.png",
+        "source_mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_1/1693274843058784000.png",
+        "source_image_sha256": "101ccb47ce564f47909e335f54f798df3ad081a89b0b534198dcf555292c5855",
+        "source_mask_sha256": "e370c659d362dbb67cd0920349272270c481c59c23bd2de0552ec1fefd93f91d",
+        "brightness_thresholds": {
+          "low": 0.44921875,
+          "high": 0.625244140625
+        },
+        "tta": "none",
+        "tta_sizes": null,
+        "checkpoint": "result/shadow_b0_random80_epoch029/b0.pt",
+        "probability_domain": "normalized_five_class_probability",
+        "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+        "baseline_prediction_exact_match": true
+      },
+      "selected_panel_statistics": {
+        "eligible": true,
+        "target_gt_pixels": 108302,
+        "correct_target_pixels": 107984,
+        "target_recall": 0.9970637661354361
+      },
+      "file_sha256": {
+        "panel": "5200b7d257d4298ac479a168215fac19a7095ef3196cd42715a3fc49526c17a3",
+        "probabilities": "7ff50fec279c2cc0a51a335a8de6bab5e7031113c40f6e5bab76cb8bed4a312a",
+        "metrics": "d1e39224afa5e22f719e4a5265f6e5b0664b8ea52f71e093308b90de0ec66f20",
+        "review_crop": "c16343b6756e0a69155db6063cd9ad7e3d31348e0390eae01270902e422d03f4"
+      },
+      "source_rgb_and_gt_exact_match_npz": true,
+      "baseline_prediction_png_exact_match_npz": true,
+      "selected_errors_within_3px_any_gt_class_boundary": null,
+      "boundary_definition": "GT 邻域 7x7 至少含两种类别，Chebyshev 半径3；边界只作空间描述，不是阴影标签。",
+      "example_original_grid_pixel": {
+        "x": 841,
+        "y": 294,
+        "gt": 1,
+        "pred": 1,
+        "brightness_group": 0,
+        "luminance": 0.3465137183666229,
+        "local_std": 0.23358044028282166,
+        "probabilities_class_0_to_4": [
+          2.7474028385654492e-08,
+          1.0,
+          1.0011715900759555e-08,
+          1.0011715900759555e-08,
+          1.0011715900759555e-08
+        ]
+      }
+    }
+  ],
+  "overview_pages": [
+    {
+      "group": "bright_crater_missed",
+      "path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/bright_crater_missed_overview_01.jpg",
+      "sha256": "54c5e09f20ef980c16b7e35df476eed956d40741eb7e64761c292c9662fdb265",
+      "visually_inspected": true
+    },
+    {
+      "group": "dark_correct",
+      "path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_correct_overview_01.jpg",
+      "sha256": "44334e0b51d2926d50a5375e13164288a88184d11c8cd9b119ef1a662e2d9f6d",
+      "visually_inspected": true
+    },
+    {
+      "group": "dark_crater_missed",
+      "path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_crater_missed_overview_01.jpg",
+      "sha256": "1dce22061737b1b6a342b2c078c699b763ca0100cf7d762b68840a3690c5b7d7",
+      "visually_inspected": true
+    },
+    {
+      "group": "dark_mountain_rock_confusion",
+      "path": "/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/panels/dark_mountain_rock_confusion_overview_01.jpg",
+      "sha256": "9b0e1217300ce73d300dff4e252e42ac7968322d201d3e71806a24f2d233921a",
+      "visually_inspected": true
+    }
+  ],
+  "limitations": [
+    "无阴影GT或人工阴影标注，物理成因只能作外观假说。",
+    "来自单一B0、固定验证集、TTA none；不能外推其他训练配方或测试集。",
+    "受误分条件筛选的图像与8例细看不是随机代表抽样。",
+    "像素边界误差与物理材质、朝向、距离、标注边界可能混杂。",
+    "连续概率显示固定0..1，不能仅凭颜色判断校准优劣。"
+  ]
+}

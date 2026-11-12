@@ -236,6 +236,29 @@ python code/monitor_experiments.py \
 
 当前差距主要在岩石和撞击坑：Moon_4 撞击坑 IoU 低 4.9791 个百分点、Moon_9 撞击坑低 3.4075 个百分点；Moon_9 山体 IoU 高 0.3531 个百分点。这是训练第 5 轮与已完成旧基线第 29 轮的阶段性对照，训练预算不同，不能据此将差值归因于数据配比。完整 [测试指标](result/dual_region_random80_4000_2000_2000_1024/test_epoch_005_multiscale_hflip_1024_768_metrics.json)、[逐类对照报告](result/dual_region_random80_4000_2000_2000_1024/test_epoch_005_comparison_zh.md)、[快照来源](result/dual_region_random80_4000_2000_2000_1024/best_epoch_005_eval_snapshot.json) 已保存。最终自动评测仍由训练结束时验证集选出的最佳检查点决定。
 
+复现上述第 5 轮提前测试（完整 Moon_2/4/9，物理 GPU 4，四视图）：
+
+```bash
+CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
+  --config config/evaluate_random80_4000_2000_2000_epoch005_multiscale.json
+```
+
+### 亮度条件诊断：固定第 29 轮 B0
+
+按阴影行动指南先完成起点锁定和诊断。B0 为已完成的 `dual_region_random80_1024` 第 29 轮权重，单尺度 1024、无 TTA、无分数校准；完整固定 1601 张验证集 mIoU **97.4439%**。本次没有增加训练更新，不能与四视图分数相减来表示模块收益。[起点及清单快照](result/shadow_b0_random80_epoch029/baseline_snapshot.json)、[完整统计报告](result/shadow_b0_random80_epoch029/report_zh.md)、[图像审阅](result/shadow_b0_random80_epoch029/visual_review_zh.md)、[阶段决策](result/shadow_b0_random80_epoch029/stage_decision.json) 已保存。
+
+只从当前 4000＋2000＋2000 的全部训练图拟合地表 RGB 亮度三分位阈值，并冻结为 **0.44921875／0.625244140625**。验证统计按类别、场景、同图同类及预先固定的大坑／触边坑／山岩混杂标签分别累积；GT 天空与忽略区不参与条件集合，预测天空仍计入错分。条件召回使用对应 GT 类像素作分母；条件 IoU 使用集合内所有地表 GT 类，空分母保留 null。详见 [阈值及拟合来源](result/shadow_diagnostics/brightness_thresholds.json)、[逐条件 CSV](result/shadow_b0_random80_epoch029/conditional_metrics.csv)。
+
+| 条件 | 坑召回 | 岩石召回 | 山体召回 |
+|---|---:|---:|---:|
+| 低亮度 | 99.1656% | 97.2337% | 98.4763% |
+| 中亮度 | 98.8128% | 95.6964% | 97.2947% |
+| 高亮度 | 99.2093% | 98.0383% | 98.9573% |
+
+中亮度区域的三类召回均低于低亮度；同图同类坑的暗−亮召回均值为 −0.5658 个百分点，但坑→月壤差异并非各场景一致，山岩互误也未普遍随低亮度增加。40 张固定面板及局部检查主要发现远处薄坑缘、截断小坑和物体边界错误，同时存在暗坑内部正确识别的反例。**当前证据不足以将阴影列为主要原因，暂缓指南后续明暗亲和和归一化训练。** 这不证明阴影无影响，也不代表已试验并否定这两类模块；图像亮度不是阴影真值。
+
+全部 1601 张 B0 类别预测与 40 张诊断面板位于 `/home/lzc/workspace/fenge_result/shadow_b0_random80_epoch029/val_none/`。面板按四组各 10 张保存 RGB、GT、预测、错误、亮度、纹理和三类概率视图，另保存 NPZ 数值；选例不是随机错误率样本。开启诊断的配置为 [shadow_diagnostic_b0.json](config/shadow_diagnostic_b0.json)，入口 `python code/evaluate.py --config config/shadow_diagnostic_b0.json`。复跑应覆盖输出参数到新目录；诊断拒绝覆盖已有产物。普通评估不传这些选项时保持原行为，CPU 统计核验、真实 1024 前向以及开关诊断前后的指标一致性检查已通过，记录在 [shadow_diagnostics](result/shadow_diagnostics/)。
+
 ### 历史实验：5000 原图＋1500 坑增强＋1500 山岩增强
 
 以下保留上一轮固定 **8000 张训练图**的复现说明：5000 张原始图、1500 张 `mountain_rock` 山岩交界增强、1500 张 `crater` 大坑增强。其 Moon_5 完整 1599 张用于每轮评估与选轮。实际 **batch size 8、累积 1**，有效 batch 也是 8。已完成的随机 4:1 基线使用上节的 9401／1601 清单与独立配置。

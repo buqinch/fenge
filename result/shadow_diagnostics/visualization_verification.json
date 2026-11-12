@@ -1,0 +1,105 @@
+{
+  "schema": "lusnar_brightness_visualization_verification_v1",
+  "status": "passed",
+  "device": "cpu",
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "numpy": "1.26.4",
+  "visualization_module_sha256": "526f8ab1a674328f13d7dfea2775c54f61e6c170adabc025c0f9635db706f801",
+  "evaluate_module_sha256": "ae1af8a13e450804eb3a319410830181434c6a1437b504ff648ef196c7432a7f",
+  "synthetic_panel_checks": {
+    "status": "passed",
+    "source_shape_hw": [
+      1024,
+      1024
+    ],
+    "panel_shape_hw": [
+      3888,
+      3144
+    ],
+    "nine_tiles_original_grid_and_rgb_pixels": true,
+    "probability_channels_crater2_regolith0_mountain3": true,
+    "fixed_probability_color_endpoints_0_and_1": true,
+    "named_error_directions_other_correct_ignore": true,
+    "gt_sky_neutral_in_brightness_and_local_std": true,
+    "float32_npz_exact_roundtrip": true,
+    "source_path_sha_metadata_preserved": true,
+    "input_arrays_unchanged": true,
+    "overview_generated": true,
+    "invalid_input_and_overwrite_rejections": 10,
+    "rejected_cases": [
+      "wrong_probability_shape",
+      "prediction_argmax_mismatch",
+      "unnormalized_scores",
+      "luminance_wrong_units",
+      "std_wrong_units",
+      "misaligned_crop",
+      "invalid_brightness_group",
+      "invalid_gt_id",
+      "path_traversal",
+      "existing_output"
+    ]
+  },
+  "evaluate_panel_replay_cases": [
+    {
+      "case": "strict_winner",
+      "validation_images": 3,
+      "batch_size": 2,
+      "batch_shapes": [
+        2,
+        1
+      ],
+      "replay_batches": 2,
+      "original_batch_tensors_identical": true,
+      "saved_baseline_predictions_exactly_reproduced": true,
+      "saved_float32_softmax_probabilities_unchanged": true,
+      "probability_tie_pixels": 0,
+      "source_winner_differs_from_first_probability_argmax_pixels": 0,
+      "result_json_safe_allow_nan_false": true,
+      "model_training_mode_restored": true,
+      "single_group_scene_sample_nesting": true
+    },
+    {
+      "case": "float32_probability_tie",
+      "validation_images": 3,
+      "batch_size": 2,
+      "batch_shapes": [
+        2,
+        1
+      ],
+      "replay_batches": 2,
+      "original_batch_tensors_identical": true,
+      "saved_baseline_predictions_exactly_reproduced": true,
+      "saved_float32_softmax_probabilities_unchanged": true,
+      "probability_tie_pixels": 3145728,
+      "source_winner_differs_from_first_probability_argmax_pixels": 3145728,
+      "result_json_safe_allow_nan_false": true,
+      "model_training_mode_restored": true,
+      "single_group_scene_sample_nesting": true
+    }
+  ],
+  "nonmaximum_probability_prediction_rejected": true,
+  "float32_tie_counterexample": {
+    "logits": [
+      0.10000000149011612,
+      -2.0,
+      -2.0,
+      0.10000000894069672,
+      -2.0
+    ],
+    "softmax_float32": [
+      0.4224097728729248,
+      0.051726795732975006,
+      0.051726795732975006,
+      0.4224097728729248,
+      0.051726795732975006
+    ],
+    "logit_argmax": 3,
+    "float32_softmax_first_argmax": 0,
+    "highest_logit_margin": 7.450580596923828e-09
+  },
+  "tie_resolution": "Retain original-score argmax only at an exact saved-probability maximum; never edit probabilities. Record tie counts.",
+  "limits": [
+    "CPU synthetic integration only; the real B0 BF16 replay must additionally pass its exact baseline ID-PNG comparison."
+  ]
+}

@@ -12,11 +12,78 @@ import torch
 from torch.utils.data import DataLoader
 
 from lunarseg.data import DEFAULT_MANIFEST, DEFAULT_TEST_MANIFEST, LunarDataset, sha256_file
-from lunarseg.metrics import (evaluate_loader, validate_mountain_alpha, validate_tta_sizes,
+from lunarseg.metrics import (autocast_context, evaluate_loader, predict_semantic_scores,
+                              validate_mountain_alpha, validate_tta_sizes,
                               validate_crater_gamma, validate_tta_weights)
 from lunarseg.model import ModelConfig, build_model
 
 PROJECT = Path(__file__).resolve().parents[1]
+
+
+@torch.inference_mode()
+def export_diagnostic_panels(model, dataset, selected_panel_path, output, device, args):
+    """Re-evaluate only the frozen panel; do not retain full-validation probabilities."""
+    import numpy as np
+    from lunarseg.brightness import read_rgb_and_mask, luminance, brightness_groups, local_std
+    from lunarseg.brightness_visualization import export_brightness_panel, build_panel_overviews
+
+    selection = json.loads(Path(selected_panel_path).read_text())
+    thresholds = json.loads(Path(args.brightness_thresholds).read_text())
+    indices = {row["source_id"]: i for i, row in enumerate(dataset.records)}
+    was_training = model.training
+    model.eval()
+    entries = []
+    previous_start = None
+    replay_batches = 0
+    for selected in sorted(selection["images"], key=lambda row: indices[row["source_id"]]):
+        row = selected["record"]
+        index = indices[selected["source_id"]]
+        batch_start = index // args.batch_size * args.batch_size
+        if batch_start != previous_start:
+            # Keep the original batch shape and companions: BF16 kernels can
+            # otherwise differ slightly when one selected image is run alone.
+            items = [dataset[i] for i in range(batch_start, min(batch_start + args.batch_size, len(dataset)))]
+            images = torch.stack([item["image"] for item in items]).to(device)
+            with autocast_context(device, args.amp):
+                scores = predict_semantic_scores(model, images, tta=args.tta,
+                                                 tta_sizes=args.tta_sizes, tta_weights=args.tta_weights)
+            probabilities = scores.float().softmax(1) if args.tta == "none" else scores.float()
+            previous_start = batch_start
+            replay_batches += 1
+        offset = index - batch_start
+        item = items[offset]
+        if item["horizontal_flipped"]:
+            raise ValueError("Diagnostic panels require unaugmented validation images")
+        rgb, gt = read_rgb_and_mask(row)
+        if rgb.shape[:2] != tuple(item["mask"].shape) or not np.array_equal(gt, item["mask"].numpy()):
+            raise ValueError("Panel RGB/GT must exactly match the full-resolution validation input")
+        # Preserve the scored decision when float32 softmax rounds close scores
+        # to equal probabilities. Display probabilities never redefine labels.
+        prediction = scores[offset].argmax(0).cpu().numpy()
+        from PIL import Image
+        with Image.open(selected["prediction_path"]) as saved:
+            if not np.array_equal(prediction, np.asarray(saved)):
+                raise ValueError("Panel replay differs from its saved baseline prediction")
+        intensity = luminance(rgb)
+        entry = export_brightness_panel(
+            Path(output), {**row, "group": selected["group"]}, rgb, gt, prediction,
+            probabilities[offset].cpu().numpy(),
+            brightness_groups(intensity, thresholds), intensity, local_std(intensity, window=31),
+            metadata={"group": selected["group"], "selection_statistics": selected["selection_statistics"],
+                      "source_image": row["image"], "source_mask": row["mask"],
+                      "source_image_sha256": sha256_file(row["image"]),
+                      "source_mask_sha256": sha256_file(row["mask"]),
+                      "brightness_thresholds": thresholds["thresholds"],
+                      "tta": args.tta, "tta_sizes": args.tta_sizes,
+                      "checkpoint": str(args.checkpoint), "probability_domain": "normalized_five_class_probability",
+                      "prediction_source": "argmax_original_semantic_scores_before_display_softmax",
+                      "baseline_prediction_exact_match": True})
+        entries.append({**entry, "group": selected["group"], "source_id": selected["source_id"]})
+    model.train(was_training)
+    overviews = build_panel_overviews(entries, output)
+    return {"image_count": len(entries), "entries": entries, "overviews": overviews,
+            "separate_panel_replay": True, "original_batch_composition_preserved": True,
+            "replay_batches": replay_batches, "excluded_from_validation_metric_counts": True}
 
 
 def main(argv=None):
@@ -58,6 +125,14 @@ def main(argv=None):
                         help="comparison saves only the RGB/GT/prediction JPG and per-image IoU JSON/CSV")
     parser.add_argument("--image-output-root", default=str(PROJECT.parent / "fenge_result"),
                         help="Image root; each checkpoint's experiment directory name is preserved underneath")
+    parser.add_argument("--brightness-thresholds", default=None,
+                        help="Frozen training-only luminance thresholds; enables validation diagnostics")
+    parser.add_argument("--brightness-output", default=None,
+                        help="Directory for conditional confusion matrices and fixed panel selection")
+    parser.add_argument("--brightness-prediction-root", default=None,
+                        help="Local image directory for baseline ID predictions and diagnostic panels")
+    parser.add_argument("--brightness-fixed-panel", default=None,
+                        help="Replay a previously frozen diagnostic panel instead of selecting new cases")
     allowed = {action.dest for action in parser._actions}
     if set(defaults) - allowed:
         parser.error(f"Unknown evaluation config keys: {sorted(set(defaults) - allowed)}")
@@ -69,6 +144,15 @@ def main(argv=None):
         parser.error("batch-size must be positive; workers and progress-every must be nonnegative")
     if args.image_output_mode not in ("all", "comparison"):
         parser.error("image-output-mode must be all or comparison")
+    if args.brightness_thresholds is not None:
+        if (args.split != "val" or not args.brightness_output or not args.brightness_prediction_root
+                or args.save_images or args.max_samples is not None
+                or args.mountain_alpha != 1.0 or args.crater_gamma != 1.0
+                or args.mountain_alphas is not None or args.crater_gammas is not None
+                or args.tta_1024_weights is not None):
+            parser.error("Brightness diagnosis requires full val, explicit output/prediction-root, no calibration or image export")
+    elif any((args.brightness_output, args.brightness_prediction_root, args.brightness_fixed_panel)):
+        parser.error("Brightness export options require --brightness-thresholds")
     try:
         args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
         args.tta_weights = validate_tta_weights(args.tta, args.tta_sizes, args.tta_weights)
@@ -131,6 +215,26 @@ def main(argv=None):
     loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.workers, shuffle=False,
                         drop_last=False, pin_memory=device.type == "cuda")
     image_exporter = None
+    diagnostic_observer = None
+    if args.brightness_thresholds is not None:
+        from lunarseg.brightness_diagnostics import BrightnessDiagnostics
+        args.brightness_thresholds = str(path(args.brightness_thresholds))
+        threshold_document = json.loads(Path(args.brightness_thresholds).read_text())
+        if (threshold_document.get("schema") != "lusnar_training_brightness_thresholds_v1"
+                or threshold_document.get("status") != "complete"
+                or threshold_document.get("fit_split") != "train"
+                or threshold_document.get("validation_used_for_fit") is not False
+                or threshold_document.get("test_used_for_fit") is not False
+                or threshold_document.get("all_literal_training_images_used") is not True):
+            raise ValueError("Brightness thresholds must be frozen from the complete training selection only")
+        fit_sources = {row["source_id"] for row in threshold_document["source_records"]}
+        validation_sources = {row["source_id"] for row in dataset.records}
+        if fit_sources & validation_sources:
+            raise ValueError("Brightness threshold fitting and validation source families overlap")
+        diagnostic_observer = BrightnessDiagnostics(
+            dataset.records, args.brightness_thresholds, path(args.brightness_output),
+            path(args.brightness_prediction_root),
+            fixed_panel=path(args.brightness_fixed_panel) if args.brightness_fixed_panel else None)
     if args.save_images:
         from lunarseg.visualization import EvaluationImageExporter
         image_exporter = EvaluationImageExporter(path(args.image_output_root), checkpoint_path.parent.name,
@@ -143,7 +247,8 @@ def main(argv=None):
                              mountain_alpha=args.mountain_alpha, mountain_alphas=args.mountain_alphas,
                              tta_sizes=args.tta_sizes, progress_every=args.progress_every,
                              crater_gamma=args.crater_gamma, crater_gammas=args.crater_gammas,
-                             tta_weights=args.tta_weights, tta_1024_weights=args.tta_1024_weights)
+                             tta_weights=args.tta_weights, tta_1024_weights=args.tta_1024_weights,
+                             diagnostic_observer=diagnostic_observer)
     aggregation = (f"validation 1024-weight sweep {args.tta_1024_weights}" if args.tta_1024_weights is not None else
                    f"scale probability weights {args.tta_weights}" if args.tta_weights is not None else
                    "equal view probability averaging")
@@ -163,6 +268,18 @@ def main(argv=None):
                   protocol=("Independent scene confusion matrices, GT-present class mean; "
                             + view_protocol + "; no label postprocessing"),
                   evaluation_only=True)
+    if diagnostic_observer is not None:
+        diagnostic_result = diagnostic_observer.finalize(result["image_count"], metadata={
+            "checkpoint": result["checkpoint"], "checkpoint_sha256": result["checkpoint_sha256"],
+            "checkpoint_epoch": result["checkpoint_epoch"], "data_identity": result["data_identity"],
+            "tta": args.tta, "tta_sizes": args.tta_sizes, "tta_weights": args.tta_weights,
+            "full_validation_metrics": {key: result[key] for key in (
+                "miou", "class_iou", "class_precision", "class_recall", "scenes",
+                "confusion_matrix_gt_rows_pred_cols", "image_count", "partial")}})
+        selected_panel = path(args.brightness_output) / "selected_panel.json"
+        panel_result = export_diagnostic_panels(
+            model, dataset, selected_panel, path(args.brightness_prediction_root) / "panels", device, args)
+        result["brightness_diagnostics"] = {"statistics": diagnostic_result, "panels": panel_result}
     if image_exporter is not None:
         result["saved_images"] = image_exporter.finalize(result["image_count"], metadata={
             "checkpoint": result["checkpoint"], "checkpoint_sha256": result["checkpoint_sha256"],

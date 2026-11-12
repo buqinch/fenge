@@ -634,13 +634,18 @@ def _evaluate_scale_weight_sweep(model, loader, device, amp, sizes, weights_1024
 @torch.inference_mode()
 def evaluate_loader(model, loader, device, amp="bf16", tta="none", image_exporter=None,
                     mountain_alpha=1.0, mountain_alphas=None, tta_sizes=None, progress_every=0,
-                    crater_gamma=1.0, crater_gammas=None, tta_weights=None, tta_1024_weights=None):
+                    crater_gamma=1.0, crater_gammas=None, tta_weights=None, tta_1024_weights=None,
+                    diagnostic_observer=None):
     sizes = validate_tta_sizes(tta, tta_sizes)
     weights = validate_tta_weights(tta, sizes, tta_weights)
     if isinstance(progress_every, bool) or not isinstance(progress_every, int) or progress_every < 0:
         raise ValueError("progress_every must be a nonnegative integer")
     alpha = validate_mountain_alpha(mountain_alpha)
     gamma = validate_crater_gamma(crater_gamma)
+    if diagnostic_observer is not None and (
+            alpha != 1.0 or gamma != 1.0 or mountain_alphas is not None
+            or crater_gammas is not None or tta_1024_weights is not None or image_exporter is not None):
+        raise ValueError("Brightness diagnosis requires one uncalibrated inference protocol and its own export")
     if tta_1024_weights is not None:
         if (tta != "multiscale_hflip" or sizes != [1024, 768] or weights is not None
                 or alpha != 1.0 or gamma != 1.0 or mountain_alphas is not None
@@ -728,6 +733,9 @@ def evaluate_loader(model, loader, device, amp="bf16", tta="none", image_exporte
                     state["diagnostics"][name] += int(value)
             if image_exporter is not None:
                 image_exporter(batch, targets, prediction)
+            if diagnostic_observer is not None:
+                probabilities = logits.float().softmax(dim=1) if tta == "none" else logits.float()
+                diagnostic_observer.update(batch, targets, prediction, probabilities)
         count += len(images)
         batches += 1
         if progress_every and batches % progress_every == 0:

@@ -1,0 +1,87 @@
+{
+  "schema": "lusnar_shadow_stage_decision_v1",
+  "recorded_at": "2026-11-12T05:08:28.452247+00:00",
+  "completed_steps": [
+    0,
+    1
+  ],
+  "decision": "defer_shadow_specific_training_pending_stronger_diagnostic_evidence",
+  "guide_gate": "同类别、分场景检查后暗区仍有明显退化，且图像检查发现阴影内或阴影边缘的系统性错误。",
+  "gate_assessment": "not_established",
+  "baseline": {
+    "checkpoint": "b0.pt",
+    "epoch": 29,
+    "sha256": "ed1e2096ccd3be31b7ba40ac07c4dbd7849ed1823cb942f4b802706fe1cc6828",
+    "input_size": 1024,
+    "tta": "none",
+    "alpha": 1.0,
+    "gamma": 1.0,
+    "validation_images": 1601,
+    "validation_miou": 0.9744386638212685
+  },
+  "training_updates_in_this_study": 0,
+  "threshold_training_recipe": {
+    "original": 4000,
+    "crater": 2000,
+    "mountain_rock": 2000,
+    "total": 8000
+  },
+  "evidence": [
+    {
+      "finding": "暗/亮坑召回的全局像素汇总接近；5个有坑场景中仅3个暗区更低。",
+      "dark_recall": 0.9916560509967903,
+      "bright_recall": 0.9920930913729805
+    },
+    {
+      "finding": "同图同类坑召回存在有限低亮关联，但具体坑→月壤方向并非各场景一致。",
+      "paired_images": 704,
+      "mean_dark_minus_bright_recall_pp": -0.56580686,
+      "median_dark_minus_bright_recall_pp": -0.26284083,
+      "mean_dark_minus_bright_crater_to_regolith_pp": 0.3603552684509896
+    },
+    {
+      "finding": "岩石、坑、山体均为中亮度组召回更低，未呈现越暗越差的单调关系。"
+    },
+    {
+      "finding": "暗区山岩互误未普遍上升；同图方向错误率暗减亮均值岩→山为负，山→岩也为负。",
+      "rock_to_mountain_mean_delta_pp": -0.2590544103699776,
+      "mountain_to_rock_mean_delta_pp": -0.01542007022383236
+    },
+    {
+      "finding": "阈值Y≤0.02下没有有效地表像素；不能据此判断近黑地表失败。",
+      "near_black_terrain_pixels": 0
+    },
+    {
+      "finding": "40图总览和8图局部实际检查显示边界、远距离细目标和截断目标混杂，并保留明显暗坑和暗岩石仍正确的反例。",
+      "overview_images": 40,
+      "detailed_images": 8,
+      "shadow_ground_truth_available": false
+    }
+  ],
+  "interpretation_limits": [
+    "低亮度不是阴影真值；相关性不证明因果。",
+    "目的性选例不估计总体错误发生率。",
+    "固定验证集可能含相邻帧；此诊断不证明Moon_9等跨场景泛化。",
+    "未训练亲和或归一化模块，不能宣称这些模块无效。"
+  ],
+  "next_priority": "先在相同固定验证集核查边界厚度、远距离/截断目标和区域上下文错误，避免把这些因素直接归为阴影。若出现跨场景同类的系统性阴影证据，再按指南启动匹配预算的B1/A1/A2对照。",
+  "deferred_steps": [
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "existing_8000_image_training": "unchanged; continues under its existing training and monitor configuration",
+  "test_data_used_for_this_decision": false,
+  "evidence_files_sha256": {
+    "baseline_snapshot.json": "f2bb50cc53f8f566d2645aa647447d28ba4b431deade22b3c8464a856c2eaea7",
+    "brightness_diagnostics.json": "35619da598b19e3fd4403e31c0c0fdaa3d8d7044e065d95eef3c65850b6c955c",
+    "per_image_records.jsonl": "578f751c6ea7cc9bb7c1c29e1923b5e6534aa1ad05838c897dd2093fdf82c6de",
+    "val_none_metrics.json": "e779e1f045c2cf50f2a0524aad395182bf45fb04856af70afb5e94e6161fa92b",
+    "selected_panel.json": "c106f150f2719f00a7e26e79306ac5504341b036c1d5091cce6f89290d580a78",
+    "visual_review.json": "6c1d776331307a241019466eb4c0fcc8af65a945282c4987efd938208264d1f5",
+    "visual_review_zh.md": "cbcbf215f5774cd4cdd5b1aaa058a3fa53c3eb9527899171ee51ef8f73759e29",
+    "artifact_verification.json": "11945eab6862bfb93efe369d8d7f1b8edb306ebf75a3f32551e3d39d4d89dfd0"
+  }
+}

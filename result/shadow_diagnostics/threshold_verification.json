@@ -1,0 +1,128 @@
+{
+  "schema": "lusnar_brightness_threshold_verification_v1",
+  "status": "passed",
+  "verified_at_utc": "2026-11-12T04:49:16.779195+00:00",
+  "python": "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+  "thresholds_path": "/home/lzc/workspace/fenge/result/shadow_diagnostics/brightness_thresholds.json",
+  "thresholds_sha256": "2f928d2ca2b318f9e9535ad4edeabd83d1c863d3a38a6ff8b40e22d54dbb6a24",
+  "implementation_sha256": "fb845179425d9d14a94af56b01a44cae6f745893876bd2047d19083064ea6656",
+  "checks": [
+    {
+      "name": "luminance_rgb_coefficients_float32",
+      "status": "passed"
+    },
+    {
+      "name": "brightness_threshold_equalities_join_upper_group",
+      "status": "passed"
+    },
+    {
+      "name": "local_std_reflect_float64_oracle",
+      "status": "passed"
+    },
+    {
+      "name": "constant_local_std_zero",
+      "status": "passed"
+    },
+    {
+      "name": "fixed_gt_tags_large_border_and_chebyshev8",
+      "status": "passed"
+    },
+    {
+      "name": "chebyshev9_not_adjacent",
+      "status": "passed"
+    },
+    {
+      "name": "histogram_membership_matches_direct_pixels_endpoints_ties",
+      "status": "passed"
+    },
+    {
+      "name": "six_image_fit_single_multi_worker_replay_direct_counts_and_quantiles",
+      "status": "passed"
+    },
+    {
+      "name": "frozen_output_overwrite_and_validation_fit_rejected",
+      "status": "passed"
+    },
+    {
+      "name": "palette_mask_rejected",
+      "status": "passed"
+    },
+    {
+      "name": "real_8000_provenance_full_counts_shapes_partitions_class_hist_pair_hist",
+      "status": "passed"
+    }
+  ],
+  "synthetic_test_files_persisted": false,
+  "real_fit": {
+    "image_count": 8000,
+    "training_group_counts": {
+      "original": 4000,
+      "crater": 2000,
+      "mountain_rock": 2000
+    },
+    "native_shape_hw": [
+      1024,
+      1024
+    ],
+    "fit_pixel_domain": {
+      "included_gt_class_ids": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "excluded_gt_class_ids": [
+        4,
+        255
+      ],
+      "surface_pixels": 6519894599,
+      "excluded_sky_pixels": 1868713401,
+      "excluded_ignore_pixels": 0
+    },
+    "thresholds": {
+      "low": 0.44921875,
+      "high": 0.625244140625
+    },
+    "brightness_pixels": {
+      "dark": 2174653685,
+      "medium": 2173965783,
+      "bright": 2171275131
+    },
+    "validation_used": false,
+    "test_used": false,
+    "sources": {
+      "manifest": {
+        "path": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_pool_20261112.json",
+        "sha256": "dfcb4d28eaeb5ecce6d60a2fd8ede7768d813e6aaec8c43f2c319e79b2a14dd5"
+      },
+      "selection_manifest": {
+        "path": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_seed42_20261112.json",
+        "sha256": "f6948e94ede914a53fd957d5a457284d34a18319c151511e2448e34a98f1ef6c"
+      },
+      "source_manifest": {
+        "path": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+        "sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05"
+      },
+      "augmented_manifest": {
+        "path": "/home/nas/lzc/lusnar_augmentation/lusnar_random80_supplement_747_20261112/merged_manifest.json",
+        "sha256": "b7bd301864cb6a972d5be11e167c19d60937ab6d9231d579a3ed1062e435cbdb"
+      }
+    },
+    "ordered_samples_sha256": "bc1100a0308d259e8198073e9bba36cdfb57eb272f19523d10ea2c230d55fc0c",
+    "individual_image_content_hashes_computed": false,
+    "integrity_scope": "Full integer histogram/stratum/record-list audit; manifests rehashed; source files were stat-checked around each fit read; no second full image scan"
+  },
+  "pair_fit": {
+    "pair_count": 8188317,
+    "same_class_pair_count": 7697965,
+    "different_class_pair_count": 490352,
+    "threshold": 0.107421875,
+    "same_class_median_abs_difference": 0.103271484375,
+    "different_class_median_abs_difference": 0.207275390625
+  },
+  "limitations": [
+    "Quantiles and pair medians are approximated with 4096 bins; maximum absolute luminance error 1/4096.",
+    "Pooled pair median is dominated by same-class pairs; same/different distributions retained separately.",
+    "RGB luminance is a numerical proxy, not physical irradiance or a true shadow label."
+  ]
+}
