@@ -736,9 +736,6 @@ def main(argv=None):
             if step == 0 or (step + 1) % 25 == 0 or step + 1 == len(train_loader):
                 print(f"epoch {epoch + 1}/{args.epochs} batch {step + 1}/{len(train_loader)} "
                       f"loss={logged_losses['loss_total']:.5f} base={logged_losses['loss_base']:.5f} "
-                      f"hard_raw={logged_losses['loss_hard_pixels']:.5f} "
-                      f"hard_weighted={logged_losses['loss_hard_pixels_weighted']:.5f} "
-                      f"hard/base={logged_losses['hard_to_base_ratio']:.5f} "
                       f"aff={logged_losses['loss_affinity']:.5f}*{args.affinity_weight * auxiliary_scale:.6f} "
                       f"js={logged_losses['loss_consistency']:.5f}*{args.consistency_weight * auxiliary_scale:.6f} "
                       f"aux/base={logged_losses['affinity_to_base_ratio'] + logged_losses['consistency_to_base_ratio']:.5f} frozen={frozen}", flush=True)
