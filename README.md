@@ -4,24 +4,24 @@
 
 ## 当前最佳完整测试（2026-11-12）
 
-当前已完成实验中，最高加权 S 来自 **`dual_region_random80_1024` 第 29 轮最佳检查点 + 水平翻转 TTA**。该检查点由 1601 张自定义验证图选出，随后在完整 Moon_2/4/9 的 **5004 张**图像上评估。两列使用相同权重，山体分数系数均为 α=1。
+当前已完成测试中，最高加权 S 来自 **`dual_region_random80_1024` 第 29 轮最佳检查点 + 1024／768 双尺度水平翻转 TTA（4 视图）**。该检查点由 1601 张自定义验证图选出，随后在完整 Moon_2/4/9 的 **5004 张**图像上评估。下列方式使用相同权重，均未调整任何类别分数。
 
-| 指标 | 原图单视图 | 原图 + 水平翻转 TTA |
-|---|---:|---:|
-| Moon_2 mIoU | 93.6594% | 93.6525% |
-| Moon_4 mIoU | 93.4588% | 93.5798% |
-| Moon_9 mIoU | 84.9600% | 85.2437% |
-| **加权 S** | **89.2595%** | **89.4299%** |
+| 指标 | 1024 单视图 | 1024 翻转（2 视图） | 1024＋768 翻转（4 视图） | 1024＋768＋512 翻转（6 视图） |
+|---|---:|---:|---:|---:|
+| Moon_2 mIoU | 93.6594% | 93.6525% | 93.5843% | 93.1457% |
+| Moon_4 mIoU | 93.4588% | 93.5798% | 93.3560% | 92.5597% |
+| Moon_9 mIoU | 84.9600% | 85.2437% | 86.0030% | 85.6944% |
+| **加权 S** | **89.2595%** | **89.4299%** | **89.7366%** | **89.2735%** |
 
-`S=(Moon_2 mIoU + Moon_4 mIoU + 2×Moon_9 mIoU)/4`。同一权重增加 TTA 提高 **0.1704 个百分点**；相同 TTA 下，比此前最佳的 88.3678% 提高 **1.0621 个百分点**。Moon_9 撞击坑 IoU 仍为短板（63.5995% → 57.1909%）。历史测试曾用于训练方案选择，当前最佳轮次由自定义验证集决定。
+`S=(Moon_2 mIoU + Moon_4 mIoU + 2×Moon_9 mIoU)/4`。4 视图比原 2 视图提高 **0.3066 个百分点**；继续加入 512 尺度反而下降。4 视图的 Moon_9 撞击坑 IoU 为 **57.6963%**，召回率为 **63.1540%**，漏检仍需改善。这里按用户要求直接在测试集比较新增 TTA，最高测试分不代表该模式已经由独立验证集选定；最佳训练轮次仍由自定义验证集决定。
 
-[完整分析](result/random80_analysis/report_zh.md) · [TTA 指标](result/dual_region_random80_1024/test_hflip_metrics.json) · [单视图指标](result/dual_region_random80_1024/test_metrics.json) · [训练配置](config/dual_region_random80_1024.json)
+[多尺度完整分析](result/multiscale_tta_analysis/report_zh.md) · [4 视图指标](result/dual_region_random80_1024/test_multiscale_hflip_1024_768_metrics.json) · [6 视图指标](result/dual_region_random80_1024/test_multiscale_hflip_1024_768_512_metrics.json) · [原单尺度与旧模型对照](result/random80_analysis/report_zh.md)
 
 本地检查点：`result/dual_region_random80_1024/best.pt`。复现 TTA 测试：
 
 ```bash
 python code/evaluate.py --checkpoint result/dual_region_random80_1024/best.pt \
-  --split test --tta hflip --device cuda:3
+  --split test --tta multiscale_hflip --tta-sizes 1024 768 --device cuda:3
 ```
 
 ## 文件结构
