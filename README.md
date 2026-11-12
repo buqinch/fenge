@@ -2,6 +2,28 @@
 
 两条 CNN 同时接收同一张 **1024×1024 RGB 图像**。提供像素解码和区域解码两套可训练模型，原始训练集、验证集与评估口径保持一致。编码器没有 ViT；区域解码器含注意力。
 
+## 当前最佳完整测试（2026-11-12）
+
+当前已完成实验中，最高加权 S 来自 **`dual_region_random80_1024` 第 29 轮最佳检查点 + 水平翻转 TTA**。该检查点由 1601 张自定义验证图选出，随后在完整 Moon_2/4/9 的 **5004 张**图像上评估。两列使用相同权重，山体分数系数均为 α=1。
+
+| 指标 | 原图单视图 | 原图 + 水平翻转 TTA |
+|---|---:|---:|
+| Moon_2 mIoU | 93.6594% | 93.6525% |
+| Moon_4 mIoU | 93.4588% | 93.5798% |
+| Moon_9 mIoU | 84.9600% | 85.2437% |
+| **加权 S** | **89.2595%** | **89.4299%** |
+
+`S=(Moon_2 mIoU + Moon_4 mIoU + 2×Moon_9 mIoU)/4`。同一权重增加 TTA 提高 **0.1704 个百分点**；相同 TTA 下，比此前最佳的 88.3678% 提高 **1.0621 个百分点**。Moon_9 撞击坑 IoU 仍为短板（63.5995% → 57.1909%）。历史测试曾用于训练方案选择，当前最佳轮次由自定义验证集决定。
+
+[完整分析](result/random80_analysis/report_zh.md) · [TTA 指标](result/dual_region_random80_1024/test_hflip_metrics.json) · [单视图指标](result/dual_region_random80_1024/test_metrics.json) · [训练配置](config/dual_region_random80_1024.json)
+
+本地检查点：`result/dual_region_random80_1024/best.pt`。复现 TTA 测试：
+
+```bash
+python code/evaluate.py --checkpoint result/dual_region_random80_1024/best.pt \
+  --split test --tta hflip --device cuda:3
+```
+
 ## 文件结构
 
 ```text
@@ -281,7 +303,14 @@ python code/evaluate.py --checkpoint result/dual_region_balanced8000_bs8_tta/bes
 python code/evaluate.py --checkpoint result/dual_region_balanced8000_bs8_tta/best.pt --split test --tta hflip
 ```
 
-TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`）；独立评估和推理使用 `--tta none|hflip`。开启后，两次前向都使用 1024×1024 输入，将翻转图的五类预测概率翻回原坐标，再与原图概率平均，最后统一插值和 argmax。关闭时保持原有单次推理路径。TTA 不保证精度一定提升，比较时可对同一固定检查点分别评估两种模式。
+TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`）；独立评估和推理使用 `--tta none|hflip`。当前 `hflip` 是 **左右镜像**，保持上下方向及 1024×1024 尺寸，每张图使用原图和镜像图共两个视图。
+
+1. 原图通过同一个完整模型，得到每个像素的五类概率 `P_original`。
+2. 输入沿宽度翻转：`images.flip(-1)`。坐标 `(x, y)` 对应 `(1023-x, y)`，镜像图再次通过该模型。
+3. 将镜像图的五类概率图也沿宽度翻转回来，使其与原图位置一一对应。
+4. 两份概率各占 50%，计算 `P_final = (P_original + P_flip_back) / 2`，需要时将连续分数插值到目标尺寸，最后 `argmax` 得到类别。
+
+实现见 [predict_semantic_scores](code/lunarseg/metrics.py)。概率在 float32 下平均，两次前向共享同一套模型权重。TTA 用于验证和推理；训练中的随机水平翻转由数据增强开关单独控制。当前第 29 轮检查点的同权重对照见 README 顶部。
 
 评估先累计每个场景的像素混淆矩阵，再对 GT 实际出现的类别计算 mIoU。完整测试的加权分数为 `S=(Moon_2+Moon_4+2×Moon_9)/4`，不是单图 mIoU 的平均值，也不是官方平台提交分数。各实验的检查点均由验证集选轮；本次随机划分采用的训练方案参考了历史测试结果，选择依据和解释范围见前文。
 
