@@ -1,0 +1,152 @@
+{
+  "schema": "lusnar_hard_pixel_diagnostics_v1",
+  "epoch": 30,
+  "enabled": false,
+  "hard_pixel_weight": 0.0,
+  "hard_pixel_quota": 256,
+  "training_data_identity": {
+    "manifest": "/home/lzc/workspace/fenge/result/selections/random80_seed42_20261112.json",
+    "manifest_sha256": "29da57bc3a846e5ae38ba8bd55919e8813f3da954695ffa53552d2e4094e7187",
+    "split": "train",
+    "train_source": "embedded_custom_manifest",
+    "protocol": "random_original_source_family_4_to_1",
+    "custom_split": true,
+    "selection_metric": "validation_all_scenes_miou",
+    "selection_scope": "custom_val_originals",
+    "split_seed": 42,
+    "split_counts": {
+      "original_pool": 8002,
+      "train_original": 6401,
+      "val_original": 1601,
+      "train_augmented": 3000,
+      "train_total": 9401,
+      "val_total": 1601
+    },
+    "augmentation_counts": {
+      "crater": 1500,
+      "mountain_rock": 1500
+    },
+    "source_manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "source_manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+    "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+    "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+    "original_split_sha256": "e442513b7c6d6357db4c59df4377c7a39a046feca4119251fe0476c2f7ef65e4",
+    "splits_sha256": "a53ea716ce1d4c6926e204ca7d22238a47861abd4360355f69194f15b8905a5c",
+    "literal_ordered_samples_sha256": "aee0f82b27dd23320b70b55140aefdc47804aeabb9e4c87b187bf135574f6d64",
+    "train_original_source_ids_sha256": "fec94ec964934d4c4840973267bd1427a285557f723b992da0e0ff73fea0e198",
+    "val_original_source_ids_sha256": "23a64d503db0d08d08fdcd4dd05921a4aa458e70f835edba2a827ee510d4267a",
+    "validation_scenes": [
+      "Moon_1",
+      "Moon_3",
+      "Moon_5",
+      "Moon_6",
+      "Moon_7",
+      "Moon_8"
+    ],
+    "validation_image_count": 1601,
+    "independent_test_scenes": [
+      "Moon_2",
+      "Moon_4",
+      "Moon_9"
+    ],
+    "image_count": 9401,
+    "complete_image_count": 9401,
+    "partial": false,
+    "unique_source_count": 6401,
+    "ordered_samples_sha256": "aee0f82b27dd23320b70b55140aefdc47804aeabb9e4c87b187bf135574f6d64"
+  },
+  "training_source_counts": {
+    "original": 6401,
+    "augmented/crater": 1500,
+    "augmented/mountain_rock": 1500
+  },
+  "training_batches": 1176,
+  "direction_definition": "GT class ID -> current predicted class ID; training data only",
+  "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
+  "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
+  "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
+  "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
+  "training_loss": {
+    "loss_semantic_ce": 0.006995760679479584,
+    "loss_semantic_dice": 0.022368244848191998,
+    "loss_region_class": 4.375378122217875e-07,
+    "loss_region_mask": 0.0026074126864231023,
+    "loss_region_dice": 0.00913101741535881,
+    "loss_auxiliary": 0.05835627472138496,
+    "loss_total": 0.08071109868424386,
+    "loss_hard_pixels": 0.0,
+    "loss_hard_pixels_weighted": 0.0,
+    "loss_base": 0.08071109868424386,
+    "hard_to_base_ratio": 0.0
+  },
+  "directions": {
+    "0->3": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "3->0": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "2->0": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "0->2": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "3->1": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "1->3": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    }
+  },
+  "partial_epoch": false,
+  "images_seen": 9401
+}

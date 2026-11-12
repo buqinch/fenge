@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/home/lzc/workspace/fenge/code/monitor_experiments.py", line 452, in <module>
+    main()
+  File "/home/lzc/workspace/fenge/code/monitor_experiments.py", line 433, in main
+    state["runs"][run["name"]] = advance_run(run, config["policy"], state["runs"].get(run["name"], {}))
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lzc/workspace/fenge/code/monitor_experiments.py", line 309, in advance_run
+    summary, tracker = completed_tracker(output, policy)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lzc/workspace/fenge/code/monitor_experiments.py", line 155, in completed_tracker
+    raise ValueError(f"Early stopping requires complete 1601-image custom validation: {output}, epoch {epoch}")
+ValueError: Early stopping requires complete 1601-image custom validation: /home/lzc/workspace/fenge/result/dual_region_random80_1024, epoch 1
+random80_selected_recipe: epoch=30 best=97.516649% no_significant_growth=5/5
+random80_selected_recipe: evaluating best epoch 29 on complete Moon_2/4/9 (hflip)
+random80_selected_recipe: full test hflip S=89.429918%
+random80_selected_recipe: evaluating best epoch 29 on complete Moon_2/4/9 (none)
+random80_selected_recipe: full test none S=89.259540%
+{"state": "complete", "report": "/home/lzc/workspace/fenge/result/random80_analysis/report_zh.md", "metrics": "/home/lzc/workspace/fenge/result/random80_analysis/metrics.csv", "summary": "/home/lzc/workspace/fenge/result/random80_analysis/summary.json"}
+Configured experiments evaluated; final analysis ready for Git publication.
