@@ -1,0 +1,156 @@
+{
+  "status": "complete",
+  "completed_at": "2026-11-12T11:28:30.728359+00:00",
+  "evaluation_host": "Server70",
+  "physical_gpu": 3,
+  "tta": "1024/768 equal horizontal flip, four views",
+  "batch_size": 2,
+  "amp": "bf16",
+  "full_test_image_count_per_model": 5004,
+  "score_formula": "(Moon_2+Moon_4+2*Moon_9)/4",
+  "training_interrupted": false,
+  "independent_confusion_and_score_verification": true,
+  "models": [
+    {
+      "name": "detail",
+      "checkpoint_epoch": 15,
+      "validation_miou": 0.984085432098556,
+      "metrics": "result/dual_region_priors_detail_8000_1024/test_epoch_015_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "ca2c63261033c5f1616c37783bff87946899da800c0be6f15102ab758087d137",
+      "checkpoint_sha256": "3fe687fdf24b4a0a2b8539f043d903a0d28eb850f8e7eae878b21b55a2bafdba",
+      "scene_miou": {
+        "Moon_2": 0.9432457743039236,
+        "Moon_4": 0.9394515400799381,
+        "Moon_9": 0.8559192192806859
+      },
+      "weighted_score": 0.8986339382363084,
+      "evaluation_seconds": 286.7421748950146,
+      "class_iou": {
+        "Moon_2": {
+          "regolith": 0.9942116028705897,
+          "rock": 0.9073238915535227,
+          "crater": 0.8495376808970853,
+          "mountain": 0.9658487147871404,
+          "sky": 0.9993069814112803
+        },
+        "Moon_4": {
+          "regolith": 0.9931137869153146,
+          "rock": 0.909307009343986,
+          "crater": 0.8105589632575908,
+          "mountain": 0.9849266621474912,
+          "sky": 0.9993512787353076
+        },
+        "Moon_9": {
+          "regolith": 0.9802669248864825,
+          "rock": 0.8425891486324842,
+          "crater": 0.5778107089341644,
+          "mountain": 0.8814598570551965,
+          "sky": 0.9974694568951021
+        }
+      },
+      "deltas_percentage_points": {
+        "baseline8000": {
+          "weighted_score": 0.0401749950117436,
+          "scenes": {
+            "Moon_2": 0.5969144447984576,
+            "Moon_4": 0.5406643667497435,
+            "Moon_9": -0.4884394157506189
+          }
+        },
+        "detail_epoch11": {
+          "weighted_score": -0.12180713959728529,
+          "scenes": {
+            "Moon_2": 0.074511699887847,
+            "Moon_4": -0.09636950330875749,
+            "Moon_9": -0.23268537748410978
+          }
+        }
+      }
+    },
+    {
+      "name": "context",
+      "checkpoint_epoch": 16,
+      "validation_miou": 0.9829754877618673,
+      "metrics": "result/dual_region_priors_context_8000_1024/test_epoch_016_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "9a1ce94d07a0f1fe9f79ab1abf2378c9215fe533947ae2fd51cf1477f60fb8ba",
+      "checkpoint_sha256": "e59791ddc52975d61c44cf523bfa54c202cf6c544dc7fd83cb686ae80284c8df",
+      "scene_miou": {
+        "Moon_2": 0.9425864960470538,
+        "Moon_4": 0.9405097740799973,
+        "Moon_9": 0.8526969117898856
+      },
+      "weighted_score": 0.8971225234267055,
+      "evaluation_seconds": 292.61073066902463,
+      "class_iou": {
+        "Moon_2": {
+          "regolith": 0.994181720436442,
+          "rock": 0.9055106180206988,
+          "crater": 0.84654748705227,
+          "mountain": 0.967610684986468,
+          "sky": 0.9990819697393893
+        },
+        "Moon_4": {
+          "regolith": 0.9930255044792875,
+          "rock": 0.9005651169530118,
+          "crater": 0.8220189059939872,
+          "mountain": 0.9878104284921131,
+          "sky": 0.9991289144815864
+        },
+        "Moon_9": {
+          "regolith": 0.9800740983209205,
+          "rock": 0.8424502311207825,
+          "crater": 0.5669278090938805,
+          "mountain": 0.8768634019432371,
+          "sky": 0.9971690184706076
+        }
+      },
+      "deltas_percentage_points": {
+        "baseline8000": {
+          "weighted_score": -0.1109664859485493,
+          "scenes": {
+            "Moon_2": 0.5309866191114732,
+            "Moon_4": 0.6464877667556546,
+            "Moon_9": -0.8106701648306514
+          }
+        },
+        "detail_epoch11": {
+          "weighted_score": -0.2729486205575782,
+          "scenes": {
+            "Moon_2": 0.008583874200862596,
+            "Moon_4": 0.009453896697153574,
+            "Moon_9": -0.5549161265641422
+          }
+        }
+      }
+    }
+  ],
+  "references": {
+    "baseline8000": {
+      "metrics": "result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "f4b394b3e8ef4f9195d9e48cc18f3ae66b5e2833d6cb6f32bda8ef68c090716f",
+      "checkpoint_epoch": 24,
+      "weighted_score": 0.898232188286191,
+      "scene_miou": {
+        "Moon_2": 0.9372766298559391,
+        "Moon_4": 0.9340448964124407,
+        "Moon_9": 0.8608036134381921
+      }
+    },
+    "detail_epoch11": {
+      "metrics": "result/dual_region_priors_detail_8000_1024/test_epoch_011_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "201e57b2c158ad8ddecb8210c785dbaf62bb81daa2afe832c950d7f63ec556a1",
+      "checkpoint_epoch": 11,
+      "weighted_score": 0.8998520096322813,
+      "scene_miou": {
+        "Moon_2": 0.9425006573050452,
+        "Moon_4": 0.9404152351130257,
+        "Moon_9": 0.858246073055527
+      }
+    }
+  },
+  "notes": [
+    "Snapshots were fixed from the latest committed validation-best at 2026-11-12 19:10 Asia/Shanghai.",
+    "Further training can replace best.pt; these results belong only to detail epoch15 and context epoch16.",
+    "Higher validation mIoU did not translate into a higher test score in this comparison."
+  ]
+}

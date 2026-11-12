@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Queue immutable validation-best tests every three committed training epochs.
+"""Queue immutable validation-best tests at the configured epoch interval.
 
 This process observes training files only. It never changes or signals a trainer.
 Each worker holds a GPU lock inherited by its evaluator, including if the worker
@@ -137,12 +137,10 @@ def load_config(path):
         raise ValueError('State must be strictly inside project/result')
     if type(config['gpu_index']) is not int or config['gpu_index'] < 0:
         raise ValueError('gpu_index must be a nonnegative physical GPU index')
-    for key, default in [('every_epochs', 3), ('poll_seconds', 10), ('minimum_free_mib', 10000)]:
+    for key, default in [('every_epochs', 5), ('poll_seconds', 10), ('minimum_free_mib', 10000)]:
         config.setdefault(key, default)
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError(key + ' must be a positive integer')
-    if config['every_epochs'] != 3:
-        raise ValueError('This protocol evaluates every three completed epochs')
     paths = []
     for value in config['runs']:
         run = (ROOT / value).resolve()
@@ -384,7 +382,9 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
                         expected_score, summary['data_identity']['val'])
     check_sources(configuration)
     trigger = {'schema': 'vit_periodic_trigger_v1', 'run': str(run), 'trigger_epoch': boundary,
-               'trigger_kind': 'final' if final else 'every_three_epochs', 'created_at': now(),
+               'trigger_kind': ('final' if final else 'every_three_epochs' if config['every_epochs'] == 3
+                                else f'every_{config["every_epochs"]}_epochs'),
+               'every_epochs': config['every_epochs'], 'created_at': now(),
                'checkpoint_epoch': expected_epoch, 'validation_best_miou': expected_score,
                'configuration_sha256': fingerprint(configuration),
                'validation_identity': summary['data_identity']['val'],
@@ -517,9 +517,10 @@ class Monitor:
                     continue
                 summary, configuration, rows = committed
                 completed = summary['completed_epochs']
-                for epoch in range(3, completed + 1, 3):
+                interval = self.config['every_epochs']
+                for epoch in range(interval, completed + 1, interval):
                     prepare_job(run, epoch, summary, configuration, rows, self.config)
-                if (self.config.get('final_evaluation', True) and completed % 3
+                if (self.config.get('final_evaluation', True) and completed % interval
                         and summary['status'] in ('complete', 'early_stopped')):
                     prepare_job(run, completed, summary, configuration, rows, self.config, final=True)
             except Exception as error:

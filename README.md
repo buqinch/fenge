@@ -6,6 +6,24 @@
 
 ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/tree/main/fenge_vit)，包含 DINOv3 ViT-S/16＋ConvNeXt-Tiny、四阶段双向Adapter、Mask2Former及A/B/C训练配置。当前服务器的实际工作目录仍分别为 `/home/lzc/workspace/fenge` 和 `/home/lzc/workspace/fenge_vit`；GitHub中的子目录保存后者的独立版本，两套网络源码不混用。数据配置继续引用本仓库中已经固定的来源清单。
 
+<!-- current-best-tests-20261112:start -->
+### 当前 best 的追加测试（2026-11-12）
+
+按请求固定当时已提交的验证best：CNN细节第15轮、周围关系第16轮，ViT A第3轮、B／C第2轮。固定后不随训练更新替换权重。全部使用完整5004张Moon_2／4／9、1024／768等权水平翻转TTA，按场景1∶1∶2计算S。
+
+|模型|检查点轮次|Moon_2|Moon_4|Moon_9|加权 S|
+|---|---:|---:|---:|---:|---:|
+|CNN细节注入|15|94.3246%|93.9452%|85.5919%|89.8634%|
+|CNN周围关系|16|94.2586%|94.0510%|85.2697%|89.7123%|
+|ViT A 融合|3|91.7701%|91.6158%|84.7219%|88.2074%|
+|ViT B Adapter|2|91.7657%|91.6658%|83.8603%|87.7880%|
+|ViT C Adapter＋遮挡方案|2|91.5374%|92.0891%|84.5501%|88.1817%|
+
+本次两份CNN验证best均未超过下方细节第11轮的89.9852%。细节第15轮在Moon_9的坑IoU比第11轮提高0.7121个百分点，但山体、岩石分别下降1.3286、0.4701个百分点。ViT这三份检查点均来自前三轮冻结阶段，C的遮挡监督从第4轮才开始；本次结果不代表三种ViT方案最终收敛表现或遮挡训练收益。
+
+[本次对照报告](result/cnn_vit_best_tests_20261112/report_zh.md) · [逐类别指标](result/cnn_vit_best_tests_20261112/per_class_metrics.csv) · [CNN快照与计分核验](result/prior_best_evaluation_20261112/summary.json)
+<!-- current-best-tests-20261112:end -->
+
 ### 细节注入第 11 轮：完整 Moon_2／4／9 测试
 
 **`dual_region_priors_detail_8000_1024` 第 11 轮**已完成全部 5004 张测试，使用 **1024／768 等权水平翻转 TTA（4 视图）**，类别分数系数均为 1。加权 **S＝89.98520096%**，比下方此前基线的 89.82321883% 高 **0.1620 个百分点**。这是当前已观察到的更高测试 S，训练仍继续，best 仍仅由固定验证集选取。
@@ -50,7 +68,7 @@ python code/evaluate.py --config config/evaluate_detail_epoch011_multiscale.json
 
 [此前基线完整测试指标](result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json) · [对应验证记录](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_024.json) · [当前七组实验的阶段分析](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/report_zh.md)
 
-当前保留CNN的control／affinity以及103上的context／detail；两组几何实验已按用户要求停止并清理，依据保存在 [清理记录](result/prior_ablation/pruned_runs_20261112.json)。ViT A在103卡2，B／C在本机卡2／4，均batch8、累积1；每3轮由验证best触发完整Moon_2/4/9测试，使用两台主机各自的空闲卡3。
+当前保留CNN的control／affinity以及103上的context／detail；两组几何实验已按用户要求停止并清理，依据保存在 [清理记录](result/prior_ablation/pruned_runs_20261112.json)。ViT A在103卡2，B／C在本机卡2／4，均batch8、累积1；每5轮由验证best触发完整Moon_2/4/9测试（已启动的第3轮测试保留，非5倍数终止轮补测），使用两台主机各自的空闲卡3。
 
 ### 在训方案的最新验证进度
 

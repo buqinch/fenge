@@ -274,6 +274,58 @@ class PeriodicFixtures(unittest.TestCase):
         self.assertEqual(m.read_json(final / 'trigger.json')['checkpoint_epoch'], 4)
         self.assertEqual(m.read_json(final / 'trigger.json')['trigger_kind'], 'final')
 
+    def test_configurable_five_epoch_cadence_and_final(self):
+        self.config['every_epochs'] = 5
+        config_path = self.root / 'config.json'
+        m.write_json(config_path, self.config)
+        self.assertEqual(m.load_config(config_path)['every_epochs'], 5)
+        m.write_json(config_path, {key: value for key, value in self.config.items() if key != 'every_epochs'})
+        self.assertEqual(m.load_config(config_path)['every_epochs'], 5)
+        for invalid in (0, -1, True, 2.5):
+            bad = {**self.config, 'every_epochs': invalid}
+            m.write_json(config_path, bad)
+            with self.assertRaises(ValueError):
+                m.load_config(config_path)
+        monitor = m.Monitor(self.config)
+        with patch.object(m, 'gpu_available', return_value=(False, 'fixture busy', 'fixture')):
+            run = self.publish(scores=(0.5, 0.6, 0.7, 0.8))
+            monitor.tick()
+            self.assertFalse((run / 'periodic_test').exists())
+            self.publish(scores=(0.5, 0.6, 0.7, 0.8, 0.9))
+            monitor.tick()
+            first = run / 'periodic_test/epoch_005'
+            self.assertEqual(m.read_json(first / 'trigger.json')['every_epochs'], 5)
+            first_sha = m.sha256(first / 'best.pt')
+            self.publish(scores=(0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92))
+            monitor.tick()
+            self.assertEqual(m.sha256(first / 'best.pt'), first_sha)
+            self.assertFalse((run / 'periodic_test/epoch_006').exists())
+            summary = m.read_json(run / 'summary.json')
+            summary['status'] = 'early_stopped'
+            m.write_json(run / 'summary.json', summary)
+            monitor.tick()
+            final = run / 'periodic_test/final_epoch_007'
+            self.assertEqual(m.read_json(final / 'trigger.json')['checkpoint_epoch'], 7)
+            self.assertEqual(m.read_json(final / 'trigger.json')['trigger_kind'], 'final')
+            self.publish(scores=(0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95))
+            monitor.tick()
+            self.assertTrue((run / 'periodic_test/epoch_010/status.json').exists())
+            self.assertFalse((run / 'periodic_test/epoch_009').exists())
+
+    def test_new_five_epoch_monitor_preserves_active_old_job(self):
+        run = self.publish()
+        old_job = self.prepare(run)
+        old_sha = m.sha256(old_job / 'best.pt')
+        m.set_status(old_job, 'running', worker_identity=m.process_identity(os.getpid()))
+        config = {**self.config, 'every_epochs': 5,
+                  'state_directory': str(self.root / 'result/monitor_every5')}
+        with patch.object(m, 'gpu_available', side_effect=AssertionError('Old worker must continue')):
+            report = m.Monitor(config).tick()
+        self.assertEqual(report['active_jobs'], [str(old_job)])
+        self.assertEqual(m.sha256(old_job / 'best.pt'), old_sha)
+        self.assertEqual(m.read_json(old_job / 'status.json')['status'], 'running')
+        self.assertEqual(list((run / 'periodic_test').iterdir()), [old_job])
+
 
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(PeriodicFixtures)

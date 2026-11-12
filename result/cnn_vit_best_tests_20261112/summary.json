@@ -1,0 +1,618 @@
+{
+  "updated_at": "2026-11-12T20:13:45.299066+08:00",
+  "status": "complete",
+  "tta": "1024/768 equal scale, original/hflip per scale; four views",
+  "score_definition": "S=(Moon_2 mIoU+Moon_4 mIoU+2*Moon_9 mIoU)/4",
+  "images": 5004,
+  "snapshot_policy": "validation-best checkpoint frozen at the user request, independent of subsequent training updates",
+  "rows": [
+    {
+      "id": "cnn_baseline",
+      "label": "CNN 原8000张基线",
+      "checkpoint_epoch": 24,
+      "metrics": "fenge/result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "f4b394b3e8ef4f9195d9e48cc18f3ae66b5e2833d6cb6f32bda8ef68c090716f",
+      "checkpoint_sha256": "56d8605f7da5672be3104bc569654882fc64c1666d9fa4847be554483547e195",
+      "weighted_score": 0.898232188286191,
+      "pooled_miou": 0.8971735272492559,
+      "scenes": {
+        "Moon_2": {
+          "miou": 0.9372766298559391,
+          "class_iou": {
+            "regolith": 0.9934689371215814,
+            "rock": 0.8863946370312619,
+            "crater": 0.8497455921523728,
+            "mountain": 0.9587778097653235,
+            "sky": 0.9979961732091557
+          },
+          "class_recall": {
+            "regolith": 0.9971451671082957,
+            "rock": 0.9472488425984754,
+            "crater": 0.8577070265982228,
+            "mountain": 0.9884562054805839,
+            "sky": 0.9987958528320567
+          },
+          "class_precision": {
+            "regolith": 0.9963027287661964,
+            "rock": 0.9324210465345741,
+            "crater": 0.9891944935918753,
+            "mountain": 0.9696349991277436,
+            "sky": 0.9991983918028203
+          }
+        },
+        "Moon_4": {
+          "miou": 0.9340448964124407,
+          "class_iou": {
+            "regolith": 0.9917763163117262,
+            "rock": 0.8886568955799963,
+            "crater": 0.8119930345802907,
+            "mountain": 0.9801645310137072,
+            "sky": 0.9976337045764834
+          },
+          "class_recall": {
+            "regolith": 0.9976975393318894,
+            "rock": 0.9358480338447829,
+            "crater": 0.8277652491173171,
+            "mountain": 0.9909760620905331,
+            "sky": 0.9984315585594502
+          },
+          "class_precision": {
+            "regolith": 0.9940514972256571,
+            "rock": 0.9463028596547938,
+            "crater": 0.9770723313304799,
+            "mountain": 0.9889917640565111,
+            "sky": 0.9991996383467232
+          }
+        },
+        "Moon_9": {
+          "miou": 0.8608036134381921,
+          "class_iou": {
+            "regolith": 0.9804220627427885,
+            "rock": 0.8425383017721246,
+            "crater": 0.5881579902518769,
+            "mountain": 0.8964259262832228,
+            "sky": 0.996473786140948
+          },
+          "class_recall": {
+            "regolith": 0.9910839993101237,
+            "rock": 0.9033270915582509,
+            "crater": 0.6552970660220697,
+            "mountain": 0.9822365380890132,
+            "sky": 0.9983559981017254
+          },
+          "class_precision": {
+            "regolith": 0.9891464168915436,
+            "rock": 0.9260365851933788,
+            "crater": 0.8516451318579716,
+            "mountain": 0.9111979040206467,
+            "sky": 0.9981115898869078
+          }
+        }
+      },
+      "verification": "complete 5004 images; scene matrices, GT totals, class IoUs and weighted score independently recomputed",
+      "seconds": 298.65049793498474
+    },
+    {
+      "id": "cnn_detail11",
+      "label": "CNN 细节注入旧检查点",
+      "checkpoint_epoch": 11,
+      "metrics": "fenge/result/dual_region_priors_detail_8000_1024/test_epoch_011_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "201e57b2c158ad8ddecb8210c785dbaf62bb81daa2afe832c950d7f63ec556a1",
+      "checkpoint_sha256": "b6fa2e2970d9cb9c945bc943b352892da58a854f49f5f3116e785d2f11253458",
+      "weighted_score": 0.8998520096322813,
+      "pooled_miou": 0.8985875168482031,
+      "scenes": {
+        "Moon_2": {
+          "miou": 0.9425006573050452,
+          "class_iou": {
+            "regolith": 0.9941306720633027,
+            "rock": 0.9047162182735287,
+            "crater": 0.8481306907674111,
+            "mountain": 0.9662512285164138,
+            "sky": 0.9992744769045702
+          },
+          "class_recall": {
+            "regolith": 0.9975273225889489,
+            "rock": 0.9522332313785196,
+            "crater": 0.8532727969558244,
+            "mountain": 0.9943719003341538,
+            "sky": 0.9996151747717135
+          },
+          "class_precision": {
+            "regolith": 0.9965865181350603,
+            "rock": 0.9477270853106718,
+            "crater": 0.9929447009918191,
+            "mountain": 0.9715646553251189,
+            "sky": 0.9996590398078852
+          }
+        },
+        "Moon_4": {
+          "miou": 0.9404152351130257,
+          "class_iou": {
+            "regolith": 0.9931688385813648,
+            "rock": 0.9099729612727384,
+            "crater": 0.8143414872967328,
+            "mountain": 0.9853074828846897,
+            "sky": 0.9992854055296029
+          },
+          "class_recall": {
+            "regolith": 0.9985077020014185,
+            "rock": 0.9430714798827465,
+            "crater": 0.8236222298600938,
+            "mountain": 0.9942954674491312,
+            "sky": 0.9996425923438368
+          },
+          "class_precision": {
+            "regolith": 0.9946452092804239,
+            "rock": 0.9628635649832091,
+            "crater": 0.9863516583797203,
+            "mountain": 0.9909090582368131,
+            "sky": 0.9996425577718795
+          }
+        },
+        "Moon_9": {
+          "miou": 0.858246073055527,
+          "class_iou": {
+            "regolith": 0.9811815706904037,
+            "rock": 0.8472904591429269,
+            "crater": 0.570689355267248,
+            "mountain": 0.8947456735919614,
+            "sky": 0.9973233065850958
+          },
+          "class_recall": {
+            "regolith": 0.9917547519680616,
+            "rock": 0.90424841375975,
+            "crater": 0.6264030552878531,
+            "mountain": 0.9840428542438185,
+            "sky": 0.9991915452357588
+          },
+          "class_precision": {
+            "regolith": 0.9892512340463492,
+            "rock": 0.9308022849148986,
+            "crater": 0.8651637470633654,
+            "mountain": 0.9079187678916814,
+            "sky": 0.9981287397401727
+          }
+        }
+      },
+      "verification": "complete 5004 images; scene matrices, GT totals, class IoUs and weighted score independently recomputed",
+      "seconds": 268.00600478000706
+    },
+    {
+      "id": "cnn_detail",
+      "label": "CNN 细节注入",
+      "checkpoint_epoch": 15,
+      "metrics": "fenge/result/dual_region_priors_detail_8000_1024/test_epoch_015_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "ca2c63261033c5f1616c37783bff87946899da800c0be6f15102ab758087d137",
+      "checkpoint_sha256": "3fe687fdf24b4a0a2b8539f043d903a0d28eb850f8e7eae878b21b55a2bafdba",
+      "weighted_score": 0.8986339382363084,
+      "pooled_miou": 0.8967711706270498,
+      "scenes": {
+        "Moon_2": {
+          "miou": 0.9432457743039236,
+          "class_iou": {
+            "regolith": 0.9942116028705897,
+            "rock": 0.9073238915535227,
+            "crater": 0.8495376808970853,
+            "mountain": 0.9658487147871404,
+            "sky": 0.9993069814112803
+          },
+          "class_recall": {
+            "regolith": 0.9977652996880123,
+            "rock": 0.9468662025200811,
+            "crater": 0.85387139805034,
+            "mountain": 0.9941993854951491,
+            "sky": 0.9996137458887959
+          },
+          "class_precision": {
+            "regolith": 0.9964303953634115,
+            "rock": 0.9559984211240159,
+            "crater": 0.994061201725474,
+            "mountain": 0.9713223138928855,
+            "sky": 0.9996929984434362
+          }
+        },
+        "Moon_4": {
+          "miou": 0.9394515400799381,
+          "class_iou": {
+            "regolith": 0.9931137869153146,
+            "rock": 0.909307009343986,
+            "crater": 0.8105589632575908,
+            "mountain": 0.9849266621474912,
+            "sky": 0.9993512787353076
+          },
+          "class_recall": {
+            "regolith": 0.9987575579342902,
+            "rock": 0.9358000366208606,
+            "crater": 0.8184746018345034,
+            "mountain": 0.9942667935005131,
+            "sky": 0.9997048866836934
+          },
+          "class_precision": {
+            "regolith": 0.9943422184558456,
+            "rock": 0.9698058512659252,
+            "crater": 0.9882091528766981,
+            "mountain": 0.9905523544936408,
+            "sky": 0.9996461832873041
+          }
+        },
+        "Moon_9": {
+          "miou": 0.8559192192806859,
+          "class_iou": {
+            "regolith": 0.9802669248864825,
+            "rock": 0.8425891486324842,
+            "crater": 0.5778107089341644,
+            "mountain": 0.8814598570551965,
+            "sky": 0.9974694568951021
+          },
+          "class_recall": {
+            "regolith": 0.9912674773348485,
+            "rock": 0.8942295508853098,
+            "crater": 0.641851406988892,
+            "mountain": 0.9830324035682965,
+            "sky": 0.9989097310134538
+          },
+          "class_precision": {
+            "regolith": 0.9888058705402653,
+            "rock": 0.93585907851615,
+            "crater": 0.8527493067838633,
+            "mountain": 0.8950779371266818,
+            "sky": 0.9985565824371911
+          }
+        }
+      },
+      "verification": "complete 5004 images; scene matrices, GT totals, class IoUs and weighted score independently recomputed",
+      "seconds": 286.7421748950146
+    },
+    {
+      "id": "cnn_context",
+      "label": "CNN 周围关系",
+      "checkpoint_epoch": 16,
+      "metrics": "fenge/result/dual_region_priors_context_8000_1024/test_epoch_016_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "9a1ce94d07a0f1fe9f79ab1abf2378c9215fe533947ae2fd51cf1477f60fb8ba",
+      "checkpoint_sha256": "e59791ddc52975d61c44cf523bfa54c202cf6c544dc7fd83cb686ae80284c8df",
+      "weighted_score": 0.8971225234267055,
+      "pooled_miou": 0.8952977189407694,
+      "scenes": {
+        "Moon_2": {
+          "miou": 0.9425864960470538,
+          "class_iou": {
+            "regolith": 0.994181720436442,
+            "rock": 0.9055106180206988,
+            "crater": 0.84654748705227,
+            "mountain": 0.967610684986468,
+            "sky": 0.9990819697393893
+          },
+          "class_recall": {
+            "regolith": 0.9978866382132704,
+            "rock": 0.9436395666001608,
+            "crater": 0.8518219942452588,
+            "mountain": 0.9936519419928942,
+            "sky": 0.9995014195512678
+          },
+          "class_precision": {
+            "regolith": 0.9962794020329923,
+            "rock": 0.9572834951082781,
+            "crater": 0.9927386620400258,
+            "mountain": 0.9736293603405444,
+            "sky": 0.9995801317040535
+          }
+        },
+        "Moon_4": {
+          "miou": 0.9405097740799973,
+          "class_iou": {
+            "regolith": 0.9930255044792875,
+            "rock": 0.9005651169530118,
+            "crater": 0.8220189059939872,
+            "mountain": 0.9878104284921131,
+            "sky": 0.9991289144815864
+          },
+          "class_recall": {
+            "regolith": 0.9987858897973325,
+            "rock": 0.9256124386201459,
+            "crater": 0.8330325414416988,
+            "mountain": 0.9932436788676077,
+            "sky": 0.9994771968278123
+          },
+          "class_precision": {
+            "regolith": 0.9942256421645742,
+            "rock": 0.9708284513313089,
+            "crater": 0.9841708562028917,
+            "mountain": 0.9944927861698778,
+            "sky": 0.9996513532653121
+          }
+        },
+        "Moon_9": {
+          "miou": 0.8526969117898856,
+          "class_iou": {
+            "regolith": 0.9800740983209205,
+            "rock": 0.8424502311207825,
+            "crater": 0.5669278090938805,
+            "mountain": 0.8768634019432371,
+            "sky": 0.9971690184706076
+          },
+          "class_recall": {
+            "regolith": 0.9911840278100272,
+            "rock": 0.8885496134636033,
+            "crater": 0.6336763841934808,
+            "mountain": 0.9868328971629066,
+            "sky": 0.9988493285840657
+          },
+          "class_precision": {
+            "regolith": 0.9886926869080364,
+            "rock": 0.9419884149087066,
+            "crater": 0.8433122253421232,
+            "mountain": 0.887243981830572,
+            "sky": 0.9983158194960793
+          }
+        }
+      },
+      "verification": "complete 5004 images; scene matrices, GT totals, class IoUs and weighted score independently recomputed",
+      "seconds": 292.61073066902463
+    },
+    {
+      "id": "vit_a",
+      "label": "ViT A 融合",
+      "checkpoint_epoch": 3,
+      "metrics": "fenge_vit/result/a_fusion/periodic_test/epoch_003/test_metrics.json",
+      "metrics_sha256": "829bd9a2e8d46e3bad8c568edc79e3b0a6afce5fa63ca94259330fdfa8c0336d",
+      "checkpoint_sha256": "459a8826e782f00dc94330465a467f163efef09b11962fe4b696336916ce4a7c",
+      "weighted_score": 0.8820742124600247,
+      "pooled_miou": 0.8799520240771928,
+      "scenes": {
+        "Moon_2": {
+          "miou": 0.9177010535835409,
+          "class_iou": {
+            "regolith": 0.9918855447079159,
+            "rock": 0.8642533001928246,
+            "crater": 0.7847747726432448,
+            "mountain": 0.9503873843256331,
+            "sky": 0.9972042660480863
+          },
+          "class_recall": {
+            "regolith": 0.9970104848832301,
+            "rock": 0.922845013695413,
+            "crater": 0.7942733136200041,
+            "mountain": 0.9849556415119356,
+            "sky": 0.99862619553441
+          },
+          "class_precision": {
+            "regolith": 0.9948443591592396,
+            "rock": 0.931564812972083,
+            "crater": 0.9849902374539153,
+            "mountain": 0.9643867677061917,
+            "sky": 0.9985741583347434
+          }
+        },
+        "Moon_4": {
+          "miou": 0.9161575503494394,
+          "class_iou": {
+            "regolith": 0.989851830275951,
+            "rock": 0.8635960946946108,
+            "crater": 0.7674774445716841,
+            "mountain": 0.9626931215335088,
+            "sky": 0.9971692606714413
+          },
+          "class_recall": {
+            "regolith": 0.9973289299338595,
+            "rock": 0.9152516761668832,
+            "crater": 0.7808877387526272,
+            "mountain": 0.9824178559538683,
+            "sky": 0.9984223937148651
+          },
+          "class_precision": {
+            "regolith": 0.9924829469521188,
+            "rock": 0.9386559441333832,
+            "crater": 0.9781136470350311,
+            "mountain": 0.9795702692142914,
+            "sky": 0.9987429061722487
+          }
+        },
+        "Moon_9": {
+          "miou": 0.8472191229535593,
+          "class_iou": {
+            "regolith": 0.9786230202621591,
+            "rock": 0.8052310059567073,
+            "crater": 0.597267769894323,
+            "mountain": 0.8644052791732428,
+            "sky": 0.9905685394813639
+          },
+          "class_recall": {
+            "regolith": 0.9899953993344146,
+            "rock": 0.8664041522477242,
+            "crater": 0.7086921724715013,
+            "mountain": 0.9449686417246227,
+            "sky": 0.9985449115386391
+          },
+          "class_precision": {
+            "regolith": 0.9883979545728818,
+            "rock": 0.9193847680479561,
+            "crater": 0.7916145597413332,
+            "mountain": 0.9102257295286817,
+            "sky": 0.992000457641756
+          }
+        }
+      },
+      "verification": "complete 5004 images; scene matrices, GT totals, class IoUs and weighted score independently recomputed",
+      "seconds": 1487.6884971069994
+    },
+    {
+      "id": "vit_b",
+      "label": "ViT B 双向Adapter",
+      "checkpoint_epoch": 2,
+      "metrics": "fenge_vit/result/b_adapter/manual_test_20261112_1907/test_metrics.json",
+      "metrics_sha256": "4c6796c3843ee5e0255f00db7f0eb1c1f21a401f0f6e6ef153ca2920a0a6e939",
+      "checkpoint_sha256": "fafd4da497ec1ee4313930d893481c68fc989b91bbe70654eb7294a1b1ea9893",
+      "weighted_score": 0.8778802712774116,
+      "pooled_miou": 0.874527810388406,
+      "scenes": {
+        "Moon_2": {
+          "miou": 0.9176567994168575,
+          "class_iou": {
+            "regolith": 0.9916726857072481,
+            "rock": 0.8435625723083969,
+            "crater": 0.805431028282022,
+            "mountain": 0.9504749267247037,
+            "sky": 0.9971427840619171
+          },
+          "class_recall": {
+            "regolith": 0.9967440635392298,
+            "rock": 0.9083546711217649,
+            "crater": 0.8238127831511852,
+            "mountain": 0.9820705623737795,
+            "sky": 0.998775195742303
+          },
+          "class_precision": {
+            "regolith": 0.9948955208472408,
+            "rock": 0.9220354939675653,
+            "crater": 0.9730435700621208,
+            "mountain": 0.9672593953321265,
+            "sky": 0.9983635854713322
+          }
+        },
+        "Moon_4": {
+          "miou": 0.9166583366150011,
+          "class_iou": {
+            "regolith": 0.9897648890662927,
+            "rock": 0.8486080113529932,
+            "crater": 0.7852582128913402,
+            "mountain": 0.9624615417673584,
+            "sky": 0.997199027997021
+          },
+          "class_recall": {
+            "regolith": 0.9967360376014203,
+            "rock": 0.9004499790803588,
+            "crater": 0.8179497612030674,
+            "mountain": 0.9770401712344883,
+            "sky": 0.9989801164081048
+          },
+          "class_precision": {
+            "regolith": 0.9929832812602604,
+            "rock": 0.936465921484873,
+            "crater": 0.9515675969888785,
+            "mountain": 0.984733495727361,
+            "sky": 0.9982152762663706
+          }
+        },
+        "Moon_9": {
+          "miou": 0.8386029745388941,
+          "class_iou": {
+            "regolith": 0.9756186215154828,
+            "rock": 0.7767408449316819,
+            "crater": 0.5424241720363764,
+            "mountain": 0.9061567117657837,
+            "sky": 0.9920745224451458
+          },
+          "class_recall": {
+            "regolith": 0.9881838370476069,
+            "rock": 0.8288801456151762,
+            "crater": 0.7578651136114808,
+            "mountain": 0.9613795433594243,
+            "sky": 0.9982709766822272
+          },
+          "class_precision": {
+            "regolith": 0.9871344480438171,
+            "rock": 0.9250833759881613,
+            "crater": 0.656133691415884,
+            "mountain": 0.9403887913629743,
+            "sky": 0.9937821292815691
+          }
+        }
+      },
+      "verification": "complete 5004 images; scene matrices, GT totals, class IoUs and weighted score independently recomputed",
+      "seconds": 3449.355006636997
+    },
+    {
+      "id": "vit_c",
+      "label": "ViT C Adapter＋遮挡方案",
+      "checkpoint_epoch": 2,
+      "metrics": "fenge_vit/result/c_adapter_masking/manual_test_20261112_1907/test_metrics.json",
+      "metrics_sha256": "dc0c9e1d2daa61a8e87a5cd1f0a28e66d2164a969cf67f97e00a56b7c1cf3746",
+      "checkpoint_sha256": "4ae8864f62e6130d8a4fe5ddf18c3267f026424f3405988fea2f9e6f621b0639",
+      "weighted_score": 0.8818166629272153,
+      "pooled_miou": 0.8791458095186055,
+      "scenes": {
+        "Moon_2": {
+          "miou": 0.9153738020151998,
+          "class_iou": {
+            "regolith": 0.9917355148600031,
+            "rock": 0.8309698960293027,
+            "crater": 0.8203549987907927,
+            "mountain": 0.9372156147347,
+            "sky": 0.9965929856612001
+          },
+          "class_recall": {
+            "regolith": 0.9965460629091571,
+            "rock": 0.904940038501203,
+            "crater": 0.8346021437697421,
+            "mountain": 0.9811826047857591,
+            "sky": 0.9979122406553472
+          },
+          "class_precision": {
+            "regolith": 0.9951561293703278,
+            "rock": 0.9104421392051397,
+            "crater": 0.9796154032665961,
+            "mountain": 0.9543696300174856,
+            "sky": 0.9986752227970576
+          }
+        },
+        "Moon_4": {
+          "miou": 0.9208913906745366,
+          "class_iou": {
+            "regolith": 0.9902700795816312,
+            "rock": 0.8546687677002479,
+            "crater": 0.8007747437874182,
+            "mountain": 0.961625285296991,
+            "sky": 0.9971180770063944
+          },
+          "class_recall": {
+            "regolith": 0.9967808667788719,
+            "rock": 0.9137487843681824,
+            "crater": 0.8299358706220497,
+            "mountain": 0.9760114273601365,
+            "sky": 0.9984891893368808
+          },
+          "class_precision": {
+            "regolith": 0.9934472295660568,
+            "rock": 0.9296693733238811,
+            "crater": 0.9579661136177103,
+            "mountain": 0.984903466541695,
+            "sky": 0.9986247381368841
+          }
+        },
+        "Moon_9": {
+          "miou": 0.8455007295095622,
+          "class_iou": {
+            "regolith": 0.9781763562104262,
+            "rock": 0.7693718013803273,
+            "crater": 0.5963318668185303,
+            "mountain": 0.8896444556595801,
+            "sky": 0.993979167478948
+          },
+          "class_recall": {
+            "regolith": 0.9903016101805153,
+            "rock": 0.8253090041070892,
+            "crater": 0.7375194290633105,
+            "mountain": 0.9804982545841432,
+            "sky": 0.9971746551664099
+          },
+          "class_precision": {
+            "regolith": 0.9876375712843293,
+            "rock": 0.9190379764517438,
+            "crater": 0.7569895962799795,
+            "mountain": 0.905670012257176,
+            "sky": 0.996786407967428
+          }
+        }
+      },
+      "verification": "complete 5004 images; scene matrices, GT totals, class IoUs and weighted score independently recomputed",
+      "seconds": 3040.2559531869992
+    }
+  ],
+  "pending": [],
+  "interpretation_limits": [
+    "CNN and ViT checkpoints have different training progress; these are current-checkpoint results, not final architecture comparisons.",
+    "ViT A epoch3 and B/C epoch2 are from the initial frozen-backbone stage; C masking starts at epoch4 and has not contributed to this checkpoint.",
+    "Test results do not select or replace best checkpoints. This test set has been inspected in earlier experiments."
+  ]
+}

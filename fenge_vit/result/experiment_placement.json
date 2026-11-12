@@ -109,7 +109,7 @@
   "periodic_test": {
     "enabled": true,
     "deployed_at": "2026-11-12T09:08:00.458282+00:00",
-    "every_completed_epochs": 3,
+    "every_completed_epochs": 5,
     "checkpoint_selection": "First strict maximum of full fixed validation through the triggering epoch",
     "tta": "multiscale_hflip",
     "tta_sizes": [
@@ -132,7 +132,6 @@
       "Moon_4": 1,
       "Moon_9": 2
     },
-    "final_nonmultiple_of_three": true,
     "training_selection_uses_test": false,
     "local": {
       "runs": [
@@ -140,30 +139,35 @@
         "c_adapter_masking"
       ],
       "physical_gpu": 3,
-      "monitor_pid": 1691199,
-      "state": "result/periodic_eval_local/state.json"
+      "monitor_pid": 1967321,
+      "state": "result/periodic_eval_local_every5/state.json",
+      "launcher_pid": 1967321
     },
     "remote103": {
       "runs": [
         "a_fusion"
       ],
       "physical_gpu": 3,
-      "monitor_pid": 201784,
-      "launcher_pid": 201781,
-      "state": "result/periodic_eval_103/state.json"
+      "monitor_pid": 469435,
+      "launcher_pid": 469435,
+      "state": "result/periodic_eval_103_every5/state.json"
     },
-    "result_pattern": "result/<run>/periodic_test/epoch_003/test_metrics.json",
-    "source_sha256": "6f333448aee30b24d204b2a943db15eb0eea7ad2e98587cf8f7d3046eaf9e275",
+    "result_pattern": "result/<run>/periodic_test/epoch_005/test_metrics.json",
+    "source_sha256": "2e251ef8df83dfdcba9a284b506e3d2f287044b6d865980fa6c8c09ea1d4b46c",
     "runtime_startup_errors": [],
     "remote103_c_4gpu": {
       "runs": [
         "c_adapter_masking_103_4gpu"
       ],
       "physical_gpu": 3,
-      "monitor_pid": 356249,
-      "state": "result/periodic_eval_c_103_4gpu/state.json",
-      "shared_gpu_lock_with_a": true
-    }
+      "monitor_pid": 469436,
+      "state": "result/periodic_eval_c_103_4gpu_every5/state.json",
+      "shared_gpu_lock_with_a": true,
+      "launcher_pid": 469436
+    },
+    "final_nonmultiple_of_interval": true,
+    "cadence_changed_at": "2026-11-12T12:00:26.583325+00:00",
+    "cadence_transition_report": "result/periodic_cadence_5_20261112.json"
   },
   "source_sha256_equal_scope": "Original single-GPU A/B/C; distributed C adds an independent entry and helper while reusing unchanged model sources.",
   "remote_text_sync_c_4gpu": {

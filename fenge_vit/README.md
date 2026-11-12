@@ -198,7 +198,7 @@ python code/benchmark_memory.py --variant B --device cuda:2 \
 
 新增独立实验 [c_adapter_masking_103_4gpu.json](config/c_adapter_masking_103_4gpu.json)，从两份原始 DINOv3 预训练权重开始，不继承本机 C 的训练检查点。使用103物理 **GPU 4／5／6／7**，每卡2张、累积1，**全局有效 batch＝8**。相同8000张训练图每轮在四卡各分配2000张，不补齐、不重复；每轮仍为1000次优化器更新。固定1601张验证按401／400／400／400分配，先合并整数混淆矩阵再计算mIoU。
 
-本实验已于 **2026-11-12 18:49（北京时间）** 启动，首批训练日志已确认损失有限。原始完整C初始化模型SHA为`d63b934eff8e1d0cebbddaf9b6a9735608218521cfcc90a72bd353be552fc1c3`。实时进度见[同步训练日志](result/c_adapter_masking_103_4gpu/train.log)；新实验尚未产生完整验证成绩。
+本实验已于 **2026-11-12 18:49（北京时间）** 启动，首批训练日志已确认损失有限。原始完整C初始化模型SHA为`d63b934eff8e1d0cebbddaf9b6a9735608218521cfcc90a72bd353be552fc1c3`。实时进度见[同步训练日志](result/c_adapter_masking_103_4gpu/train.log)；启动检查时尚未产生完整验证成绩，后续轮次以该实验的summary和日志为准。
 
 独立入口 `code/train_distributed.py` 复用原网络和损失；原单卡入口保持原版本。它采用同步数据并行，在完整图与可选遮挡图依次反向后，以25MiB梯度桶进行NCCL归约。分类损失按全局目标权重之和、BCE／Dice按全局匹配掩码数归约；遮挡NLL按所有卡和累积微批的有效像素数归约。冻结／解冻切换不丢失Adapter梯度，每次保存检查点前核对所有卡的模型SHA一致。
 
@@ -214,7 +214,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=2 \
 
 断点续训使用同一命令追加 `--resume result/c_adapter_masking_103_4gpu/last.pt`。检查点保存各卡随机数和DataLoader状态，要求相同卡数与训练配置；rank 0统一写出best／last、history和summary。推理仍使用原 `code/evaluate.py`，不需要四张卡，也不需要去掉权重键名中的包装前缀。GPU多卡运行与单卡不承诺逐位相同的优化轨迹。
 
-本机通过 [remote103_c_4gpu.json](config/remote103_c_4gpu.json) 每60秒同步该实验的文字结果到 `result/c_adapter_masking_103_4gpu/`；权重留在103，图片仍写NAS。每三轮自动测试由 [periodic_eval_c_103_4gpu.json](config/periodic_eval_c_103_4gpu.json) 管理，与A组共享103的空闲GPU3及同一显卡锁，评估完整Moon_2／4／9，使用1024／768等权翻转TTA；测试不参与best选择。部署状态及进程见 `result/c_full_103_4gpu_deployment.json`。
+本机通过 [remote103_c_4gpu.json](config/remote103_c_4gpu.json) 每60秒同步该实验的文字结果到 `result/c_adapter_masking_103_4gpu/`；权重留在103，图片仍写NAS。每五轮自动测试由 [periodic_eval_c_103_4gpu.json](config/periodic_eval_c_103_4gpu.json) 管理，与A组共享103的空闲GPU3及同一显卡锁，评估完整Moon_2／4／9，使用1024／768等权翻转TTA；测试不参与best选择。部署状态及进程见 `result/c_full_103_4gpu_deployment.json`。
 
 四卡版的验证包括不均匀GT类别数量下的全局损失与梯度、空rank、1601张无重复验证、随机状态恢复，以及真实1024冻结→解冻→遮挡训练。运行检查用少量样本，明确标记partial，不属于新的分割成绩。
 
@@ -230,13 +230,27 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=2 \
 
 正式训练只在25%的联合更新中启用遮挡。按本次短测推算，四卡每轮纯训练计算约35分钟（冻结阶段）或45分钟（联合阶段），完整轮次还需加上数据读取、验证与保存时间。各卡峰值PyTorch缓存预留约3.79GiB，不包含NCCL和CUDA上下文。完整原始记录见[单／四卡测速对照](result/c_full_103_speed_comparison.json)。
 
-## 每三轮的 Moon_2／4／9 测试
+## 每五轮的 Moon_2／4／9 测试
 
-A／B／C 每完成第3、6、9…轮完整验证，独立监控就固定该轮结束时由验证集选出的最佳权重，在完整5004张 Moon_2／4／9 上评估。固定使用1024＋768等权水平翻转TTA（4视图），测试batch4，输出逐场景和逐类别指标，以及1:1:2加权分数。测试成绩不参与训练的best选择或早停。
+<!-- current-best-tests-20261112:start -->
+2026-11-12追加请求固定当时的A第3轮、B／C第2轮验证best，在103的物理GPU3／4／5测试，三组现已全部完成。A复用同检查点已启动的第3轮自动测试；B／C另存不可变快照，结果位于各自的`manual_test_20261112_1907/`。测试覆盖完整5004张，统一1024／768等权翻转4视图、batch4、BF16，启用物体诊断，不保存图片。测试期间GPU4／5与新的四卡C训练共享计算资源，训练未中断。
 
-A使用103物理卡3；B／C在当前服务器物理卡3排队测试，训练继续使用各自原卡。GPU被其他计算进程占用时等待。提前停止若落在非3倍数轮次，会补做最终best测试；若同一权重和评估设置已测过，会明确记录复用来源。
+|模型|检查点轮次|Moon_2|Moon_4|Moon_9|加权 S|
+|---|---:|---:|---:|---:|---:|
+|A 融合|3|91.7701%|91.6158%|84.7219%|88.2074%|
+|B 双向Adapter|2|91.7657%|91.6658%|83.8603%|87.7880%|
+|C Adapter＋遮挡方案|2|91.5374%|92.0891%|84.5501%|88.1817%|
 
-每次结果单独保存在 `result/<实验>/periodic_test/epoch_003/test_metrics.json` 等目录。`trigger.json`记录触发轮次、实际best轮次及权重SHA256，`status.json`记录排队／运行／完成状态，`test.log`记录测试进度。测试使用不可变快照，成功核对完整场景覆盖和分数后清理临时权重。A的这些文字结果仍每60秒同步回当前服务器。
+这三份检查点均来自前三轮冻结阶段；C第2轮尚未启用遮挡监督，不能用本次分数推断遮挡训练收益或最终架构上限。测试结果不参与best选择。
+
+[A完整指标](result/a_fusion/periodic_test/epoch_003/test_metrics.json) · [B完整指标](result/b_adapter/manual_test_20261112_1907/test_metrics.json) · [C完整指标](result/c_adapter_masking/manual_test_20261112_1907/test_metrics.json) · [三组来源与计分核验](result/manual_test_20261112_1907_summary.json)
+<!-- current-best-tests-20261112:end -->
+
+A／B／C及103四卡C每完成第5、10、15…轮完整验证，独立监控就固定该轮结束时由验证集选出的最佳权重，在完整5004张 Moon_2／4／9 上评估。固定使用1024＋768等权水平翻转TTA（4视图），测试batch4，输出逐场景和逐类别指标，以及1:1:2加权分数。测试成绩不参与训练的best选择或早停。
+
+A使用103物理卡3；B／C在当前服务器物理卡3排队测试，训练继续使用各自原卡。GPU被其他计算进程占用时等待。提前停止若落在非5倍数轮次，会补做最终best测试；若同一权重和评估设置已测过，会明确记录复用来源。
+
+每次结果单独保存在 `result/<实验>/periodic_test/epoch_005/test_metrics.json` 等目录。`trigger.json`记录触发轮次、实际best轮次及权重SHA256，`status.json`记录排队／运行／完成状态，`test.log`记录测试进度。测试使用不可变快照，成功核对完整场景覆盖和分数后清理临时权重。A的这些文字结果仍每60秒同步回当前服务器。
 
 本机监控入口（已运行时会通过锁避免重复启动）：
 
@@ -251,4 +265,4 @@ bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python \
   code/periodic_evaluate.py --config config/periodic_eval_103.json
 ```
 
-两台主机的监控均已部署并通过实际环境启动检查。监控状态分别位于 `result/periodic_eval_local/state.json`、`result/periodic_eval_103/state.json`；具体测试在完成第3轮后首次触发。触发、不可变快照、重启去重与完整指标守卫的验证见 [执行验证](result/verification_periodic_evaluate.json) 和 [独立复核](result/verification_periodic_review.json)。
+已于2026-11-12按要求切换为每5轮测试。原第3轮已启动或完成的任务继续保留，之后在第5、10、15…轮触发；新监控继续接管原任务目录，不重复执行旧测试。三个监控状态分别位于 `result/periodic_eval_local_every5/state.json`、`result/periodic_eval_103_every5/state.json`、`result/periodic_eval_c_103_4gpu_every5/state.json`。旧状态目录保留用于追溯，切换只重启监控进程，训练和已运行的评估进程继续运行。[切换记录](result/periodic_cadence_5_20261112.json)保存前后进程身份及配置；[14项调度验证](result/verification_periodic_cadence5.json)覆盖第4轮不触发、第5／10轮触发、末轮补测及保留旧第3轮任务。
