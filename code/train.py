@@ -21,9 +21,14 @@ from lunarseg.losses import SegmentationCriterion
 from lunarseg.metrics import autocast_context, evaluate_loader, validate_tta_sizes
 from lunarseg.model import ModelConfig, build_model
 from lunarseg.training_priors import (PRIOR_DEFAULTS, PriorDiagnostics, load_initial_model,
-                                      validate_prior_args, warmup_scale)
+                                      validate_prior_args, warmup_scale, without_retired_geometry,
+                                      validate_prior_implementation)
 
 PROJECT = Path(__file__).resolve().parents[1]
+
+# Exact replacements for the known geometry-only removal migration. Future
+# implementation changes require their own explicit compatibility decision.
+RETIRED_GEOMETRY_COMPATIBLE_HASHES = {'priors.py': '48ee095d3e217c7af3ddbc182fb64a476ac82ea7c2b0da8ec9ae0eb7e3c00d68', 'training_priors.py': 'e28689033104ec00a127e325a42b88e0210a841960729b1285ca720ca0d57e0d'}
 
 
 def parse_args(argv=None):
@@ -83,17 +88,18 @@ def parse_args(argv=None):
                         help="Maximum hard pixels per image and confusion direction")
     parser.add_argument("--refinement", choices=("none", "context", "detail"), default="none")
     parser.add_argument("--affinity-weight", type=float, default=0.0)
-    parser.add_argument("--consistency-weight", type=float, default=0.0)
     parser.add_argument("--prior-warmup-updates", type=int, default=1000)
     parser.add_argument("--prior-lr", type=float, default=1e-4)
     parser.add_argument("--prior-seed", type=int, default=4242)
-    parser.add_argument("--geometry-paired-control", action=argparse.BooleanOptionalAction, default=False,
-                        help="Two geometry views and averaged complete GT losses, with no JS unless enabled")
     parser.add_argument("--epoch-zero-validation", action=argparse.BooleanOptionalAction, default=False,
                         help="Save a fully validated initialization as epoch0.pt and the initial best checkpoint")
     parser.add_argument("--gradient-checkpointing", action=argparse.BooleanOptionalAction, default=False,
                         help="Trade training computation for activation memory; evaluation remains unchanged")
     parser.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
+    try:
+        defaults = without_retired_geometry(defaults)
+    except ValueError as error:
+        parser.error(str(error))
     allowed = {action.dest for action in parser._actions}
     unknown = set(defaults) - allowed
     if unknown:
@@ -300,7 +306,7 @@ def design_selection_reference(args, mode, previous=None):
 def training_loss_means(sums, seen):
     means = {name: value / seen for name, value in sums.items()}
     means["hard_to_base_ratio"] = means["loss_hard_pixels_weighted"] / max(means["loss_base"], 1e-12)
-    for name in ("affinity", "consistency"):
+    for name in ("affinity",):
         if "loss_" + name + "_weighted" in means:
             means[name + "_to_base_ratio"] = means["loss_" + name + "_weighted"] / max(means["loss_base"], 1e-12)
     return means
@@ -436,7 +442,7 @@ def main(argv=None):
             raise ValueError("Resume model configuration differs from checkpoint")
         if saved["data_identity"] != {"train": train_data.identity, "val": val_data.identity}:
             raise ValueError("Resume dataset identity differs from checkpoint")
-        previous = saved["run_config"]
+        previous = without_retired_geometry(saved["run_config"])
         for field in ("freeze_epochs", "batch_size", "accumulation", "head_lr", "backbone_lr",
                       "weight_decay", "gradient_clip", "val_batch_size", "seed", "horizontal_flip",
                       "amp", "num_points", "workers", "epochs"):
@@ -481,11 +487,6 @@ def main(argv=None):
     criterion = SegmentationCriterion(num_classes=5, num_points=args.num_points,
                                       hard_pixel_weight=args.hard_pixel_weight,
                                       hard_pixel_quota=args.hard_pixel_quota).to(device)
-    paired_geometry = args.geometry_paired_control or args.consistency_weight > 0
-    geometry_criterion = (SegmentationCriterion(num_classes=5, num_points=args.num_points,
-                                                hard_pixel_weight=args.hard_pixel_weight,
-                                                hard_pixel_quota=args.hard_pixel_quota,
-                                                ignore_index=255).to(device) if paired_geometry else None)
     affinity = None
     if args.affinity_weight > 0:
         from lunarseg.priors import SemanticAffinity
@@ -565,23 +566,26 @@ def main(argv=None):
                       official_test_used_for_selection=test_selected_recipe,
                       checkpoint_selection_uses_test=False, **reference)
     run_config["prior_protocol"] = {
-        "paired_geometry": paired_geometry,
-        "gt_loss_reduction": "0.5*(complete_base_A+complete_base_B)" if paired_geometry else "complete_base_A",
-        "geometry_ignore_index": 255 if paired_geometry else None,
-        "geometry_transform_seed": args.prior_seed if paired_geometry else None,
+        "gt_loss_reduction": "complete_base_A",
         "warmup": "min(1,(global_update+1)/prior_warmup_updates), shared by accumulation microbatches",
-        "training_forwards_per_microbatch": 2 if paired_geometry else 1,
+        "training_forwards_per_microbatch": 1,
         "gradient_checkpointing": args.gradient_checkpointing,
         "affinity_checkpoint_key": "affinity" if affinity is not None else None,
         "auxiliary_initialization_rng": "independent CPU fork_rng; global RNG preserved"}
     implementation_files = ["losses.py", "training_priors.py"]
-    if affinity is not None or paired_geometry:
+    if affinity is not None:
         implementation_files.append("priors.py")
     if args.refinement != "none":
         implementation_files.append("refinement.py")
     implementation_hashes = {name: sha256_file(PROJECT / "code" / "lunarseg" / name) for name in implementation_files}
-    if saved and saved["run_config"].get("prior_implementation_sha256") not in (None, implementation_hashes):
-        raise ValueError("Resume prior/base-loss implementation SHA256 differs from checkpoint")
+    if saved:
+        migrated = validate_prior_implementation(saved["run_config"].get("prior_implementation_sha256"),
+                                                implementation_hashes, saved["run_config"],
+                                                RETIRED_GEOMETRY_COMPATIBLE_HASHES)
+        if migrated:
+            run_config["retired_geometry_resume_migration"] = {
+                "files": migrated, "previous_sha256": saved["run_config"]["prior_implementation_sha256"],
+                "reason": "removed unused geometry-only implementation; retained objectives unchanged"}
     run_config["prior_implementation_sha256"] = implementation_hashes
     write_json(output / "run_config.json", {**run_config, "model_config": config.to_dict(),
                                              "pretrained_report": provenance,
@@ -607,8 +611,7 @@ def main(argv=None):
                 "best_validation_miou": best, "partial": partial,
                 "selection_scene": selection_scene, "val_tta": args.val_tta,
                 "val_tta_sizes": args.val_tta_sizes, "refinement": args.refinement,
-                "affinity_weight": args.affinity_weight, "consistency_weight": args.consistency_weight,
-                "paired_geometry": paired_geometry, "global_update": update,
+                "affinity_weight": args.affinity_weight, "global_update": update,
                 "epoch_zero_validation": args.epoch_zero_validation,
                 "official_test_used_for_selection": test_selected_recipe, "checkpoint_selection_uses_test": False}
 
@@ -638,7 +641,6 @@ def main(argv=None):
                       "hard_pixel_weight": args.hard_pixel_weight,
                       "hard_pixel_quota": args.hard_pixel_quota,
                       "refinement": args.refinement, "affinity_weight": args.affinity_weight,
-                      "consistency_weight": args.consistency_weight, "paired_geometry": paired_geometry,
                       "initial_model_sha256": initial_model_sha256, "initialization_mode": mode,
                       "official_test_used_for_selection": test_selected_recipe,
                       "checkpoint_selection_uses_test": False}), flush=True)
@@ -670,33 +672,17 @@ def main(argv=None):
             target = batch["mask"].to(device, non_blocking=True)
             keys = prior_diagnostics.observe_batch(batch)
             auxiliary_scale = warmup_scale(update, args.prior_warmup_updates)
-            affinity_stats, geometry_stats, geometry_metadata = None, None, None
+            affinity_stats = None
             with autocast_context(device, args.amp):
                 predictions = model(images, return_features=True) if affinity is not None else model(images)
                 losses_a = criterion(predictions, target)
                 losses = losses_a
                 affinity_loss = losses_a["loss_total"].new_zeros(())
-                consistency_loss = affinity_loss
                 if affinity is not None:
                     affinity_loss, affinity_stats = affinity(predictions["mask_features"], target, keys, epoch + 1)
-                if paired_geometry:
-                    from lunarseg.priors import make_geometry_view, geometry_consistency_js
-                    images_b, target_b, valid_b, geometry_metadata = make_geometry_view(
-                        images, target, keys, epoch + 1, seed=args.prior_seed)
-                    predictions_b = model(images_b)
-                    losses_b = geometry_criterion(predictions_b, target_b)
-                    if set(losses_a) != set(losses_b):
-                        raise ValueError("The two geometry views must retain the same complete GT objective")
-                    losses = {name: .5 * (losses_a[name] + losses_b[name]) for name in losses_a}
-                    if args.consistency_weight > 0:
-                        consistency_loss, geometry_stats = geometry_consistency_js(
-                            predictions["semantic_logits"], predictions_b["semantic_logits"],
-                            target, target_b, valid_b, geometry_metadata)
                 base_objective = losses["loss_total"]
                 if affinity is not None:
                     losses["loss_total"] = losses["loss_total"] + args.affinity_weight * auxiliary_scale * affinity_loss
-                if args.consistency_weight > 0:
-                    losses["loss_total"] = losses["loss_total"] + args.consistency_weight * auxiliary_scale * consistency_loss
                 loss = losses["loss_total"] * (len(images) / window_samples)
             if not torch.isfinite(loss):
                 raise FloatingPointError(f"Non-finite loss at epoch {epoch + 1}, batch {step + 1}")
@@ -704,21 +690,14 @@ def main(argv=None):
             hard_diagnostics.update(criterion, batch, step)
             if affinity_stats is not None:
                 prior_diagnostics.observe_affinity(affinity_stats)
-            if geometry_metadata is not None:
-                prior_diagnostics.observe_geometry(keys, geometry_metadata, geometry_stats)
             logged_losses = {name: float(value.detach()) for name, value in losses.items()}
             logged_losses.setdefault("loss_hard_pixels", 0.0)
             logged_losses.setdefault("loss_hard_pixels_weighted", 0.0)
             logged_losses["loss_base"] = float(base_objective.detach()) - logged_losses["loss_hard_pixels_weighted"]
             logged_losses["loss_affinity"] = float(affinity_loss.detach())
             logged_losses["loss_affinity_weighted"] = args.affinity_weight * auxiliary_scale * logged_losses["loss_affinity"]
-            logged_losses["loss_consistency"] = float(consistency_loss.detach())
-            logged_losses["loss_consistency_weighted"] = args.consistency_weight * auxiliary_scale * logged_losses["loss_consistency"]
             logged_losses["prior_warmup_scale"] = auxiliary_scale
-            if paired_geometry:
-                logged_losses["loss_gt_view_a"] = float(losses_a["loss_total"].detach())
-                logged_losses["loss_gt_view_b"] = float(losses_b["loss_total"].detach())
-            for name in ("affinity", "consistency"):
+            for name in ("affinity",):
                 logged_losses[name + "_to_base_ratio"] = logged_losses["loss_" + name + "_weighted"] / max(logged_losses["loss_base"], 1e-12)
             logged_losses["hard_to_base_ratio"] = (logged_losses["loss_hard_pixels_weighted"] /
                                                     max(logged_losses["loss_base"], 1e-12))
@@ -737,8 +716,7 @@ def main(argv=None):
                 print(f"epoch {epoch + 1}/{args.epochs} batch {step + 1}/{len(train_loader)} "
                       f"loss={logged_losses['loss_total']:.5f} base={logged_losses['loss_base']:.5f} "
                       f"aff={logged_losses['loss_affinity']:.5f}*{args.affinity_weight * auxiliary_scale:.6f} "
-                      f"js={logged_losses['loss_consistency']:.5f}*{args.consistency_weight * auxiliary_scale:.6f} "
-                      f"aux/base={logged_losses['affinity_to_base_ratio'] + logged_losses['consistency_to_base_ratio']:.5f} frozen={frozen}", flush=True)
+                      f"aux/base={logged_losses['affinity_to_base_ratio']:.5f} frozen={frozen}", flush=True)
                 current_diagnostics = hard_diagnostics.result(epoch + 1, training_loss_means(loss_sums, seen))
                 current_diagnostics.update(partial_epoch=True, images_seen=seen)
                 write_json(output / "hard_pixel_diagnostics_current.json", current_diagnostics)
@@ -751,7 +729,7 @@ def main(argv=None):
         priors_path = output / f"training_priors_epoch_{epoch + 1:03d}.json"
         priors_record = {**prior_diagnostics.result(), "epoch": epoch + 1,
                          "global_update": update, "optimizer_updates": update - epoch_start_update,
-                         "training_model_forward_calls": len(train_loader) * (2 if paired_geometry else 1),
+                         "training_model_forward_calls": len(train_loader),
                          "training_loss": mean_losses, "protocol": run_config["prior_protocol"]}
         write_json(priors_path, priors_record)
         metrics = evaluate_loader(model, val_loader, device, args.amp,
@@ -767,7 +745,6 @@ def main(argv=None):
                   "sample_order_sha256": priors_record["sample_order_sha256"],
                   "horizontal_flip_sha256": priors_record["horizontal_flip_sha256"],
                   "sample_and_horizontal_flip_sha256": priors_record["sample_and_horizontal_flip_sha256"],
-                  "geometry_view_sha256": priors_record["geometry_view_sha256"],
                   "validation": metrics, "best_miou": best, "best_epoch": best_epoch,
                   "selection_scene": selection_scene, "selection_score": score,
                   "official_test_used_for_selection": test_selected_recipe, "checkpoint_selection_uses_test": False,

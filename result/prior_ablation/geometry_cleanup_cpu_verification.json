@@ -1,0 +1,198 @@
+{
+  "schema": "lusnar_prior_cpu_verification_v1",
+  "status": "passed",
+  "device": "cpu",
+  "checks": [
+    {
+      "name": "independent_stateless_rng_and_initialization",
+      "passed": true,
+      "seconds": 0.036648381006671116,
+      "details": {
+        "construction_sampling": "global CPU torch/Python/NumPy RNG unchanged",
+        "batch_reordering_preserves_per_image_samples": true,
+        "CUDA": "not exercised by CPU verification"
+      }
+    },
+    {
+      "name": "original_grid_tiny_rock_ignore_offsets_no_replacement",
+      "passed": true,
+      "seconds": 0.031085347989574075,
+      "details": {
+        "candidate_count_independently_enumerated": 497,
+        "tiny_rock_pairs": 2,
+        "no_reverse_duplicates": true,
+        "sky_ignore_excluded": true,
+        "negative_shortage_is_not_repeated": 2
+      }
+    },
+    {
+      "name": "class_distance_balance_pixel_centers_symmetry",
+      "passed": true,
+      "seconds": 0.05897919298149645,
+      "details": {
+        "positive_negative_quotas": [
+          256,
+          256
+        ],
+        "class_pair_distance_round_robin": true,
+        "pixel_center_analytic_oracle": true,
+        "endpoint_symmetry_exact": true
+      }
+    },
+    {
+      "name": "affinity_loss_reduction_and_gradients",
+      "passed": true,
+      "seconds": 0.042219480994390324,
+      "details": {
+        "feature_and_head_gradients_nonzero": true,
+        "independent_BCE_reduction_oracle": 0.5623351446188083,
+        "empty_graph_connected_zero": true
+      }
+    },
+    {
+      "name": "invalid_parameters_rejected",
+      "passed": true,
+      "seconds": 0.0006298969965428114,
+      "details": {
+        "rejected_cases": 6
+      }
+    },
+    {
+      "name": "retired_geometry_checkpoint_compatibility",
+      "passed": true,
+      "seconds": 5.847698776051402e-05,
+      "details": {
+        "disabled_historical_settings_compatible": true,
+        "enabled_geometry_and_unknown_hashes_rejected": 7
+      }
+    }
+  ],
+  "real_1024_GT_sampling_timings": [
+    {
+      "source_id": "Moon_1/1693274763105732864",
+      "seconds": 0.04693936402327381,
+      "candidate_count": 174999,
+      "selected_count": 512,
+      "anchors_by_class": {
+        "0": {
+          "available_pixels": 711396,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "1": {
+          "available_pixels": 31654,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "2": {
+          "available_pixels": 0,
+          "selected_anchors": 0,
+          "all_class_pixels_preserved": true
+        },
+        "3": {
+          "available_pixels": 54416,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        }
+      }
+    },
+    {
+      "source_id": "Moon_8/1693502146922691840",
+      "seconds": 0.060518998972838745,
+      "candidate_count": 238359,
+      "selected_count": 512,
+      "anchors_by_class": {
+        "0": {
+          "available_pixels": 727449,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "1": {
+          "available_pixels": 10137,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "2": {
+          "available_pixels": 13377,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "3": {
+          "available_pixels": 73548,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        }
+      }
+    },
+    {
+      "source_id": "Moon_3/1693290366063528192",
+      "seconds": 0.05336548399645835,
+      "candidate_count": 217287,
+      "selected_count": 512,
+      "anchors_by_class": {
+        "0": {
+          "available_pixels": 724056,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "1": {
+          "available_pixels": 15789,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "2": {
+          "available_pixels": 2320,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "3": {
+          "available_pixels": 35999,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        }
+      }
+    },
+    {
+      "source_id": "Moon_3/1693290440000282624",
+      "seconds": 0.03558735401020385,
+      "candidate_count": 166672,
+      "selected_count": 512,
+      "anchors_by_class": {
+        "0": {
+          "available_pixels": 736389,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "1": {
+          "available_pixels": 18762,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        },
+        "2": {
+          "available_pixels": 0,
+          "selected_anchors": 0,
+          "all_class_pixels_preserved": true
+        },
+        "3": {
+          "available_pixels": 31616,
+          "selected_anchors": 2048,
+          "all_class_pixels_preserved": false
+        }
+      }
+    }
+  ],
+  "full_candidate_scan_before_optimization_seconds": [
+    0.337,
+    0.3331,
+    0.3379,
+    0.3209
+  ],
+  "source_sha256": {
+    "lunarseg/priors.py": "48ee095d3e217c7af3ddbc182fb64a476ac82ea7c2b0da8ec9ae0eb7e3c00d68",
+    "verify_priors.py": "dc51524da58b1b0d4bd337b43d0453e781e443156a277cf156506fffde7b1dc2"
+  },
+  "limitations": [
+    "CPU oracle only; actual1024 GPU training/backward is checked separately by root.",
+    "Bounded class-balanced anchors are not an exhaustive full-image pair census."
+  ]
+}

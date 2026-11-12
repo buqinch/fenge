@@ -1,15 +1,11 @@
-"""Sparse semantic affinity and supervised, aligned geometric consistency.
+"""Sparse semantic affinity with stateless per-image sampling.
 
-All sampling uses a per-image hash and a local NumPy generator. Neither module
-construction nor sampling advances the training path's random generators.
-Geometry changes the input context only modestly; every transformed view must
-also receive the ordinary GT-supervised segmentation loss in the trainer.
+Module construction and sampling preserve the training RNG state.
 """
 from __future__ import annotations
 
 import hashlib
 import json
-import math
 from numbers import Integral
 from typing import Sequence
 
@@ -23,8 +19,6 @@ AFFINITY_RADII = (8, 16, 32, 64)
 # Reverse directions describe the same unordered pair: these four offsets
 # represent all eight directions without ever including both (i,j) and (j,i).
 _CANONICAL_DIRECTIONS = ((1, 0), (0, 1), (1, 1), (-1, 1))
-GEOMETRY_SCALES = (1.0, 0.9375)
-GEOMETRY_MAX_TRANSLATION = 16
 
 
 def _integer(name: str, value: int, minimum: int = 0) -> int:
@@ -245,166 +239,3 @@ class SemanticAffinity(nn.Module):
                  "valid_image_count": sum(r["valid_sign_groups"] > 0 for r in rows),
                  "gt_resolution_sampling": True, "images": rows}
         return loss / len(features), stats
-
-
-def _translate(value: Tensor, dx: int, dy: int, fill: float | None) -> Tensor:
-    height, width = value.shape[-2:]
-    padding = (max(dx, 0), max(-dx, 0), max(dy, 0), max(-dy, 0))
-    if fill is None:
-        padded = F.pad(value, padding, mode="replicate")
-    else:
-        padded = F.pad(value, padding, mode="constant", value=fill)
-    left, top = max(-dx, 0), max(-dy, 0)
-    return padded[..., top:top + height, left:left + width]
-
-
-def _warp(value: Tensor, meta: dict, mode: str, fill: float | None = 0,
-          antialias: bool = False) -> Tensor:
-    if meta["hflip"]:
-        value = value.flip(-1)
-    size = tuple(meta["resized_hw"])
-    if value.shape[-2:] != size:
-        kwargs = {"align_corners": False, "antialias": antialias} if mode == "bilinear" else {}
-        value = F.interpolate(value, size=size, mode=mode, **kwargs)
-    left, top, right, bottom = meta["pad_ltrb"]
-    padding = (left, right, top, bottom)
-    value = F.pad(value, padding, mode="replicate") if fill is None else F.pad(value, padding, value=fill)
-    return _translate(value, meta["dx"], meta["dy"], fill)
-
-
-def make_geometry_view(images: Tensor, targets: Tensor, sample_keys: Sequence[str], epoch: int,
-                       seed: int = 4242) -> tuple[Tensor, Tensor, Tensor, list[dict]]:
-    """Hash-selected flip, scale1/.9375, centered pad, then +/-16px shift.
-
-    RGB uses replicate padding; target uses255. ``nearest-exact`` for GT and
-    ``align_corners=False`` for RGB share the pixel-center convention. Returned
-    validity is in view-B coordinates. Input tensors are never modified.
-    """
-    if images.ndim != 4 or images.shape[1] != 3 or not images.is_floating_point() or not len(images):
-        raise ValueError("images must be nonempty floating [B,3,H,W]")
-    _validate_targets(targets, len(images), tuple(images.shape[-2:]))
-    if min(images.shape[-2:]) < 2 or images.device != targets.device:
-        raise ValueError("images/targets need the same device and spatial dimensions>=2")
-    keys = _keys(sample_keys, len(images))
-    height, width = images.shape[-2:]
-    transformed, labels, masks, metadata = [], [], [], []
-    for index, key in enumerate(keys):
-        rng = _rng(seed, key, epoch, "geometry_view_v1")
-        scale = GEOMETRY_SCALES[int(rng.integers(len(GEOMETRY_SCALES)))]
-        resized_h, resized_w = max(1, round(height * scale)), max(1, round(width * scale))
-        left, top = (width - resized_w) // 2, (height - resized_h) // 2
-        meta = {"schema": "geometry_view_v1", "sample_key": key, "epoch": int(epoch), "seed": int(seed),
-                "hflip": bool(rng.integers(2)), "dx": int(rng.integers(-16, 17)), "dy": int(rng.integers(-16, 17)),
-                "scale": scale, "source_hw": [height, width], "resized_hw": [resized_h, resized_w],
-                "pad_ltrb": [left, top, width - resized_w - left, height - resized_h - top],
-                "order": "hflip_resize_centerpad_translate", "align_corners": False,
-                "image_resize_antialias": True, "target_resize": "nearest-exact",
-                "image_padding": "replicate", "target_padding": 255}
-        transformed.append(_warp(images[index:index + 1], meta, "bilinear", None, True))
-        target = _warp(targets[index:index + 1, None].float(), meta, "nearest-exact", 255)[:, 0].long()
-        labels.append(target)
-        masks.append(target != 255)
-        metadata.append(meta)
-    return torch.cat(transformed), torch.cat(labels), torch.cat(masks), metadata
-
-
-def align_geometry_logits(logits_b: Tensor, metadata: Sequence[dict]) -> tuple[Tensor, Tensor]:
-    """Inverse continuous-logit mapping for diagnostics, not scaled JS training.
-
-    For scaled consistency use geometry_consistency_js, which maps probabilities
-    A->B before comparison. Only flip/translation is exactly invertible.
-    """
-    if logits_b.ndim != 4 or len(metadata) != len(logits_b):
-        raise ValueError("one geometry metadata record is required per logit image")
-    aligned, masks = [], []
-    for index, meta in enumerate(metadata):
-        if tuple(logits_b.shape[-2:]) != tuple(meta["source_hw"]):
-            raise ValueError("logits must be on the original geometry grid")
-        value = _translate(logits_b[index:index + 1], -meta["dx"], -meta["dy"], 0)
-        valid_b = _warp(logits_b.new_ones((1, 1, *meta["source_hw"])), meta, "nearest-exact", 0)
-        valid = _translate(valid_b, -meta["dx"], -meta["dy"], 0)
-        left, top, _, _ = meta["pad_ltrb"]
-        height, width = meta["resized_hw"]
-        value = value[..., top:top + height, left:left + width]
-        valid = valid[..., top:top + height, left:left + width]
-        if tuple(value.shape[-2:]) != tuple(meta["source_hw"]):
-            value = F.interpolate(value, size=meta["source_hw"], mode="bilinear", align_corners=False)
-            valid = F.interpolate(valid, size=meta["source_hw"], mode="nearest-exact")
-        if meta["hflip"]:
-            value, valid = value.flip(-1), valid.flip(-1)
-        aligned.append(value)
-        masks.append(valid[:, 0].bool())
-    return torch.cat(aligned), torch.cat(masks)
-
-
-def _js_from_probabilities(first: Tensor, second: Tensor, valid: Tensor) -> tuple[Tensor, dict]:
-    if first.shape != second.shape or first.ndim != 4 or first.shape[1] != 5:
-        raise ValueError("JS probabilities require matching [B,5,H,W]")
-    if valid.dtype != torch.bool or tuple(valid.shape) != (len(first), *first.shape[-2:]):
-        raise ValueError("JS validity must be bool [B,H,W]")
-    eps = torch.finfo(torch.float32).tiny
-    first, second = first.float(), second.float()
-    mean = (first + second) * 0.5
-    js = (0.5 * (first * (first.clamp_min(eps).log() - mean.clamp_min(eps).log())
-                 + second * (second.clamp_min(eps).log() - mean.clamp_min(eps).log()))).sum(1).clamp_min(0)
-    image_losses = []
-    for index in range(len(first)):
-        image_losses.append(js[index][valid[index]].mean() if bool(valid[index].any()) else js[index].sum() * 0)
-    return torch.stack(image_losses).mean(), {"valid_pixels_by_image": valid.sum((1, 2)).cpu().tolist(),
-                                            "valid_pixels": int(valid.sum()), "reduction": "per_image_valid_pixel_mean_then_batch_mean"}
-
-
-def masked_js(logits_a: Tensor, aligned_logits_b: Tensor, valid_mask: Tensor,
-              targets: Tensor | None = None) -> tuple[Tensor, dict]:
-    """JS on aligned logits, with exactly one softmax per view; sky is retained."""
-    valid = valid_mask
-    if targets is not None:
-        _validate_targets(targets, len(logits_a), tuple(logits_a.shape[-2:]))
-        valid = valid & (targets != 255)
-    return _js_from_probabilities(logits_a.float().softmax(1), aligned_logits_b.float().softmax(1), valid)
-
-
-def geometry_consistency_js(logits_a: Tensor, logits_b: Tensor, targets_a: Tensor,
-                            targets_b: Tensor, valid_b: Tensor,
-                            metadata: Sequence[dict]) -> tuple[Tensor, dict]:
-    """Compare A probabilities mapped to B with B on stable GT footprints.
-
-    Each original softmax is computed once. Bilinearly mapped probabilities are
-    renormalized. A bilinear footprint that mixes GT classes (e.g. a thin rock
-    lost by shrinking) is excluded from JS but remains supervised by GT losses.
-    This is an auxiliary term, never a replacement for either view's GT loss.
-    """
-    if logits_a.shape != logits_b.shape or logits_a.ndim != 4 or logits_a.shape[1] != 5 or not len(logits_a):
-        raise ValueError("geometry logits must be matching nonempty [B,5,H,W]")
-    _validate_targets(targets_a, len(logits_a), tuple(logits_a.shape[-2:]))
-    _validate_targets(targets_b, len(logits_a), tuple(logits_a.shape[-2:]))
-    if valid_b.dtype != torch.bool or valid_b.shape != targets_b.shape or len(metadata) != len(logits_a):
-        raise ValueError("geometry validity/metadata must match the batch")
-    probabilities_a, probabilities_b = logits_a.float().softmax(1), logits_b.float().softmax(1)
-    mapped, valid_masks, initial_counts, unstable_counts = [], [], [], []
-    for index, meta in enumerate(metadata):
-        if tuple(meta["source_hw"]) != tuple(logits_a.shape[-2:]):
-            raise ValueError("geometry metadata grid does not match logits")
-        value = _warp(probabilities_a[index:index + 1], meta, "bilinear", 0)
-        value = value / value.sum(1, keepdim=True).clamp_min(torch.finfo(torch.float32).tiny)
-        with torch.no_grad():
-            support = _warp((targets_a[index:index + 1, None] != 255).float(), meta, "bilinear", 0)[:, 0] >= 1 - 1e-6
-            valid = valid_b[index:index + 1] & (targets_b[index:index + 1] != 255) & support
-            initial_counts.append(int(valid.sum()))
-            stable = torch.zeros_like(valid)
-            for label in range(5):
-                contribution = _warp((targets_a[index:index + 1, None] == label).float(), meta, "bilinear", 0)[:, 0]
-                stable |= (targets_b[index:index + 1] == label) & (contribution >= 1 - 1e-6)
-            unstable_counts.append(int((valid & ~stable).sum()))
-            valid &= stable
-        mapped.append(value)
-        valid_masks.append(valid)
-    loss, stats = _js_from_probabilities(torch.cat(mapped), probabilities_b, torch.cat(valid_masks))
-    stats.update(schema="geometry_consistency_stats_v1", comparison_grid="transformed_view_B",
-                 probability_softmax_count_per_view=1, mapped_probabilities_renormalized=True,
-                 sky_retained=True, ignored_gt_excluded=True,
-                 pixels_before_stability_by_image=initial_counts,
-                 excluded_unstable_gt_pixels_by_image=unstable_counts,
-                 gt_stability_rule="all bilinear interpolation mass belongs to transformed GT class",
-                 geometry=metadata, requires_gt_loss_for_both_views=True)
-    return loss, stats

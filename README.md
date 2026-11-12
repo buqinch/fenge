@@ -6,7 +6,36 @@
 
 ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/tree/main/fenge_vit)，包含 DINOv3 ViT-S/16＋ConvNeXt-Tiny、四阶段双向Adapter、Mask2Former及A/B/C训练配置。当前服务器的实际工作目录仍分别为 `/home/lzc/workspace/fenge` 和 `/home/lzc/workspace/fenge_vit`；GitHub中的子目录保存后者的独立版本，两套网络源码不混用。数据配置继续引用本仓库中已经固定的来源清单。
 
-最新已完成的8000张训练实验 `dual_region_random80_4000_2000_2000_1024` 在第27轮早停，验证选出的best是第24轮；其1024／768等权水平翻转完整测试 **S=89.82321883%**，高于下文第29轮旧基线的89.73656103%，差值为 **0.0867个百分点**。当前先验CNN和ViT仍在训练，不能用其验证分数替代测试S。
+### 细节注入第 11 轮：完整 Moon_2／4／9 测试
+
+**`dual_region_priors_detail_8000_1024` 第 11 轮**已完成全部 5004 张测试，使用 **1024／768 等权水平翻转 TTA（4 视图）**，类别分数系数均为 1。加权 **S＝89.98520096%**，比下方此前基线的 89.82321883% 高 **0.1620 个百分点**。这是当前已观察到的更高测试 S，训练仍继续，best 仍仅由固定验证集选取。
+
+|指标|固定验证1601张（1024无TTA）|Moon_2（1597张）|Moon_4（1320张）|Moon_9（2087张）|
+|---|---:|---:|---:|---:|
+|月壤 IoU|99.8046%|99.4131%|99.3169%|98.1182%|
+|岩石 IoU|94.7626%|90.4716%|90.9973%|84.7290%|
+|撞击坑 IoU|97.7014%|84.8131%|81.4341%|57.0689%|
+|山体 IoU|98.9265%|96.6251%|98.5307%|89.4746%|
+|天空 IoU|99.9349%|99.9274%|99.9285%|99.7323%|
+|mIoU|98.2260%|94.2501%|94.0415%|85.8246%|
+
+相较此前基线，Moon_2／4 提高 **0.5224／0.6370 个百分点**，Moon_9 下降 **0.2558 个百分点**。Moon_9 的坑 IoU 为 **57.0689%**、召回率 **62.6403%**，分别下降 **1.7469／2.8894 个百分点**；当前收益主要来自场景 2、4 的岩石等类别改善，不能说复杂场景的漏坑已经解决。验证与测试的 TTA 不同，不对两列直接作泛化差值。
+
+[完整测试指标](result/dual_region_priors_detail_8000_1024/test_epoch_011_multiscale_hflip_1024_768_metrics.json) · [与此前基线的逐类别对照](result/dual_region_priors_detail_8000_1024/test_epoch_011_comparison_zh.md) · [测试配置](config/evaluate_detail_epoch011_multiscale.json)
+
+第 11 轮权重已固定为 `result/dual_region_priors_detail_8000_1024/best_epoch_011_eval.pt`（本机和103均有；权重不进入Git）。复测命令：
+
+```bash
+conda activate lzc_fenge
+cd /home/lzc/workspace/fenge
+python code/evaluate.py --config config/evaluate_detail_epoch011_multiscale.json \
+  --device cuda:0 \
+  --output result/dual_region_priors_detail_8000_1024/test_epoch011_manual_metrics.json
+```
+
+### 此前完成的 4000＋2000＋2000 基线
+
+此前完成的8000张训练实验 `dual_region_random80_4000_2000_2000_1024` 在第27轮早停，验证选出的best是第24轮；其1024／768等权水平翻转完整测试 **S=89.82321883%**，高于下文第29轮旧基线的89.73656103%，差值为 **0.0867个百分点**。当前先验CNN和ViT的进展及细节第11轮测试见上文，验证分数不能替代测试S。
 
 |指标|固定验证1601张|Moon_2（1597张）|Moon_4（1320张）|Moon_9（2087张）|
 |---|---:|---:|---:|---:|
@@ -19,9 +48,25 @@ ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/
 
 比赛分数使用 `weighted_score=(Moon_2+Moon_4+2×Moon_9)/4`。本次完整精度为 `0.898232188286191`；若先将各场景mIoU四舍五入到8位再计算，则为 `0.8982321875`。`miou=0.8971735272492559` 是合并像素混淆矩阵后的指标，二者的统计口径不同。
 
-[最新完整测试指标](result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json) · [对应验证记录](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_024.json) · [当前七组实验的阶段分析](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/report_zh.md)
+[此前基线完整测试指标](result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json) · [对应验证记录](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_024.json) · [当前七组实验的阶段分析](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/report_zh.md)
 
 当前保留CNN的control／affinity以及103上的context／detail；两组几何实验已按用户要求停止并清理，依据保存在 [清理记录](result/prior_ablation/pruned_runs_20261112.json)。ViT A在103卡2，B／C在本机卡2／4，均batch8、累积1；每3轮由验证best触发完整Moon_2/4/9测试，使用两台主机各自的空闲卡3。
+
+### 在训方案的最新验证进度
+
+截至 **2026-11-12T18:13:39+08:00**，以下均为固定 1601 张验证集、1024 单视图、无 TTA 的完整结果。与下方的比赛测试 S 分开报告。
+
+|实验|已完成轮数|最佳轮次|最佳验证 mIoU|状态|
+|---|---:|---:|---:|---|
+|CNN 对照|30|28|97.4096%|已完成|
+|CNN 亲和|18|18|97.2690%|训练中|
+|CNN 周围关系|12|12|98.1306%|训练中|
+|CNN 细节注入|11|11|98.2260%|训练中|
+|ViT A 融合|2|2|95.1880%|训练中|
+|ViT B Adapter|1|1|93.2879%|训练中|
+|ViT C 遮挡|1|1|93.5728%|训练中|
+
+细节注入第 11 轮比同轮对照高 **1.2768 个百分点**，周围关系第 12 轮高 **1.1146 个百分点**；亲和第 18 轮仅高 **0.0277 个百分点**，尚未显示稳定优势。ViT 仍在前三轮冻结阶段，遮挡辅助从第 4 轮开始。完整逐类别指标与同轮分析见 [最新效果报告](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/latest_report_zh.md)。
 
 ## 上一阶段第29轮基线的完整测试与TTA对照（2026-11-12）
 
@@ -277,7 +322,7 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
   --config config/evaluate_random80_4000_2000_2000_epoch005_multiscale.json
 ```
 
-### 三种先验与原图细节独立实验（原始预训练起点）
+### 当前保留的先验与原图细节实验（原始预训练起点）
 
 本轮按用户更正，**所有组都从原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 权重开始**，不加载第 29 轮或其他已训练的分割检查点。融合层、FPN、区域解码器以 seed 42 重新初始化；这些共同参数的初始 SHA256 均为 `48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`。新增模块使用隔离随机数，不改变共同主体或数据顺序。
 
@@ -287,10 +332,8 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 | affinity | [配置](config/dual_region_priors_affinity_1024.json) | control | 训练专用语义亲和辅助监督 |
 | context | [配置](config/dual_region_priors_context_1024.json) | control | 多尺度局部—周围和方向关系修正 |
 | detail | [配置](config/dual_region_priors_detail_1024.json) | control | 原 RGB 高分辨率细节残差修正 |
-| geometry_control | [配置](config/dual_region_priors_geometry_control_1024.json) | — | 两幅几何视图，平均两份完整 GT 损失 |
-| geometry | [配置](config/dual_region_priors_geometry_1024.json) | geometry_control | 同样两份 GT 损失，再加对齐概率 JS |
 
-六组统一使用固定 **4000 原图＋2000 坑增强＋2000 山岩增强**、原来的 **1601 张验证图**；输入 1024，有效 batch 均为 8。本机四组保持 **batch 4、累积 2**；按后续用户要求，103 的 context／detail 改为 **batch 8、累积 1**，并开启激活重计算。最多 30 轮，前 3 轮冻结骨干；原头部学习率 `1e-4`、骨干 `1e-5`，新增可训练模块 `1e-4`。训练更新上限为 30000 次。每轮用单尺度原图、无分数校准的完整验证 mIoU 选最佳；不能将这一分数与旧四视图 TTA 分数直接比较。外部队列继续读取已提交的验证 JSON，从第 4 轮开始，连续 5 轮未累计提高 0.05 个百分点则停止。各组可能在不同轮次早停，汇总同时给出共同更新预算内的对照。
+保留的四组统一使用固定 **4000 原图＋2000 坑增强＋2000 山岩增强**、原来的 **1601 张验证图**；输入 1024，有效 batch 均为 8。本机 control／affinity 保持 **batch 4、累积 2**；按后续用户要求，103 的 context／detail 改为 **batch 8、累积 1**，并开启激活重计算。最多 30 轮，前 3 轮冻结骨干；原头部学习率 `1e-4`、骨干 `1e-5`，新增可训练模块 `1e-4`。训练更新上限为 30000 次。每轮用单尺度原图、无分数校准的完整验证 mIoU 选最佳；不能将这一分数与旧四视图 TTA 分数直接比较。外部队列继续读取已提交的验证 JSON，从第 4 轮开始，连续 5 轮未累计提高 0.05 个百分点则停止。各组可能在不同轮次早停，汇总同时给出共同更新预算内的对照。
 
 **语义亲和**：FPN 128 通道投影为 32 通道，利用两端特征均值、绝对差、乘积与归一化相对位置预测同类／异类。GT 始终在原图尺寸读取，每图每个地表类别最多选 2048 个候选锚点，小类别不足时全部保留；在原图 8／16／32／64 像素邻域构造候选、去除反向重复，再按正负关系、类别对、距离平衡选取最多 512 对。不把颜色相近规定为同类，不删除边界或小岩石来凑配额；配额不足不重复填充。辅助 BCE 权重起点为 0.05，前 1000 次更新渐增；推理不调用亲和头，原分割监督保留。
 
@@ -298,13 +341,13 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 
 **原图细节**：单独的 `detail` 选项使用全分辨率 8 通道 RGB 分支、半分辨率 32 通道分支，结合 FPN 投影和原五类概率学习门控与修正。`context` 和 `detail` 互斥，末层修正全零初始化。区域头原输出已经是归一化概率的对数；实现为 `new_semantic_logits = old_semantic_logits + sigmoid(gate) * delta`，下游原有 softmax 对应 `p'=p0*exp(g*delta)/sum(...)`，不会对未归一化区域证据再误套 softmax。门控不限制为低置信度像素。
 
-**几何一致性**：独立随机流选择水平翻转、原图 ±16 像素平移、1.0／0.9375 轻度缩放；两主骨干仍接收 1024 输入，填充处 GT 为 255。两幅图均接受完整语义、区域匹配和辅助层监督，损失取平均。JS 权重为 0.05、前 1000 次更新渐增；先将原视图概率映射到变换视图再比较，排除无效区域及缩放时混合类别的插值范围，保留两幅图的真值监督。两个几何组均启用训练激活重计算，并在重算时隔离 MobileNet BatchNorm 缓冲，避免运行统计被重复更新。
+已淘汰的 `geometry`／`geometry_control` 在第 6 轮的配对比较中未显示收益（差值 −0.00245 个百分点），此前已停止并删除结果目录；现进一步删除其训练配置、命令行开关和几何一致性专用代码。历史实验依据保留在 [清理记录](result/prior_ablation/pruned_runs_20261112.json)，普通水平翻转增强、推理 TTA 和激活重计算继续可用。
 
-实现借鉴 [AAF 的语义邻域关系](https://arxiv.org/abs/1803.10335)、[Gated-SCNN 的语义门控细节](https://arxiv.org/abs/1907.05740)、[SEAM 的等变一致性原则](https://arxiv.org/abs/2004.04581)；这里不是这些论文的原样复现。当前局部—周围差分也不是 [OCR](https://www.microsoft.com/en-us/research/publication/object-contextual-representations-for-semantic-segmentation/) 原方法。
+实现借鉴 [AAF 的语义邻域关系](https://arxiv.org/abs/1803.10335)、[Gated-SCNN 的语义门控细节](https://arxiv.org/abs/1907.05740)；这里不是这些论文的原样复现。当前局部—周围差分也不是 [OCR](https://www.microsoft.com/en-us/research/publication/object-contextual-representations-for-semantic-segmentation/) 原方法。
 
-实验计划及状态位于 [prior_ablation](result/prior_ablation/)，每组日志、逐轮指标和权重保存在 `result/dual_region_priors_<实验名>_8000_1024/`。队列入口为 `python code/prior_ablation.py --plan result/prior_ablation/plan.json`；已经启动的队列不需要再次运行。单组可直接传上述 JSON 给 `code/train.py`。所有开关默认关闭，旧检查点可继续严格加载；CPU 统计、坐标对齐、损失与精确续训检查，以及真实 batch 4／1024／全部骨干解冻反向更新和四视图推理检查均已通过，见 [验证记录](result/prior_ablation/verification_runtime.json)。这些运行检查不代表已取得分割提升，结果以完整训练后的对照报告为准。
+实验计划及状态位于 [prior_ablation](result/prior_ablation/)。冻结计划中的源码／配置哈希记录的是本轮启动版本；此次几何清理修订另见 [清理与兼容验证](result/prior_ablation/geometry_cleanup_20261112.json)，不会改写已运行来源。新实验直接使用现存训练 JSON 和独立输出目录；旧冻结计划用于当前队列观察，不能视为新源码的启动计划。每组日志、逐轮指标和权重保存在 `result/dual_region_priors_<实验名>_8000_1024/`。队列入口为 `python code/prior_ablation.py --plan result/prior_ablation/plan.json`；已经启动的队列不需要再次运行。单组可直接传上述 JSON 给 `code/train.py`。所有开关默认关闭，旧检查点可继续严格加载；CPU 统计、坐标对齐、损失与精确续训检查，以及真实 batch 4／1024／全部骨干解冻反向更新和四视图推理检查均已通过，见 [验证记录](result/prior_ablation/verification_runtime.json)。这些运行检查不代表已取得分割提升，结果以完整训练后的对照报告为准。
 
-已于 **2026-11-12 13:42（北京时间）**启动：GPU 0 为 control，GPU 1 为 affinity，GPU 2 为 geometry_control，GPU 4 为 geometry；context 和 detail 最初排队，现已分配到 Server103 的 GPU 0／1 并行运行（见下文）。原有 GPU 3 实验保持运行。四组均已实际进入训练、共同初始化哈希及首批原损失核验一致，见 [启动核验](result/prior_ablation/startup_check.json)。实时进度看 [队列状态](result/prior_ablation/state.json) 和 [队列日志](result/prior_ablation/runner.log)，逐轮完成后自动更新 [对照报告](result/prior_ablation/report_zh.md)。
+本轮于 **2026-11-12 13:42（北京时间）**开始。control 已正常完成 30 轮，affinity 仍在本机 GPU 1 训练；context／detail 在 Server103 的 GPU 0／1 运行。已淘汰的两个几何组不再提供启动入口。共同初始化核验见 [启动记录](result/prior_ablation/startup_check.json)；逐轮结果见 [对照报告](result/prior_ablation/report_zh.md)。
 
 ### 亮度条件诊断：固定第 29 轮 B0
 

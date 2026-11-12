@@ -160,10 +160,6 @@ def analyze(plan, output):
         for field in fields:
             if config.get(field) != configs[0].get(field):
                 raise ValueError(f"Shared training/validation setting differs: {field}")
-    if "geometry" in configurations and "geometry_control" in configurations:
-        for field in ("geometry_paired_control", "gradient_checkpointing"):
-            if configurations["geometry"].get(field) != configurations["geometry_control"].get(field):
-                raise ValueError(f"Geometry and paired control differ: {field}")
     lookup = {row["name"]: row for row in rows}
     for row in rows:
         control = lookup.get(row["control"])
@@ -199,8 +195,6 @@ def analyze(plan, output):
                             raise ValueError(f"Matched training stream differs for {row['name']}: {field}")
                         audit[field.removesuffix("_sha256") + "_mismatch_epochs"].append(a["epoch"])
                 audit["per_epoch"].append({"epoch": a["epoch"], **equal})
-                if row["name"] == "geometry" and a.get("geometry_view_sha256") != b.get("geometry_view_sha256"):
-                    raise ValueError("Geometry and its control used different transforms")
             audit["horizontal_flip_equal"] = not audit["horizontal_flip_mismatch_epochs"]
             audit["sample_and_horizontal_flip_equal"] = not audit["sample_and_horizontal_flip_mismatch_epochs"]
             row["training_stream_audit"] = audit
@@ -211,7 +205,7 @@ def analyze(plan, output):
               "common_initial_tensor_sha256": initial_hashes[0] if initial_hashes else None,
               "per_run_training_overrides": plan.get("per_run_training_overrides", {}),
               "runs": rows, "selected_run": winner["name"] if winner else None,
-              "interpretation": "Independent single-seed experiments. Shared effective batch 8, maximum update budget and patience policy; actual early-stop epochs may differ. Explicitly overridden microbatches can change MobileNet BatchNorm, worker horizontal flips, random point sampling and numerical trajectories; their differences do not isolate a module effect. Paired geometry must be compared to geometry_control. No combined model has been tested."}
+              "interpretation": "Independent single-seed experiments. Shared effective batch 8, maximum update budget and patience policy; actual early-stop epochs may differ. Explicitly overridden microbatches can change MobileNet BatchNorm, worker horizontal flips, random point sampling and numerical trajectories; their differences do not isolate a module effect. No combined model has been tested."}
     write_json(output / "comparison.json", result)
     with (output / "comparison.csv").open("w", newline="") as stream:
         fields = ["name", "control", "execution_host", "batch_size", "accumulation", "effective_batch", "gradient_checkpointing",
@@ -220,14 +214,14 @@ def analyze(plan, output):
         writer = csv.DictWriter(stream, fieldnames=fields, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
-    lines = ["# 三种先验与高分辨率细节独立对照", "",
+    lines = ["# 亲和、周围关系与高分辨率细节独立对照", "",
              "所有组从原始 DINOv3 ConvNeXt-Tiny＋ImageNet MobileNetV3-Large 开始，融合和区域头同种子重新初始化；没有加载第29轮分割权重。",
              "固定8000张训练（4000原图＋2000坑增强＋2000山岩增强），同一1601张验证，1024整图、有效batch 8，验证单视图。默认microbatch 4×累积2；显式覆盖见下表。", "",
              "|实验|对照|主机|实际batch×累积|重算|状态|完成轮数|最佳轮次|验证mIoU|相对对照百分点|", "|---|---|---|---|---|---|---:|---:|---:|---:|"]
     for row in rows:
         delta = "—" if row["delta_vs_control_pp"] is None else f"{row['delta_vs_control_pp']:+.4f}"
         lines.append(f"|{row['name']}|{row['control'] or '—'}|{row['execution_host'] or '—'}|{row['batch_size']}×{row['accumulation']}|{row['gradient_checkpointing']}|{row['status']}|{row['completed_epochs']}|{row['best_epoch']}|{row['best_validation_miou']:.4%}|{delta}|")
-    lines += ["", "亲和、中心—周围关系和细节注入分别与单视图control比较；几何一致性与同样两视图真值监督的geometry_control比较。",
+    lines += ["", "亲和、中心—周围关系和细节注入分别与单视图control比较。几何一致性已停用，历史结论保留在清理记录中。",
               "最多30轮并使用相同早停规则；若实际更新数不同，不把最佳分差解释为固定训练预算下的纯模块因果收益。单种子结果尚不能证明稳定提升。",
               "完整类别IoU、精确率、召回率、六场景和混淆方向见[comparison.json](comparison.json)。"]
     overridden = [row for row in rows if row["batch_layout_differs_from_control"]]

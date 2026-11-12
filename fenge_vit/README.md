@@ -11,7 +11,7 @@ fenge_vit/
 └── README.md
 ```
 
-仓库发布位置为 `buqinch/fenge` 的 `fenge_vit/` 子目录；当前部署仍使用 `/home/lzc/workspace/fenge_vit` 这一独立工作目录。数据清单固定引用 `/home/lzc/workspace/fenge/result/selections/`，GitHub保存的是代码与文字结果快照。最新阶段判断见 [进展分析](result/progress_analysis/report_zh.md)。
+仓库发布位置为 `buqinch/fenge` 的 `fenge_vit/` 子目录；当前部署仍使用 `/home/lzc/workspace/fenge_vit` 这一独立工作目录。数据清单固定引用 `/home/lzc/workspace/fenge/result/selections/`，GitHub保存的是代码与文字结果快照。最新阶段判断见 [最新效果报告](result/progress_analysis/latest_report_zh.md)；[此前阶段快照](result/progress_analysis/report_zh.md) 保留用于追溯。
 
 ## 网络
 

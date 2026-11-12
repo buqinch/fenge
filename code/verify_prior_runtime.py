@@ -14,7 +14,7 @@ from lunarseg.data import LunarDataset
 from lunarseg.losses import SegmentationCriterion
 from lunarseg.metrics import autocast_context, predict_semantic_scores
 from lunarseg.model import ModelConfig, build_model
-from lunarseg.priors import SemanticAffinity, make_geometry_view, geometry_consistency_js
+from lunarseg.priors import SemanticAffinity
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -47,11 +47,11 @@ def main():
     targets = torch.stack([x["mask"] for x in items]).to(device)
     keys = [x["source_id"] + "/" + str(x["sample_id"]) for x in items]
     rows, reference = [], None
-    for mode in ("control", "context", "detail", "affinity", "geometry_control", "geometry"):
+    for mode in ("control", "context", "detail", "affinity"):
         torch.manual_seed(42)
         config = ModelConfig(refinement=mode if mode in ("context", "detail") else "none")
         model = build_model(config, pretrained=True).to(device)
-        model.set_gradient_checkpointing(mode.startswith("geometry"))
+        model.set_gradient_checkpointing(mode in ("context", "detail"))
         initial_hash = core_hash(model)
         assert initial_hash == "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740"
         model.eval()
@@ -63,7 +63,6 @@ def main():
         model.freeze_backbones(False)
         model.train()
         criterion = SegmentationCriterion().to(device)
-        second_criterion = SegmentationCriterion(ignore_index=255).to(device)
         affinity = SemanticAffinity().to(device) if mode == "affinity" else None
         parameters = list(model.parameters()) + (list(affinity.parameters()) if affinity else [])
         optimizer = torch.optim.AdamW(parameters, lr=1e-5)
@@ -80,15 +79,6 @@ def main():
                 extra.update(affinity_feature_gradient_l1=float(gradient.abs().sum()),
                              affinity_loss=float(affinity_loss.detach()), affinity_statistics=statistics)
                 loss = loss + .05 * affinity_loss
-            if mode.startswith("geometry"):
-                second_images, second_targets, valid, geometry = make_geometry_view(images, targets, keys, 1)
-                second_predictions = model(second_images)
-                loss = .5 * (loss + second_criterion(second_predictions, second_targets)["loss_total"])
-                js, statistics = geometry_consistency_js(predictions["semantic_logits"], second_predictions["semantic_logits"],
-                                                        targets, second_targets, valid, geometry)
-                if mode == "geometry":
-                    loss = loss + .05 * js
-                extra.update(js=float(js.detach()), geometry_statistics=statistics)
         assert torch.isfinite(loss)
         loss.backward()
         groups = {"convnext": model.encoder.convnext, "mobile": model.encoder.mobile, "fusion": model.fusion,
@@ -112,20 +102,18 @@ def main():
         assert result.shape == (1, 5, 1024, 1024) and torch.isfinite(result).all()
         torch.testing.assert_close(result.sum(1), torch.ones_like(result[:, 0]), atol=3e-6, rtol=3e-6)
         row = {"mode": mode, "passed": True, "input_shape": list(images.shape), "original_pretrained": True,
-               "gradient_checkpointing": mode.startswith("geometry"),
+               "gradient_checkpointing": mode in ("context", "detail"),
                "common_initial_sha256": initial_hash, "zero_initial_output_equal": True,
                "loss": float(loss.detach()), "gradient_l1": gradient_norms, "four_view_inference_finite_normalized": True,
                "seconds": time.monotonic() - started, "max_allocated_bytes": torch.cuda.max_memory_allocated(device), **extra}
         rows.append(row)
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps({"passed": len(rows) == 6, "partial": True,
+        args.output.write_text(json.dumps({"passed": len(rows) == 4, "partial": True,
                                           "scope": "real execution checks only; no reported trained score",
                                           "device": str(device), "gpu": torch.cuda.get_device_name(device),
                                           "cases": rows}, indent=2) + "\n")
         print(json.dumps({k: row[k] for k in ("mode", "passed", "seconds", "max_allocated_bytes")}), flush=True)
-        del model, optimizer, criterion, second_criterion, affinity, predictions, parameters, groups, gradients, loss, result, initial_prediction
-        if mode.startswith("geometry"):
-            del second_predictions, second_images, second_targets, valid, geometry, js
+        del model, optimizer, criterion, affinity, predictions, parameters, groups, gradients, loss, result, initial_prediction
         if mode == "affinity":
             del affinity_loss, gradient
         gc.collect()

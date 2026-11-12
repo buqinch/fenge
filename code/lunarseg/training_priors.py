@@ -9,14 +9,52 @@ import math
 import torch
 
 
-PRIOR_DEFAULTS = {"refinement": "none", "affinity_weight": 0.0, "consistency_weight": 0.0,
+PRIOR_DEFAULTS = {"refinement": "none", "affinity_weight": 0.0,
                   "prior_warmup_updates": 1000, "prior_lr": 1e-4, "prior_seed": 4242,
-                  "geometry_paired_control": False, "epoch_zero_validation": False,
+                  "epoch_zero_validation": False,
                   "gradient_checkpointing": False}
 
 
+def without_retired_geometry(values):
+    """Accept disabled historical fields; reject retired objectives explicitly."""
+    result = dict(values)
+    weight = result.pop("consistency_weight", 0.0)
+    paired = result.pop("geometry_paired_control", False)
+    protocol = result.get("prior_protocol", {})
+    if (isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight != 0
+            or paired is not False or result.get("paired_geometry", False) is not False
+            or (isinstance(protocol, dict) and protocol.get("paired_geometry", False) is not False)):
+        raise ValueError("CNN geometry/geometry_control training was retired; nonzero consistency_weight "
+                         "or enabled geometry_paired_control cannot be trained or resumed")
+    return result
+
+
+def validate_prior_implementation(previous, current, previous_run_config, compatible_replacements):
+    """Permit only known geometry-removal revisions for a non-geometry resume.
+
+    Affinity computation and all retained segmentation/refinement objectives are
+    unchanged. Unrecognized hashes and changes to other files still fail closed.
+    """
+    without_retired_geometry(previous_run_config)
+    legacy = {"priors.py": "80604ff9610ae141cac6348ed918b9212ed00c246f770cd6859a9790143f4ebd",
+              "training_priors.py": "ffd2441e4b597e96e62a996b289ed121956d586f3d3c6cae347c0c4a3af0b4b5"}
+    if previous is None or previous == current:
+        return []
+    if not isinstance(previous, dict) or set(previous) != set(current):
+        raise ValueError("Resume prior/base-loss implementation SHA256 differs from checkpoint")
+    migrated = []
+    for name, fingerprint in previous.items():
+        if fingerprint == current[name]:
+            continue
+        if (name not in legacy or fingerprint != legacy[name]
+                or current[name] != compatible_replacements.get(name)):
+            raise ValueError(f"Resume prior/base-loss implementation SHA256 differs for {name}")
+        migrated.append(name)
+    return migrated
+
+
 def validate_prior_args(args):
-    for name in ("affinity_weight", "consistency_weight"):
+    for name in ("affinity_weight",):
         value = getattr(args, name)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
             raise ValueError(f"{name} must be finite and nonnegative")
@@ -26,7 +64,7 @@ def validate_prior_args(args):
         value = getattr(args, name)
         if type(value) is not int or value < 0:
             raise ValueError(f"{name} must be a nonnegative integer")
-    for name in ("geometry_paired_control", "epoch_zero_validation", "gradient_checkpointing"):
+    for name in ("epoch_zero_validation", "gradient_checkpointing"):
         if type(getattr(args, name)) is not bool:
             raise ValueError(f"{name} must be a boolean")
 
@@ -66,14 +104,11 @@ class PriorDiagnostics:
         self.order = hashlib.sha256()
         self.flips = hashlib.sha256()
         self.combined = hashlib.sha256()
-        self.geometry = hashlib.sha256()
         self.affinity_sampling = hashlib.sha256()
-        self.images = self.batches = self.geometry_images = 0
+        self.images = self.batches = 0
         self.affinity_counts = Counter()
         self.affinity_class_pairs = Counter()
         self.affinity_distances = Counter()
-        self.geometry_counts = Counter()
-        self.geometry_transforms = Counter()
         self.examples = []
 
     @staticmethod
@@ -103,25 +138,10 @@ class PriorDiagnostics:
                 self.examples.append({key: row.get(key) for key in
                                       ("sample_key", "epoch", "sampling_sha256", "positive_count", "negative_count", "selected_pairs_preview")})
 
-    def observe_geometry(self, keys, metadata, stats=None):
-        rows = metadata.get("images", metadata.get("transforms", [])) if isinstance(metadata, dict) else metadata
-        if len(rows) != len(keys):
-            raise ValueError("Geometry metadata must contain one transform per input image")
-        for key, row in zip(keys, rows):
-            self._add(self.geometry, [key, row])
-            self.geometry_transforms.update([json.dumps({k: row.get(k) for k in ("hflip", "scale", "dx", "dy")}, sort_keys=True)])
-        self.geometry_images += len(keys)
-        for name, value in (stats or {}).items():
-            if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
-                self.geometry_counts[name] += value
-
     def result(self):
         return {"schema": "lusnar_training_priors_diagnostics_v1", "images": self.images, "batches": self.batches,
                 "sample_order_sha256": self.order.hexdigest(), "horizontal_flip_sha256": self.flips.hexdigest(),
                 "sample_and_horizontal_flip_sha256": self.combined.hexdigest(),
-                "geometry_view_sha256": self.geometry.hexdigest() if self.geometry_images else None,
-                "geometry_images": self.geometry_images, "geometry_transform_counts": dict(self.geometry_transforms),
-                "geometry_numeric_batch_sums": dict(self.geometry_counts),
                 "affinity_sampling_sha256": self.affinity_sampling.hexdigest() if self.affinity_counts else None,
                 "affinity_counts": dict(self.affinity_counts), "affinity_selected_by_class_pair": dict(self.affinity_class_pairs),
                 "affinity_selected_by_distance": dict(self.affinity_distances), "affinity_examples": self.examples}
