@@ -140,8 +140,16 @@ def completed_tracker(output, policy):
         if custom or identity.get("custom_split") is True:
             scenes = validation.get("scenes", {})
             allowed = {"Moon_1", "Moon_3", "Moon_5", "Moon_6", "Moon_7", "Moon_8"}
+            # A recipe may have been selected after inspecting an earlier test
+            # result while this run's checkpoint is still selected only on
+            # validation. Prefer the explicit checkpoint flag; older records
+            # without it used the broader flag to assert no test selection.
+            checkpoint_uses_test = summary.get("checkpoint_selection_uses_test",
+                                               summary.get("official_test_used_for_selection"))
             if (not custom or summary.get("partial") is not False
-                    or summary.get("official_test_used_for_selection") is not False
+                    or checkpoint_uses_test is not False
+                    or ("checkpoint_selection_uses_test" in record
+                        and record["checkpoint_selection_uses_test"] is not False)
                     or record["epoch"] != epoch or record.get("partial") is not False
                     or record.get("selection_scene") != "custom_validation"
                     or validation.get("partial") is not False or validation.get("image_count") != 1601
@@ -431,6 +439,9 @@ def main():
         while True:
             for run in config["runs"]:
                 state["runs"][run["name"]] = advance_run(run, config["policy"], state["runs"].get(run["name"], {}))
+                if "error" in state:
+                    state.setdefault("error_history", []).append(
+                        {"error": state.pop("error"), "failed_at": state.get("updated_at"), "recovered_at": now()})
                 state.update(status="monitoring", updated_at=now())
                 write_json(path, state)
             if all(run["phase"] == "evaluated" for run in state["runs"].values()):

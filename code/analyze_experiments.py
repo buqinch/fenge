@@ -430,6 +430,52 @@ def reference_result(path):
             "scenes": scenes, "name": path.parent.name}
 
 
+def monitor_training_notes(run, output):
+    """Describe actual completion and archived monitoring events without reselection."""
+    lines = []
+    completed, configured = run["completed_epochs"], run["run_config"].get("epochs")
+    if run["summary"]["status"] == "complete":
+        detail = f"实际跑满配置的 {configured} 轮" if completed == configured else f"实际完成 {completed} 轮"
+        lines += ["", f"训练事实：`summary.status=complete`，{detail}；不能将恢复监控后回放历史得到的早停判定写成实际早停。"]
+    run_path = Path(run["run_dir"]).resolve()
+    for config_path in sorted((PROJECT / "config").glob("*.json")):
+        try:
+            config = read_json(config_path)
+            matches = [row for row in config.get("runs", []) if isinstance(row, dict)
+                       and isinstance(row.get("output"), str)
+                       and (PROJECT / row["output"]).resolve() == run_path]
+            if not matches or not isinstance(config.get("output"), str):
+                continue
+            state_path = (PROJECT / config["output"] / "state.json").resolve()
+            state = read_json(state_path)
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        archived = state.get("error_history", [])
+        if isinstance(archived, list):
+            for event in archived:
+                if isinstance(event, dict) and event.get("error"):
+                    error = str(event["error"]).replace("`", "'")
+                    lines += ["", f"监控曾中断：`{error}`；失败记录时间 `{event.get('failed_at', '未记录')}`，"
+                              f"流程恢复时间 `{event.get('recovered_at', '未记录')}`。"]
+        if state.get("error"):
+            error = str(state["error"]).replace("`", "'")
+            lines += ["", f"监控记录仍保留错误 `{error}`；此处不将其解释为训练已执行早停。"]
+        lines += ["", f"监控依据：[状态及恢复归档]({relative_link(state_path, output)})；"
+                  f"[对应配置]({relative_link(config_path, output)})。"]
+        break
+    tracker_path = run_path / "early_stopping_monitor.json"
+    try:
+        tracker = read_json(tracker_path).get("early_stopping", {})
+    except (OSError, ValueError, TypeError):
+        tracker = {}
+    if (run["summary"]["status"] == "complete" and tracker.get("stopped") is True
+            and type(tracker.get("stop_epoch")) is int):
+        lines += ["", f"恢复后的历史回放显示，当前耐心规则会在已完成第 {tracker['stop_epoch']} 轮时触发；"
+                  f"这是回放结论，实际训练仍完成 {completed} 轮，最佳检查点继续按验证历史选出的第 {run['best_epoch']} 轮。"
+                  f"[回放状态]({relative_link(tracker_path, output)})。"]
+    return lines
+
+
 def random_split_report(run, reference, reference_tta, changes, output, curves, curve_note):
     design = run["design_selection_reference"]["data"]
     lines = ["# 双 CNN：随机 4:1 划分后的完整测试对照", "",
@@ -462,6 +508,7 @@ def random_split_report(run, reference, reference_tta, changes, output, curves, 
                          ("解码器学习率", "head_lr"), ("困难像素权重", "hard_pixel_weight"),
                          ("每图每方向配额", "hard_pixel_quota"), ("训练种子", "seed")):
         lines.append(f"|{title}|{reference['run_config'].get(field)}|{run['run_config'].get(field)}|")
+    lines += monitor_training_notes(run, output)
     lines += ["", "## 相同 TTA 的完整 Moon_2/4/9 测试", "",
               "两模型均使用各自已选定的同一个 best 检查点做 none 和 hflip 推理。"
               "每种视角均完整评估 Moon_2/4/9 的 1597/1320/2087 张，共 5004 张。"
