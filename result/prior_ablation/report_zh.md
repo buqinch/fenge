@@ -5,10 +5,10 @@
 
 |实验|对照|主机|实际batch×累积|重算|状态|完成轮数|最佳轮次|验证mIoU|相对对照百分点|
 |---|---|---|---|---|---|---:|---:|---:|---:|
-|control|—|Server70|4×2|False|running|28|28|97.4096%|—|
-|affinity|control|Server70|4×2|False|running|17|17|97.2188%|-0.1908|
-|context|control|Server103|8×1|True|running|11|11|98.0571%|+0.6475|
-|detail|control|Server103|8×1|True|running|10|10|98.1394%|+0.7298|
+|control|—|Server70|4×2|False|complete|30|28|97.4096%|—|
+|affinity|control|Server70|4×2|False|complete|30|28|97.4095%|-0.0001|
+|context|control|Server103|8×1|True|running|28|28|98.5644%|+1.1548|
+|detail|control|Server103|8×1|True|running|25|25|98.7033%|+1.2937|
 
 亲和、中心—周围关系和细节注入分别与单视图control比较；几何一致性与同样两视图真值监督的geometry_control比较。
 最多30轮并使用相同早停规则；若实际更新数不同，不把最佳分差解释为固定训练预算下的纯模块因果收益。单种子结果尚不能证明稳定提升。

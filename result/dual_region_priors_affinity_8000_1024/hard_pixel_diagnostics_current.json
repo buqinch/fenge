@@ -1,6 +1,6 @@
 {
   "schema": "lusnar_hard_pixel_diagnostics_v1",
-  "epoch": 18,
+  "epoch": 30,
   "enabled": false,
   "hard_pixel_weight": 0.0,
   "hard_pixel_quota": 256,
@@ -71,29 +71,29 @@
     "augmented/crater": 2000,
     "augmented/mountain_rock": 2000
   },
-  "training_batches": 1200,
+  "training_batches": 2000,
   "direction_definition": "GT class ID -> current predicted class ID; training data only",
   "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
   "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
   "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
   "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
   "training_loss": {
-    "loss_semantic_ce": 0.00773395298087659,
-    "loss_semantic_dice": 0.027126108230634903,
-    "loss_region_class": 0.00015811389930021848,
-    "loss_region_mask": 0.0032548712741117926,
-    "loss_region_dice": 0.011201243095953639,
-    "loss_auxiliary": 0.07463326585168639,
-    "loss_total": 0.10222747249528766,
+    "loss_semantic_ce": 0.007175688451388851,
+    "loss_semantic_dice": 0.025973213031655177,
+    "loss_region_class": 9.5206631982947e-06,
+    "loss_region_mask": 0.0028463189884205347,
+    "loss_region_dice": 0.009832616679370403,
+    "loss_auxiliary": 0.0633170362431556,
+    "loss_total": 0.0908134836629033,
     "loss_hard_pixels": 0.0,
     "loss_hard_pixels_weighted": 0.0,
-    "loss_base": 0.0999685214428852,
-    "loss_affinity": 0.04517902049235999,
-    "loss_affinity_weighted": 0.0022589510246179977,
+    "loss_base": 0.08889067245088518,
+    "loss_affinity": 0.03845622105430812,
+    "loss_affinity_weighted": 0.0019228110527154082,
     "loss_consistency": 0.0,
     "loss_consistency_weighted": 0.0,
     "prior_warmup_scale": 1.0,
-    "affinity_to_base_ratio": 0.02259662333716318,
+    "affinity_to_base_ratio": 0.02163119031164738,
     "consistency_to_base_ratio": 0.0,
     "hard_to_base_ratio": 0.0
   },
@@ -165,6 +165,6 @@
       "highest_ce_examples": []
     }
   },
-  "partial_epoch": true,
-  "images_seen": 4800
+  "partial_epoch": false,
+  "images_seen": 8000
 }

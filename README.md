@@ -7,21 +7,27 @@
 ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/tree/main/fenge_vit)，包含 DINOv3 ViT-S/16＋ConvNeXt-Tiny、四阶段双向Adapter、Mask2Former及A/B/C训练配置。当前服务器的实际工作目录仍分别为 `/home/lzc/workspace/fenge` 和 `/home/lzc/workspace/fenge_vit`；GitHub中的子目录保存后者的独立版本，两套网络源码不混用。数据配置继续引用本仓库中已经固定的来源清单。
 
 <!-- current-best-tests-20261112:start -->
-### 当前 best 的追加测试（2026-11-12）
+### 各组最新已完成测试
 
-按请求固定当时已提交的验证best：CNN细节第15轮、周围关系第16轮，ViT A第3轮、B／C第2轮。固定后不随训练更新替换权重。全部使用完整5004张Moon_2／4／9、1024／768等权水平翻转TTA，按场景1∶1∶2计算S。
+捕获时间：**2026-11-12T22:05:33+08:00**。所有完整测试均为5004张、1024／768等权翻转4视图。表中轮次是已测权重轮次，可能落后于当前验证best。
 
 |模型|检查点轮次|Moon_2|Moon_4|Moon_9|加权 S|
 |---|---:|---:|---:|---:|---:|
-|CNN细节注入|15|94.3246%|93.9452%|85.5919%|89.8634%|
-|CNN周围关系|16|94.2586%|94.0510%|85.2697%|89.7123%|
-|ViT A 融合|3|91.7701%|91.6158%|84.7219%|88.2074%|
-|ViT B Adapter|2|91.7657%|91.6658%|83.8603%|87.7880%|
-|ViT C Adapter＋遮挡方案|2|91.5374%|92.0891%|84.5501%|88.1817%|
+|CNN 对照|28|93.6695%|93.5634%|86.3247%|89.9706%|
+|CNN 亲和监督|28|93.7410%|93.4841%|85.8571%|89.7348%|
+|CNN 周围关系|16|94.2586%|94.0510%|85.2697%|89.7123%|
+|CNN 细节注入|15|94.3246%|93.9452%|85.5919%|89.8634%|
+|ViT A 融合|5|92.2278%|92.1160%|86.1820%|89.1769%|
+|ViT B Adapter|3|91.5117%|91.2714%|84.5091%|87.9503%|
+|ViT C 单卡遮挡|3|92.0118%|89.9628%|84.2491%|87.6182%|
 
-本次两份CNN验证best均未超过下方细节第11轮的89.9852%。细节第15轮在Moon_9的坑IoU比第11轮提高0.7121个百分点，但山体、岩石分别下降1.3286、0.4701个百分点。ViT这三份检查点均来自前三轮冻结阶段，C的遮挡监督从第4轮才开始；本次结果不代表三种ViT方案最终收敛表现或遮挡训练收益。
+亲和监督与对照均已完成30轮，best均为第28轮：S分别为89.7348%和89.9706%，亲和低0.2357个百分点。Moon_9坑IoU下降2.2695个百分点，是主要损失。对照与此前细节第11轮89.9852%仅差0.0146个百分点，尚不能据此认定细节模块具有稳定优势。
 
-[本次对照报告](result/cnn_vit_best_tests_20261112/report_zh.md) · [逐类别指标](result/cnn_vit_best_tests_20261112/per_class_metrics.csv) · [CNN快照与计分核验](result/prior_best_evaluation_20261112/summary.json)
+CNN细节与周围关系仍在训练；最新验证best尚无对应完整测试，不用历史测试值冒充新best成绩。ViT A第5轮S为89.1769%；B／C单卡此处列出的完整测试仍是第3轮，C该检查点尚未启用遮挡。四卡C尚无完整测试；不同进度不能作为最终架构优劣结论。
+
+测试任务快照：ViT B Adapter epoch_005：running
+
+[最新效果报告](fenge_vit/result/progress_analysis/latest_report_zh.md) · [此前固定检查点对照](result/cnn_vit_best_tests_20261112/report_zh.md) · [亲和／对照测试记录](result/completed_cnn_gpu4_20261112/summary.json)
 <!-- current-best-tests-20261112:end -->
 
 ### 细节注入第 11 轮：完整 Moon_2／4／9 测试
@@ -72,19 +78,20 @@ python code/evaluate.py --config config/evaluate_detail_epoch011_multiscale.json
 
 ### 在训方案的最新验证进度
 
-截至 **2026-11-12T18:13:39+08:00**，以下均为固定 1601 张验证集、1024 单视图、无 TTA 的完整结果。与下方的比赛测试 S 分开报告。
+截至 **2026-11-12T22:05:33+08:00**，固定1601张验证集、1024单视图、无TTA；与测试S分开报告。
 
-|实验|已完成轮数|最佳轮次|最佳验证 mIoU|状态|
+|实验|已完成轮数|最佳轮次|最佳验证 mIoU|快照状态|
 |---|---:|---:|---:|---|
 |CNN 对照|30|28|97.4096%|已完成|
-|CNN 亲和|18|18|97.2690%|训练中|
-|CNN 周围关系|12|12|98.1306%|训练中|
-|CNN 细节注入|11|11|98.2260%|训练中|
-|ViT A 融合|2|2|95.1880%|训练中|
-|ViT B Adapter|1|1|93.2879%|训练中|
-|ViT C 遮挡|1|1|93.5728%|训练中|
+|CNN 亲和监督|30|28|97.4095%|已完成|
+|CNN 周围关系|27|27|98.5521%|训练中|
+|CNN 细节注入|25|25|98.7033%|训练中|
+|ViT A 融合|6|6|96.2013%|训练中|
+|ViT B Adapter|5|5|95.8007%|训练中|
+|ViT C 单卡遮挡|4|4|95.7868%|训练中|
+|ViT C 四卡遮挡|3|3|95.5677%|训练中|
 
-细节注入第 11 轮比同轮对照高 **1.2768 个百分点**，周围关系第 12 轮高 **1.1146 个百分点**；亲和第 18 轮仅高 **0.0277 个百分点**，尚未显示稳定优势。ViT 仍在前三轮冻结阶段，遮挡辅助从第 4 轮开始。完整逐类别指标与同轮分析见 [最新效果报告](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/latest_report_zh.md)。
+亲和和对照已跑满30轮，其余组继续训练。C单卡从第4轮起执行遮挡；四卡C当前已完成的前三轮仍处于冻结阶段。每5轮测试当时验证best，测试不参与选轮。完整逐类别结果见 [最新效果报告](fenge_vit/result/progress_analysis/latest_report_zh.md)。
 
 ## 上一阶段第29轮基线的完整测试与TTA对照（2026-11-12）
 
@@ -365,7 +372,7 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 
 实验计划及状态位于 [prior_ablation](result/prior_ablation/)。冻结计划中的源码／配置哈希记录的是本轮启动版本；此次几何清理修订另见 [清理与兼容验证](result/prior_ablation/geometry_cleanup_20261112.json)，不会改写已运行来源。新实验直接使用现存训练 JSON 和独立输出目录；旧冻结计划用于当前队列观察，不能视为新源码的启动计划。每组日志、逐轮指标和权重保存在 `result/dual_region_priors_<实验名>_8000_1024/`。队列入口为 `python code/prior_ablation.py --plan result/prior_ablation/plan.json`；已经启动的队列不需要再次运行。单组可直接传上述 JSON 给 `code/train.py`。所有开关默认关闭，旧检查点可继续严格加载；CPU 统计、坐标对齐、损失与精确续训检查，以及真实 batch 4／1024／全部骨干解冻反向更新和四视图推理检查均已通过，见 [验证记录](result/prior_ablation/verification_runtime.json)。这些运行检查不代表已取得分割提升，结果以完整训练后的对照报告为准。
 
-本轮于 **2026-11-12 13:42（北京时间）**开始。control 已正常完成 30 轮，affinity 仍在本机 GPU 1 训练；context／detail 在 Server103 的 GPU 0／1 运行。已淘汰的两个几何组不再提供启动入口。共同初始化核验见 [启动记录](result/prior_ablation/startup_check.json)；逐轮结果见 [对照报告](result/prior_ablation/report_zh.md)。
+本轮于 **2026-11-12 13:42（北京时间）**开始。control 和 affinity 均已正常完成 30 轮，并完成各自第 28 轮 best 的测试；context／detail 在 Server103 的 GPU 0／1 继续运行。已淘汰的两个几何组不再提供启动入口。共同初始化核验见 [启动记录](result/prior_ablation/startup_check.json)；逐轮结果见 [对照报告](result/prior_ablation/report_zh.md)。
 
 ### 亮度条件诊断：固定第 29 轮 B0
 

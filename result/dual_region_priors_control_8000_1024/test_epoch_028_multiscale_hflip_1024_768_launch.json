@@ -1,0 +1,93 @@
+{
+  "status": "complete",
+  "queued_at": "2026-11-12T13:07:37.249077+00:00",
+  "supervisor_pid": 2186688,
+  "config": "/home/lzc/workspace/fenge/config/evaluate_control_epoch028_multiscale.json",
+  "evaluation": {
+    "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/best_epoch_028_eval.pt",
+    "split": "test",
+    "manifest": "/media/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+    "output": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/test_epoch_028_multiscale_hflip_1024_768_metrics.json",
+    "batch_size": 2,
+    "workers": 4,
+    "device": "cuda:0",
+    "amp": "bf16",
+    "tta": "multiscale_hflip",
+    "tta_sizes": [
+      1024,
+      768
+    ],
+    "mountain_alpha": 1.0,
+    "crater_gamma": 1.0,
+    "progress_every": 100,
+    "save_images": false
+  },
+  "checkpoint_epoch": 28,
+  "checkpoint_sha256": "d63a473b59b468b90450e5e68e1056c61ae44f7f4f757ec12b2e956694fe9f9d",
+  "validation_miou": 0.9740957319855761,
+  "snapshot_source_host": "Server70",
+  "snapshot_immutable": true,
+  "physical_gpu": 4,
+  "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_4.lock",
+  "expected_images": 5004,
+  "expected_scene_images": {
+    "Moon_2": 1597,
+    "Moon_4": 1320,
+    "Moon_9": 2087
+  },
+  "training_interrupted": false,
+  "allowed_existing_training_pid": 1608375,
+  "evaluation_cuda_memory_fraction": 0.25,
+  "minimum_free_mib": 8192,
+  "serial_evaluation": true,
+  "source_sha256": {
+    "code/evaluate.py": "bf8f4113b4ba9438a3376d46bc7fa2c65cb504b70176449339a327bd37ffeebb",
+    "code/lunarseg/__init__.py": "e7fb791158eb2f05373450fa98185ad4b5411c414e71c0397115c865b3b38ffe",
+    "code/lunarseg/augmentation.py": "c7cf49f9a56e8b04ef53cfd96f39984febec16df2c669303423f372e8f834755",
+    "code/lunarseg/backbones.py": "08190064edb1f74ee7c191d6d370c0b5a8c6c96a0a00a9090f1c3f61bcd63635",
+    "code/lunarseg/brightness.py": "fb845179425d9d14a94af56b01a44cae6f745893876bd2047d19083064ea6656",
+    "code/lunarseg/brightness_diagnostics.py": "423d3d722599d95821b61d6d6d598e21ba245e613a8759470a2c5d8a435352e9",
+    "code/lunarseg/brightness_visualization.py": "526f8ab1a674328f13d7dfea2775c54f61e6c170adabc025c0f9635db706f801",
+    "code/lunarseg/data.py": "d6bf1ab5e74c88f860a917db155253ca7eefef5be0d47d82537a507018bf0d42",
+    "code/lunarseg/early_stopping.py": "5727ddf9788a881ae7895e569d41884672b554aad86ff04f2f537a2463db9f46",
+    "code/lunarseg/losses.py": "d8a310d57a7d811f44415edf1765b6281f6168ac907839a1bf32ccc2cca07bf2",
+    "code/lunarseg/metrics.py": "bbaca8858516e80cdcee9a22090072988a0d540d81498b7607d2936f45224fd6",
+    "code/lunarseg/model.py": "99240e44bd74b40951a812662764f50a3a0628bbe634f6e96721ff520c74f222",
+    "code/lunarseg/priors.py": "48ee095d3e217c7af3ddbc182fb64a476ac82ea7c2b0da8ec9ae0eb7e3c00d68",
+    "code/lunarseg/refinement.py": "075806722af4d1f5280de6cba184d2cd66d5dda9043eafe2dfba76af7ee6baa7",
+    "code/lunarseg/training_priors.py": "e28689033104ec00a127e325a42b88e0210a841960729b1285ca720ca0d57e0d",
+    "code/lunarseg/visualization.py": "296db344f584326597b38af073fc4ebad00c13755b19296cc8a5b9fe7ea8a25d"
+  },
+  "log": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/test_epoch_028_multiscale_hflip_1024_768.log",
+  "started_at": "2026-11-12T13:13:14.754329+00:00",
+  "pid": 2201791,
+  "command": [
+    "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+    "-B",
+    "-u",
+    "-c",
+    "import sys,runpy,json,torch; sys.path.insert(0,'code'); torch.cuda.set_device(0); torch.cuda.set_per_process_memory_fraction(0.25,0); torch.cuda.reset_peak_memory_stats(0); sys.argv[0]='code/evaluate.py'; runpy.run_path('code/evaluate.py',run_name='__main__'); print(json.dumps({'gpu_peak_allocated_bytes':torch.cuda.max_memory_allocated(0),'gpu_peak_reserved_bytes':torch.cuda.max_memory_reserved(0)}),flush=True)",
+    "--config",
+    "/home/lzc/workspace/fenge/config/evaluate_control_epoch028_multiscale.json"
+  ],
+  "gpu_uuid": "GPU-8d434121-b643-9338-c35e-fdfc76bf8052",
+  "completed_at": "2026-11-12T13:18:44.804515+00:00",
+  "metrics_sha256": "6d15a69657e4030cdc76f206833d3ddba21dea50965c6b723f90bb2634f899fd",
+  "verification": {
+    "verified": true,
+    "scene_miou": {
+      "Moon_2": 0.9366952350059108,
+      "Moon_4": 0.9356337429081829,
+      "Moon_9": 0.8632467069304
+    },
+    "weighted_score": 0.8997055979437234,
+    "image_count": 5004,
+    "scene_image_counts": {
+      "Moon_2": 1597,
+      "Moon_4": 1320,
+      "Moon_9": 2087
+    },
+    "integer_scene_confusions_independently_recomputed": true,
+    "pooled_equals_sum_of_scene_matrices": true
+  }
+}

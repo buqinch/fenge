@@ -71,23 +71,23 @@
     "augmented/crater": 2000,
     "augmented/mountain_rock": 2000
   },
-  "training_batches": 1125,
+  "training_batches": 2000,
   "direction_definition": "GT class ID -> current predicted class ID; training data only",
   "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
   "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
   "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
   "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
   "training_loss": {
-    "loss_semantic_ce": 0.007200036878387133,
-    "loss_semantic_dice": 0.025618210588892302,
-    "loss_region_class": 2.2932578936345434e-05,
-    "loss_region_mask": 0.002880970258679655,
-    "loss_region_dice": 0.00992993640444345,
-    "loss_auxiliary": 0.06354215486513244,
-    "loss_total": 0.08896997783912552,
+    "loss_semantic_ce": 0.007186212656088173,
+    "loss_semantic_dice": 0.026005981971044093,
+    "loss_region_class": 1.467209470193609e-05,
+    "loss_region_mask": 0.0028564178721280768,
+    "loss_region_dice": 0.009876218452816828,
+    "loss_auxiliary": 0.06368028202839196,
+    "loss_total": 0.08921998766437172,
     "loss_hard_pixels": 0.0,
     "loss_hard_pixels_weighted": 0.0,
-    "loss_base": 0.08896997783912552,
+    "loss_base": 0.08921998766437172,
     "loss_affinity": 0.0,
     "loss_affinity_weighted": 0.0,
     "loss_consistency": 0.0,
@@ -165,6 +165,6 @@
       "highest_ce_examples": []
     }
   },
-  "partial_epoch": true,
-  "images_seen": 4500
+  "partial_epoch": false,
+  "images_seen": 8000
 }
