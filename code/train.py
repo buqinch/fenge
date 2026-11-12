@@ -20,6 +20,8 @@ from lunarseg.data import DEFAULT_MANIFEST, LunarDataset, sha256_file
 from lunarseg.losses import SegmentationCriterion
 from lunarseg.metrics import autocast_context, evaluate_loader, validate_tta_sizes
 from lunarseg.model import ModelConfig, build_model
+from lunarseg.training_priors import (PRIOR_DEFAULTS, PriorDiagnostics, load_initial_model,
+                                      validate_prior_args, warmup_scale)
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -79,6 +81,18 @@ def parse_args(argv=None):
                         help="Weight of the additional direction-balanced hard-pixel CE; zero preserves the base objective")
     parser.add_argument("--hard-pixel-quota", type=int, default=256,
                         help="Maximum hard pixels per image and confusion direction")
+    parser.add_argument("--refinement", choices=("none", "context", "detail"), default="none")
+    parser.add_argument("--affinity-weight", type=float, default=0.0)
+    parser.add_argument("--consistency-weight", type=float, default=0.0)
+    parser.add_argument("--prior-warmup-updates", type=int, default=1000)
+    parser.add_argument("--prior-lr", type=float, default=1e-4)
+    parser.add_argument("--prior-seed", type=int, default=4242)
+    parser.add_argument("--geometry-paired-control", action=argparse.BooleanOptionalAction, default=False,
+                        help="Two geometry views and averaged complete GT losses, with no JS unless enabled")
+    parser.add_argument("--epoch-zero-validation", action=argparse.BooleanOptionalAction, default=False,
+                        help="Save a fully validated initialization as epoch0.pt and the initial best checkpoint")
+    parser.add_argument("--gradient-checkpointing", action=argparse.BooleanOptionalAction, default=False,
+                        help="Trade training computation for activation memory; evaluation remains unchanged")
     parser.add_argument("--pretrained", action=argparse.BooleanOptionalAction, default=True)
     allowed = {action.dest for action in parser._actions}
     unknown = set(defaults) - allowed
@@ -102,6 +116,7 @@ def parse_args(argv=None):
     if args.initial_checkpoint and (args.resume or args.convnext_checkpoint):
         parser.error("initial_checkpoint is mutually exclusive with resume and convnext_checkpoint")
     try:
+        validate_prior_args(args)
         args.val_tta_sizes = validate_tta_sizes(args.val_tta, args.val_tta_sizes)
     except ValueError as error:
         parser.error(str(error))
@@ -166,11 +181,13 @@ def save_checkpoint(path, checkpoint):
     temporary.replace(path)
 
 
-def model_tensor_hashes(model):
+def model_tensor_hashes(model, exclude_refiner=False):
     """Hash canonical tensor names, shapes, dtypes and bytes without using RNG."""
     digests = {name: hashlib.sha256() for name in ("model", "backbones", "heads")}
     count = 0
     for name, tensor in sorted(model.state_dict().items()):
+        if exclude_refiner and name.startswith("refiner."):
+            continue
         value = tensor.detach().cpu().contiguous()
         header = json.dumps([name, str(value.dtype), list(value.shape)], separators=(",", ":")).encode() + b"\n"
         raw = memoryview(value.reshape(-1).view(torch.uint8).numpy())
@@ -283,6 +300,9 @@ def design_selection_reference(args, mode, previous=None):
 def training_loss_means(sums, seen):
     means = {name: value / seen for name, value in sums.items()}
     means["hard_to_base_ratio"] = means["loss_hard_pixels_weighted"] / max(means["loss_base"], 1e-12)
+    for name in ("affinity", "consistency"):
+        if "loss_" + name + "_weighted" in means:
+            means[name + "_to_base_ratio"] = means["loss_" + name + "_weighted"] / max(means["loss_base"], 1e-12)
     return means
 
 
@@ -387,8 +407,8 @@ def main(argv=None):
         raise RuntimeError("This GPU does not support BF16; use --amp fp16 or none")
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
-    if (output / "last.pt").exists() and not args.resume:
-        raise FileExistsError("Output already has last.pt; resume explicitly or select a new output directory")
+    if ((output / "last.pt").exists() or (output / "epoch0.pt").exists()) and not args.resume:
+        raise FileExistsError("Output already has a checkpoint; resume explicitly or select a new output directory")
     train_data = LunarDataset(args.manifest, "train", args.input_size,
                               args.augmented_manifest, args.augmentation_groups,
                               args.train_source, args.horizontal_flip, args.max_train_samples,
@@ -407,11 +427,12 @@ def main(argv=None):
                             generator=val_generator, worker_init_fn=seed_worker, persistent_workers=False)
     config = ModelConfig(decoder=args.decoder, backbone=args.backbone, input_size=args.input_size,
                          num_classes=5, num_queries=args.num_queries, decoder_layers=args.decoder_layers,
-                         weight_dir=args.weight_dir, convnext_checkpoint=args.convnext_checkpoint)
+                         weight_dir=args.weight_dir, convnext_checkpoint=args.convnext_checkpoint,
+                         refinement=args.refinement)
     saved = None
     if args.resume:
         saved = torch.load(args.resume, map_location="cpu", weights_only=True)
-        if saved["model_config"] != config.to_dict():
+        if ModelConfig.from_dict(saved["model_config"]).to_dict() != config.to_dict():
             raise ValueError("Resume model configuration differs from checkpoint")
         if saved["data_identity"] != {"train": train_data.identity, "val": val_data.identity}:
             raise ValueError("Resume dataset identity differs from checkpoint")
@@ -428,16 +449,22 @@ def main(argv=None):
         for field, default in (("hard_pixel_weight", 0.0), ("hard_pixel_quota", 256)):
             if previous.get(field, default) != getattr(args, field):
                 raise ValueError(f"Resume setting {field} differs; changing the objective requires a new run")
+        for field, default in PRIOR_DEFAULTS.items():
+            if previous.get(field, default) != getattr(args, field):
+                raise ValueError(f"Resume setting {field} differs; changing a prior requires a new run")
     mode = initialization_mode(args, saved["run_config"] if saved else None)
     reference = design_selection_reference(args, mode, saved["run_config"] if saved else None)
     test_selected_recipe = bool(reference["design_selection_reference_data"]
                                 and reference["design_selection_reference_data"]["selected_using_test"])
     model = build_model(config, pretrained=args.pretrained and saved is None and not args.initial_checkpoint).to(device)
+    if args.gradient_checkpointing:
+        model.set_gradient_checkpointing(True)
     initial_checkpoint_sha256, initial_checkpoint_epoch, parent_pretrained_report = None, None, None
+    initial_loading = None
     if args.initial_checkpoint:
         initial_checkpoint_sha256 = sha256_file(args.initial_checkpoint)
         initial = torch.load(args.initial_checkpoint, map_location="cpu", weights_only=True)
-        model.load_state_dict(initial.get("model", initial), strict=True)
+        initial_loading = load_initial_model(model, initial.get("model", initial))
         initial_checkpoint_epoch = initial.get("epoch")
         parent_pretrained_report = initial.get("pretrained_report")
         if sha256_file(args.initial_checkpoint) != initial_checkpoint_sha256:
@@ -449,17 +476,61 @@ def main(argv=None):
     initialization = saved["run_config"].get("initial_model_tensor_hashes") if saved else model_tensor_hashes(model)
     initial_model_sha256 = (saved["run_config"].get("initial_model_sha256") if saved
                             else initialization["model_sha256"])
+    initial_base_model_sha256 = (saved["run_config"].get("initial_base_model_sha256", initial_model_sha256)
+                                 if saved else model_tensor_hashes(model, exclude_refiner=True)["model_sha256"])
     criterion = SegmentationCriterion(num_classes=5, num_points=args.num_points,
                                       hard_pixel_weight=args.hard_pixel_weight,
                                       hard_pixel_quota=args.hard_pixel_quota).to(device)
-    optimizer = torch.optim.AdamW([
+    paired_geometry = args.geometry_paired_control or args.consistency_weight > 0
+    geometry_criterion = (SegmentationCriterion(num_classes=5, num_points=args.num_points,
+                                                hard_pixel_weight=args.hard_pixel_weight,
+                                                hard_pixel_quota=args.hard_pixel_quota,
+                                                ignore_index=255).to(device) if paired_geometry else None)
+    affinity = None
+    if args.affinity_weight > 0:
+        from lunarseg.priors import SemanticAffinity
+        # CPU-only construction must not change either the body initialization
+        # or the global RNG later used by the unchanged region criterion.
+        with torch.random.fork_rng(devices=[]):
+            torch.random.default_generator.manual_seed(args.prior_seed)
+            affinity = SemanticAffinity(width=config.width, seed=args.prior_seed)
+        affinity = affinity.to(device)
+    initial_affinity_sha256 = (saved["run_config"].get("initial_affinity_sha256") if saved else
+                                model_tensor_hashes(affinity)["model_sha256"] if affinity is not None else None)
+    refiner_ids = {id(p) for name, p in model.named_parameters() if name.startswith("refiner.")}
+    prior_parameters = [p for p in model.parameters() if id(p) in refiner_ids]
+    if affinity is not None:
+        prior_parameters.extend(affinity.parameters())
+    groups = [
         {"params": list(model.backbone_parameters()), "lr": args.backbone_lr, "group_name": "backbone"},
-        {"params": list(model.head_parameters()), "lr": args.head_lr, "group_name": "head"},
-    ], weight_decay=args.weight_decay)
+        {"params": [p for p in model.head_parameters() if id(p) not in refiner_ids],
+         "lr": args.head_lr, "group_name": "head"}]
+    if prior_parameters:
+        groups.append({"params": prior_parameters, "lr": args.prior_lr, "group_name": "prior"})
+    optimizer = torch.optim.AdamW(groups, weight_decay=args.weight_decay)
+    optimized_parameters = [p for group in optimizer.param_groups for p in group["params"]]
+    if len({id(p) for p in optimized_parameters}) != len(optimized_parameters):
+        raise ValueError("An optimizer parameter occurs in more than one group")
+    expected_parameters = {id(p) for p in model.parameters()}
+    if affinity is not None:
+        expected_parameters.update(id(p) for p in affinity.parameters())
+    if expected_parameters != {id(p) for p in optimized_parameters}:
+        raise ValueError("Optimizer groups do not cover exactly the model and training-only affinity parameters")
     scaler = torch.cuda.amp.GradScaler(enabled=device.type == "cuda" and args.amp == "fp16")
     start_epoch, best, best_epoch, update = 0, -math.inf, None, 0
     if saved:
         model.load_state_dict(saved["model"], strict=True)
+        if affinity is not None:
+            if saved.get("affinity") is None:
+                raise ValueError("Affinity continuation requires its saved module state")
+            affinity.load_state_dict(saved["affinity"], strict=True)
+        elif saved.get("affinity") is not None:
+            raise ValueError("Checkpoint contains an affinity head but this run disables it")
+        previous_groups = saved["optimizer"]["param_groups"]
+        if (len(previous_groups) != len(optimizer.param_groups)
+                or any(old.get("group_name") != new.get("group_name") or len(old["params"]) != len(new["params"])
+                       for old, new in zip(previous_groups, optimizer.param_groups))):
+            raise ValueError("Resume optimizer groups differ from the saved model/prior layout")
         optimizer.load_state_dict(saved["optimizer"])
         scaler.load_state_dict(saved["scaler"])
         start_epoch, best = saved["epoch"], saved["best_miou"]
@@ -482,6 +553,9 @@ def main(argv=None):
     else:
         provenance = pretrained_provenance(model, args.weight_dir)
     run_config.update(initial_model_sha256=initial_model_sha256,
+                      initial_base_model_sha256=initial_base_model_sha256,
+                      initial_affinity_sha256=initial_affinity_sha256,
+                      initial_checkpoint_loading=(saved["run_config"].get("initial_checkpoint_loading") if saved else initial_loading),
                       initial_model_tensor_hashes=initialization, pretrained_report=provenance,
                       initial_hash_available=initial_model_sha256 is not None,
                       initialization_mode=mode,
@@ -490,26 +564,96 @@ def main(argv=None):
                       initial_checkpoint_epoch=initial_checkpoint_epoch,
                       official_test_used_for_selection=test_selected_recipe,
                       checkpoint_selection_uses_test=False, **reference)
+    run_config["prior_protocol"] = {
+        "paired_geometry": paired_geometry,
+        "gt_loss_reduction": "0.5*(complete_base_A+complete_base_B)" if paired_geometry else "complete_base_A",
+        "geometry_ignore_index": 255 if paired_geometry else None,
+        "geometry_transform_seed": args.prior_seed if paired_geometry else None,
+        "warmup": "min(1,(global_update+1)/prior_warmup_updates), shared by accumulation microbatches",
+        "training_forwards_per_microbatch": 2 if paired_geometry else 1,
+        "gradient_checkpointing": args.gradient_checkpointing,
+        "affinity_checkpoint_key": "affinity" if affinity is not None else None,
+        "auxiliary_initialization_rng": "independent CPU fork_rng; global RNG preserved"}
+    implementation_files = ["losses.py", "training_priors.py"]
+    if affinity is not None or paired_geometry:
+        implementation_files.append("priors.py")
+    if args.refinement != "none":
+        implementation_files.append("refinement.py")
+    implementation_hashes = {name: sha256_file(PROJECT / "code" / "lunarseg" / name) for name in implementation_files}
+    if saved and saved["run_config"].get("prior_implementation_sha256") not in (None, implementation_hashes):
+        raise ValueError("Resume prior/base-loss implementation SHA256 differs from checkpoint")
+    run_config["prior_implementation_sha256"] = implementation_hashes
     write_json(output / "run_config.json", {**run_config, "model_config": config.to_dict(),
                                              "pretrained_report": provenance,
                                              "data_identity": data_identity, "partial": partial})
     total_updates = math.ceil(len(train_loader) / args.accumulation) * args.epochs
+
+    def checkpoint_at(epoch, metrics, diagnostics=None):
+        checkpoint = {"format_version": 1, "model_config": config.to_dict(), "model": model.state_dict(),
+                      "optimizer": optimizer.state_dict(), "scaler": scaler.state_dict(),
+                      "epoch": epoch, "global_update": update, "best_miou": best, "best_epoch": best_epoch,
+                      "metrics": metrics, "run_config": run_config, "data_identity": data_identity,
+                      "loader_generator": generator.get_state(), "val_loader_generator": val_generator.get_state(),
+                      "rng": rng_state(device), "partial": partial, "pretrained_report": provenance,
+                      "official_test_used_for_selection": test_selected_recipe, "checkpoint_selection_uses_test": False}
+        if affinity is not None:
+            checkpoint["affinity"] = affinity.state_dict()
+        if diagnostics is not None:
+            checkpoint["training_priors"] = diagnostics
+        return checkpoint
+
+    def summary_at(epoch, status):
+        return {"status": status, "completed_epochs": epoch, "best_epoch": best_epoch,
+                "best_validation_miou": best, "partial": partial,
+                "selection_scene": selection_scene, "val_tta": args.val_tta,
+                "val_tta_sizes": args.val_tta_sizes, "refinement": args.refinement,
+                "affinity_weight": args.affinity_weight, "consistency_weight": args.consistency_weight,
+                "paired_geometry": paired_geometry, "global_update": update,
+                "epoch_zero_validation": args.epoch_zero_validation,
+                "official_test_used_for_selection": test_selected_recipe, "checkpoint_selection_uses_test": False}
+
+    if args.epoch_zero_validation and saved is None:
+        # Evaluation cannot shift the training RNG, shuffle generator, or worker
+        # augmentation sequence. Its own loader state is saved for exact resume.
+        before = rng_state(device)
+        metrics = evaluate_loader(model, val_loader, device, args.amp,
+                                  tta=args.val_tta, tta_sizes=args.val_tta_sizes)
+        restore_rng(before, device)
+        score = metrics["miou"] if custom_validation else metrics["scenes"]["Moon_5"]["miou"]
+        best, best_epoch = score, 0
+        zero_record = {"epoch": 0, "validation": metrics, "best_miou": best, "best_epoch": 0,
+                       "selection_scene": selection_scene, "selection_score": score, "partial": partial,
+                       "global_update": 0, "initialization_only": True,
+                       "official_test_used_for_selection": test_selected_recipe, "checkpoint_selection_uses_test": False}
+        write_json(output / "validation_epoch_000.json", zero_record)
+        checkpoint = checkpoint_at(0, metrics)
+        save_checkpoint(output / "epoch0.pt", checkpoint)
+        save_checkpoint(output / "last.pt", checkpoint)
+        save_checkpoint(output / ("best_smoke.pt" if partial else "best.pt"), checkpoint)
+        write_json(output / "summary.json", summary_at(0, "running"))
+
     print(json.dumps({"device": str(device), "training_images": len(train_data), "validation_images": len(val_data),
                       "partial": partial, "decoder": args.decoder, "backbone": args.backbone,
                       "val_tta": args.val_tta, "val_tta_sizes": args.val_tta_sizes,
                       "hard_pixel_weight": args.hard_pixel_weight,
                       "hard_pixel_quota": args.hard_pixel_quota,
+                      "refinement": args.refinement, "affinity_weight": args.affinity_weight,
+                      "consistency_weight": args.consistency_weight, "paired_geometry": paired_geometry,
                       "initial_model_sha256": initial_model_sha256, "initialization_mode": mode,
                       "official_test_used_for_selection": test_selected_recipe,
                       "checkpoint_selection_uses_test": False}), flush=True)
     for epoch in range(start_epoch, args.epochs):
         started = time.monotonic()
+        epoch_start_update = update
         frozen = epoch < args.freeze_epochs
         model.freeze_backbones(frozen)
         model.train()
+        if affinity is not None:
+            affinity.train()
         optimizer.zero_grad(set_to_none=True)
         loss_sums, seen = {}, 0
         hard_diagnostics = HardPixelDiagnostics(train_data, args.hard_pixel_weight, args.hard_pixel_quota)
+        prior_diagnostics = PriorDiagnostics()
         for step, batch in enumerate(train_loader):
             # The final, shorter accumulation window must not be divided by the
             # nominal accumulation count. Weight by actual images, including a
@@ -520,20 +664,62 @@ def main(argv=None):
             factor = max(0.01, (1.0 - update / max(1, total_updates)) ** 0.9)
             optimizer.param_groups[0]["lr"] = 0.0 if frozen else args.backbone_lr * factor
             optimizer.param_groups[1]["lr"] = args.head_lr * factor
+            if len(optimizer.param_groups) > 2:
+                optimizer.param_groups[2]["lr"] = args.prior_lr * factor
             images = batch["image"].to(device, non_blocking=True)
             target = batch["mask"].to(device, non_blocking=True)
+            keys = prior_diagnostics.observe_batch(batch)
+            auxiliary_scale = warmup_scale(update, args.prior_warmup_updates)
+            affinity_stats, geometry_stats, geometry_metadata = None, None, None
             with autocast_context(device, args.amp):
-                predictions = model(images)
-                losses = criterion(predictions, target)
+                predictions = model(images, return_features=True) if affinity is not None else model(images)
+                losses_a = criterion(predictions, target)
+                losses = losses_a
+                affinity_loss = losses_a["loss_total"].new_zeros(())
+                consistency_loss = affinity_loss
+                if affinity is not None:
+                    affinity_loss, affinity_stats = affinity(predictions["mask_features"], target, keys, epoch + 1)
+                if paired_geometry:
+                    from lunarseg.priors import make_geometry_view, geometry_consistency_js
+                    images_b, target_b, valid_b, geometry_metadata = make_geometry_view(
+                        images, target, keys, epoch + 1, seed=args.prior_seed)
+                    predictions_b = model(images_b)
+                    losses_b = geometry_criterion(predictions_b, target_b)
+                    if set(losses_a) != set(losses_b):
+                        raise ValueError("The two geometry views must retain the same complete GT objective")
+                    losses = {name: .5 * (losses_a[name] + losses_b[name]) for name in losses_a}
+                    if args.consistency_weight > 0:
+                        consistency_loss, geometry_stats = geometry_consistency_js(
+                            predictions["semantic_logits"], predictions_b["semantic_logits"],
+                            target, target_b, valid_b, geometry_metadata)
+                base_objective = losses["loss_total"]
+                if affinity is not None:
+                    losses["loss_total"] = losses["loss_total"] + args.affinity_weight * auxiliary_scale * affinity_loss
+                if args.consistency_weight > 0:
+                    losses["loss_total"] = losses["loss_total"] + args.consistency_weight * auxiliary_scale * consistency_loss
                 loss = losses["loss_total"] * (len(images) / window_samples)
             if not torch.isfinite(loss):
                 raise FloatingPointError(f"Non-finite loss at epoch {epoch + 1}, batch {step + 1}")
             scaler.scale(loss).backward()
             hard_diagnostics.update(criterion, batch, step)
+            if affinity_stats is not None:
+                prior_diagnostics.observe_affinity(affinity_stats)
+            if geometry_metadata is not None:
+                prior_diagnostics.observe_geometry(keys, geometry_metadata, geometry_stats)
             logged_losses = {name: float(value.detach()) for name, value in losses.items()}
             logged_losses.setdefault("loss_hard_pixels", 0.0)
             logged_losses.setdefault("loss_hard_pixels_weighted", 0.0)
-            logged_losses["loss_base"] = logged_losses["loss_total"] - logged_losses["loss_hard_pixels_weighted"]
+            logged_losses["loss_base"] = float(base_objective.detach()) - logged_losses["loss_hard_pixels_weighted"]
+            logged_losses["loss_affinity"] = float(affinity_loss.detach())
+            logged_losses["loss_affinity_weighted"] = args.affinity_weight * auxiliary_scale * logged_losses["loss_affinity"]
+            logged_losses["loss_consistency"] = float(consistency_loss.detach())
+            logged_losses["loss_consistency_weighted"] = args.consistency_weight * auxiliary_scale * logged_losses["loss_consistency"]
+            logged_losses["prior_warmup_scale"] = auxiliary_scale
+            if paired_geometry:
+                logged_losses["loss_gt_view_a"] = float(losses_a["loss_total"].detach())
+                logged_losses["loss_gt_view_b"] = float(losses_b["loss_total"].detach())
+            for name in ("affinity", "consistency"):
+                logged_losses[name + "_to_base_ratio"] = logged_losses["loss_" + name + "_weighted"] / max(logged_losses["loss_base"], 1e-12)
             logged_losses["hard_to_base_ratio"] = (logged_losses["loss_hard_pixels_weighted"] /
                                                     max(logged_losses["loss_base"], 1e-12))
             for name, value in logged_losses.items():
@@ -542,7 +728,7 @@ def main(argv=None):
             if step + 1 == window_end:
                 scaler.unscale_(optimizer)
                 if args.gradient_clip > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.gradient_clip, error_if_nonfinite=True)
+                    torch.nn.utils.clip_grad_norm_(optimized_parameters, args.gradient_clip, error_if_nonfinite=True)
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad(set_to_none=True)
@@ -552,7 +738,10 @@ def main(argv=None):
                       f"loss={logged_losses['loss_total']:.5f} base={logged_losses['loss_base']:.5f} "
                       f"hard_raw={logged_losses['loss_hard_pixels']:.5f} "
                       f"hard_weighted={logged_losses['loss_hard_pixels_weighted']:.5f} "
-                      f"hard/base={logged_losses['hard_to_base_ratio']:.5f} frozen={frozen}", flush=True)
+                      f"hard/base={logged_losses['hard_to_base_ratio']:.5f} "
+                      f"aff={logged_losses['loss_affinity']:.5f}*{args.affinity_weight * auxiliary_scale:.6f} "
+                      f"js={logged_losses['loss_consistency']:.5f}*{args.consistency_weight * auxiliary_scale:.6f} "
+                      f"aux/base={logged_losses['affinity_to_base_ratio'] + logged_losses['consistency_to_base_ratio']:.5f} frozen={frozen}", flush=True)
                 current_diagnostics = hard_diagnostics.result(epoch + 1, training_loss_means(loss_sums, seen))
                 current_diagnostics.update(partial_epoch=True, images_seen=seen)
                 write_json(output / "hard_pixel_diagnostics_current.json", current_diagnostics)
@@ -562,6 +751,12 @@ def main(argv=None):
         final_diagnostics.update(partial_epoch=False, images_seen=seen)
         write_json(diagnostics_path, final_diagnostics)
         write_json(output / "hard_pixel_diagnostics_current.json", final_diagnostics)
+        priors_path = output / f"training_priors_epoch_{epoch + 1:03d}.json"
+        priors_record = {**prior_diagnostics.result(), "epoch": epoch + 1,
+                         "global_update": update, "optimizer_updates": update - epoch_start_update,
+                         "training_model_forward_calls": len(train_loader) * (2 if paired_geometry else 1),
+                         "training_loss": mean_losses, "protocol": run_config["prior_protocol"]}
+        write_json(priors_path, priors_record)
         metrics = evaluate_loader(model, val_loader, device, args.amp,
                                   tta=args.val_tta, tta_sizes=args.val_tta_sizes)
         # Custom validation pools all saved validation images across its scenes.
@@ -571,6 +766,11 @@ def main(argv=None):
             best, best_epoch = score, epoch + 1
         record = {"epoch": epoch + 1, "training_loss": mean_losses,
                   "hard_pixel_diagnostics": str(diagnostics_path.resolve()),
+                  "training_priors": str(priors_path.resolve()),
+                  "sample_order_sha256": priors_record["sample_order_sha256"],
+                  "horizontal_flip_sha256": priors_record["horizontal_flip_sha256"],
+                  "sample_and_horizontal_flip_sha256": priors_record["sample_and_horizontal_flip_sha256"],
+                  "geometry_view_sha256": priors_record["geometry_view_sha256"],
                   "validation": metrics, "best_miou": best, "best_epoch": best_epoch,
                   "selection_scene": selection_scene, "selection_score": score,
                   "official_test_used_for_selection": test_selected_recipe, "checkpoint_selection_uses_test": False,
@@ -579,23 +779,11 @@ def main(argv=None):
         write_json(output / f"validation_epoch_{epoch + 1:03d}.json", record)
         with (output / "history.jsonl").open("a") as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-        checkpoint = {"format_version": 1, "model_config": config.to_dict(), "model": model.state_dict(),
-                      "optimizer": optimizer.state_dict(), "scaler": scaler.state_dict(),
-                      "epoch": epoch + 1, "global_update": update, "best_miou": best, "best_epoch": best_epoch,
-                      "metrics": metrics, "run_config": run_config, "data_identity": data_identity,
-                      "loader_generator": generator.get_state(), "val_loader_generator": val_generator.get_state(),
-                      "rng": rng_state(device), "partial": partial, "pretrained_report": provenance}
-        checkpoint.update(official_test_used_for_selection=test_selected_recipe, checkpoint_selection_uses_test=False)
+        checkpoint = checkpoint_at(epoch + 1, metrics, priors_record)
         save_checkpoint(output / "last.pt", checkpoint)
         if improved:
             save_checkpoint(output / ("best_smoke.pt" if partial else "best.pt"), checkpoint)
-        write_json(output / "summary.json", {"status": "complete" if epoch + 1 == args.epochs else "running",
-                                              "completed_epochs": epoch + 1, "best_epoch": best_epoch,
-                                              "best_validation_miou": best, "partial": partial,
-                                              "selection_scene": selection_scene, "val_tta": args.val_tta,
-                                              "val_tta_sizes": args.val_tta_sizes,
-                                              "official_test_used_for_selection": test_selected_recipe,
-                                              "checkpoint_selection_uses_test": False})
+        write_json(output / "summary.json", summary_at(epoch + 1, "complete" if epoch + 1 == args.epochs else "running"))
         print(f"epoch {epoch + 1} {selection_scene} mIoU={score:.6%}; best={best:.6%}", flush=True)
 
 

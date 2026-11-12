@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterator
@@ -9,8 +10,33 @@ from typing import Iterator
 import torch
 from torch import Tensor, nn
 from torch.nn import functional as F
+from torch.utils.checkpoint import checkpoint
 
 from .backbones import DualCNNEncoder, DINOv3ConvNeXtTiny, MobileNetV3LargeFeatures, GradientSafeGELU
+from .refinement import ContextRefinement, DetailRefinement, REFINEMENT_INIT_SEED
+
+
+@contextmanager
+def _isolated_batchnorm_recomputation(module: nn.Module):
+    """Recompute with disposable BN buffers, preserving forward references.
+
+    Restoring buffer contents in place can change versions of tensors retained
+    by the real forward. Temporarily replacing each registered buffer instead
+    keeps both its values and its original object/version untouched.
+    """
+    originals = []
+    try:
+        for layer in module.modules():
+            if isinstance(layer, nn.modules.batchnorm._BatchNorm):
+                for name in ("running_mean", "running_var", "num_batches_tracked"):
+                    value = layer._buffers.get(name)
+                    if value is not None:
+                        originals.append((layer, name, value))
+                        layer._buffers[name] = value.detach().clone()
+        yield
+    finally:
+        for layer, name, value in originals:
+            layer._buffers[name] = value
 
 
 @dataclass
@@ -27,10 +53,13 @@ class ModelConfig:
     dropout: float = 0.0
     weight_dir: str = str(Path(__file__).resolve().parents[2] / "model")
     convnext_checkpoint: str | None = None
+    refinement: str = "none"
 
     def __post_init__(self):
         if self.decoder not in ("pixel", "region") or self.backbone not in ("dual", "convnext"):
             raise ValueError("decoder must be pixel/region and backbone must be dual/convnext")
+        if self.refinement not in ("none", "context", "detail"):
+            raise ValueError("refinement must be none, context, or detail")
         if self.input_size < 32 or self.input_size % 32:
             raise ValueError("input_size must be a positive multiple of 32")
         if self.num_classes != 5:
@@ -165,9 +194,19 @@ class LunarSegmentationModel(nn.Module):
     def __init__(self, config: ModelConfig, pretrained: bool = True):
         super().__init__()
         self.config = config
+        self._gradient_checkpointing = False
         self.encoder = DualCNNEncoder(config.weight_dir, pretrained, config.backbone, config.convnext_checkpoint)
         self.fusion = DualFusionFPN(config)
         self.decoder = RegionDecoder(config) if config.decoder == "region" else nn.Sequential(conv_norm_act(config.width, config.width, 3), nn.Conv2d(config.width, config.num_classes, 1))
+        self.refiner = None
+        if config.refinement != "none":
+            # All modules are constructed on CPU, before model.to(device).
+            # Seed only the CPU generator: torch.manual_seed would also alter
+            # CUDA generators, which must remain untouched by this branch.
+            with torch.random.fork_rng(devices=[]):
+                torch.random.default_generator.manual_seed(REFINEMENT_INIT_SEED)
+                factory = ContextRefinement if config.refinement == "context" else DetailRefinement
+                self.refiner = factory(config.width)
 
     def backbone_parameters(self) -> Iterator[nn.Parameter]:
         return self.encoder.parameters()
@@ -175,20 +214,31 @@ class LunarSegmentationModel(nn.Module):
     def head_parameters(self) -> Iterator[nn.Parameter]:
         yield from self.fusion.parameters()
         yield from self.decoder.parameters()
+        if self.refiner is not None:
+            yield from self.refiner.parameters()
 
     def freeze_backbones(self, frozen: bool = True) -> None:
         self.encoder.freeze(frozen)
         self.encoder.train(self.training)
 
+    def set_gradient_checkpointing(self, enabled: bool = True) -> None:
+        """Enable training-only activation recomputation; state/config unchanged."""
+        if type(enabled) is not bool:
+            raise ValueError("Gradient checkpointing must be enabled with a boolean")
+        self._gradient_checkpointing = enabled
+
+    def _encoder_checkpoint_contexts(self):
+        return nullcontext(), _isolated_batchnorm_recomputation(self.encoder)
+
     @property
     def pretrained_report(self) -> dict:
         return {"convnext": self.encoder.convnext.pretrained_report, "mobile": self.encoder.mobile.pretrained_report if self.encoder.mobile else None}
 
-    def forward(self, images: Tensor) -> dict:
+    def forward(self, images: Tensor, return_features: bool = False) -> dict:
         expected = (self.config.input_size, self.config.input_size)
         if images.ndim != 4 or images.shape[1] != 3 or tuple(images.shape[-2:]) != expected:
             raise ValueError(f"Expected Bx3x{expected[0]}x{expected[1]} normalized RGB; got {tuple(images.shape)}")
-        return self._forward_at_size(images, expected)
+        return self._forward_at_size(images, expected, return_features=return_features)
 
     def forward_inference(self, images: Tensor) -> dict:
         """Evaluate variable spatial sizes without changing their image scale.
@@ -212,19 +262,40 @@ class LunarSegmentationModel(nn.Module):
             output["semantic_logits"] = output["semantic_logits"][..., :height, :width]
         return output
 
-    def _forward_at_size(self, images: Tensor, expected: tuple[int, int]) -> dict:
-        mask_features, pyramid = self.fusion(*self.encoder(images))
+    def _forward_at_size(self, images: Tensor, expected: tuple[int, int], return_features: bool = False) -> dict:
+        recompute = self._gradient_checkpointing and self.training and torch.is_grad_enabled()
+        if recompute and any(parameter.requires_grad for parameter in self.encoder.parameters()):
+            features = checkpoint(self.encoder, images, use_reentrant=False,
+                                  context_fn=self._encoder_checkpoint_contexts)
+        else:
+            features = self.encoder(images)
+        if recompute and any(parameter.requires_grad for parameter in self.fusion.parameters()):
+            mask_features, pyramid = checkpoint(self.fusion, *features, use_reentrant=False)
+        else:
+            mask_features, pyramid = self.fusion(*features)
         if self.config.decoder == "pixel":
             scores = F.interpolate(self.decoder(mask_features), size=expected, mode="bilinear", align_corners=False)
-            return {"semantic_logits": scores}
-        output = self.decoder(mask_features, pyramid)
-        classes = output["pred_logits"].float().softmax(dim=-1)[..., :self.config.num_classes]
-        masks = output["pred_masks"].float().sigmoid()
-        scores = torch.einsum("bqc,bqhw->bchw", classes, masks)
-        # Resize continuous five-class evidence before normalization / argmax.
-        scores = F.interpolate(scores, size=expected, mode="bilinear", align_corners=False)
-        scores = scores.clamp_min(1e-8)
-        output["semantic_logits"] = (scores / scores.sum(dim=1, keepdim=True)).log()
+            output = {"semantic_logits": scores}
+        else:
+            output = self.decoder(mask_features, pyramid)
+            classes = output["pred_logits"].float().softmax(dim=-1)[..., :self.config.num_classes]
+            masks = output["pred_masks"].float().sigmoid()
+            scores = torch.einsum("bqc,bqhw->bchw", classes, masks)
+            # Resize continuous five-class evidence before normalization / argmax.
+            scores = F.interpolate(scores, size=expected, mode="bilinear", align_corners=False)
+            scores = scores.clamp_min(1e-8)
+            output["semantic_logits"] = (scores / scores.sum(dim=1, keepdim=True)).log()
+        if self.refiner is not None:
+            original = output["semantic_logits"]
+            probabilities = None
+            if self.config.refinement == "detail":
+                # Region semantics already are normalized log probabilities.
+                # Recover those probabilities for the gate; never softmax the
+                # unnormalized class-mask evidence or replace the identity path.
+                probabilities = original.float().exp() if self.config.decoder == "region" else original.float().softmax(1)
+            output["semantic_logits"] = self.refiner(mask_features, images, original, probabilities)
+        if return_features:
+            output["mask_features"] = mask_features
         return output
 
 

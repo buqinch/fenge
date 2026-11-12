@@ -243,6 +243,35 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
   --config config/evaluate_random80_4000_2000_2000_epoch005_multiscale.json
 ```
 
+### 三种先验与原图细节独立实验（原始预训练起点）
+
+本轮按用户更正，**所有组都从原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 权重开始**，不加载第 29 轮或其他已训练的分割检查点。融合层、FPN、区域解码器以 seed 42 重新初始化；这些共同参数的初始 SHA256 均为 `48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`。新增模块使用隔离随机数，不改变共同主体或数据顺序。
+
+| 实验 | 配置 | 比较对象 | 唯一主要变化 |
+|---|---|---|---|
+| control | [配置](config/dual_region_priors_control_1024.json) | — | 原双 CNN 区域模型 |
+| affinity | [配置](config/dual_region_priors_affinity_1024.json) | control | 训练专用语义亲和辅助监督 |
+| context | [配置](config/dual_region_priors_context_1024.json) | control | 多尺度局部—周围和方向关系修正 |
+| detail | [配置](config/dual_region_priors_detail_1024.json) | control | 原 RGB 高分辨率细节残差修正 |
+| geometry_control | [配置](config/dual_region_priors_geometry_control_1024.json) | — | 两幅几何视图，平均两份完整 GT 损失 |
+| geometry | [配置](config/dual_region_priors_geometry_1024.json) | geometry_control | 同样两份 GT 损失，再加对齐概率 JS |
+
+六组统一使用固定 **4000 原图＋2000 坑增强＋2000 山岩增强**、原来的 **1601 张验证图**；输入 1024，实际 **batch 4、累积 2、有效 batch 8**。最多 30 轮，前 3 轮冻结骨干；原头部学习率 `1e-4`、骨干 `1e-5`，新增可训练模块 `1e-4`。训练更新上限为 30000 次。每轮用单尺度原图、无分数校准的完整验证 mIoU 选最佳；不能将这一分数与旧四视图 TTA 分数直接比较。外部队列继续读取已提交的验证 JSON，从第 4 轮开始，连续 5 轮未累计提高 0.05 个百分点则停止。各组可能在不同轮次早停，汇总同时给出共同更新预算内的对照。
+
+**语义亲和**：FPN 128 通道投影为 32 通道，利用两端特征均值、绝对差、乘积与归一化相对位置预测同类／异类。GT 始终在原图尺寸读取，每图每个地表类别最多选 2048 个候选锚点，小类别不足时全部保留；在原图 8／16／32／64 像素邻域构造候选、去除反向重复，再按正负关系、类别对、距离平衡选取最多 512 对。不把颜色相近规定为同类，不删除边界或小岩石来凑配额；配额不足不重复填充。辅助 BCE 权重起点为 0.05，前 1000 次更新渐增；推理不调用亲和头，原分割监督保留。
+
+**局部—周围关系**：当前 FPN／区域头没有显式方向差分，新增独立的 `context` 选项。在 1/4 特征上保留局部特征，以及 9×9 局部、33×33 外围环、上下左右条带的相对特征，学习五类残差。它表达特征关系，不等同真实高程或光照不变性。
+
+**原图细节**：单独的 `detail` 选项使用全分辨率 8 通道 RGB 分支、半分辨率 32 通道分支，结合 FPN 投影和原五类概率学习门控与修正。`context` 和 `detail` 互斥，末层修正全零初始化。区域头原输出已经是归一化概率的对数；实现为 `new_semantic_logits = old_semantic_logits + sigmoid(gate) * delta`，下游原有 softmax 对应 `p'=p0*exp(g*delta)/sum(...)`，不会对未归一化区域证据再误套 softmax。门控不限制为低置信度像素。
+
+**几何一致性**：独立随机流选择水平翻转、原图 ±16 像素平移、1.0／0.9375 轻度缩放；两主骨干仍接收 1024 输入，填充处 GT 为 255。两幅图均接受完整语义、区域匹配和辅助层监督，损失取平均。JS 权重为 0.05、前 1000 次更新渐增；先将原视图概率映射到变换视图再比较，排除无效区域及缩放时混合类别的插值范围，保留两幅图的真值监督。两个几何组均启用训练激活重计算，并在重算时隔离 MobileNet BatchNorm 缓冲，避免运行统计被重复更新。
+
+实现借鉴 [AAF 的语义邻域关系](https://arxiv.org/abs/1803.10335)、[Gated-SCNN 的语义门控细节](https://arxiv.org/abs/1907.05740)、[SEAM 的等变一致性原则](https://arxiv.org/abs/2004.04581)；这里不是这些论文的原样复现。当前局部—周围差分也不是 [OCR](https://www.microsoft.com/en-us/research/publication/object-contextual-representations-for-semantic-segmentation/) 原方法。
+
+实验计划及状态位于 [prior_ablation](result/prior_ablation/)，每组日志、逐轮指标和权重保存在 `result/dual_region_priors_<实验名>_8000_1024/`。队列入口为 `python code/prior_ablation.py --plan result/prior_ablation/plan.json`；已经启动的队列不需要再次运行。单组可直接传上述 JSON 给 `code/train.py`。所有开关默认关闭，旧检查点可继续严格加载；CPU 统计、坐标对齐、损失与精确续训检查，以及真实 batch 4／1024／全部骨干解冻反向更新和四视图推理检查均已通过，见 [验证记录](result/prior_ablation/verification_runtime.json)。这些运行检查不代表已取得分割提升，结果以完整训练后的对照报告为准。
+
+已于 **2026-11-12 13:42（北京时间）**启动：GPU 0 为 control，GPU 1 为 affinity，GPU 2 为 geometry_control，GPU 4 为 geometry；context 和 detail 排队自动接续。原有 GPU 3 实验保持运行。四组均已实际进入训练、共同初始化哈希及首批原损失核验一致，见 [启动核验](result/prior_ablation/startup_check.json)。实时进度看 [队列状态](result/prior_ablation/state.json) 和 [队列日志](result/prior_ablation/runner.log)，逐轮完成后自动更新 [对照报告](result/prior_ablation/report_zh.md)。
+
 ### 亮度条件诊断：固定第 29 轮 B0
 
 按阴影行动指南先完成起点锁定和诊断。B0 为已完成的 `dual_region_random80_1024` 第 29 轮权重，单尺度 1024、无 TTA、无分数校准；完整固定 1601 张验证集 mIoU **97.4439%**。本次没有增加训练更新，不能与四视图分数相减来表示模块收益。[起点及清单快照](result/shadow_b0_random80_epoch029/baseline_snapshot.json)、[完整统计报告](result/shadow_b0_random80_epoch029/report_zh.md)、[图像审阅](result/shadow_b0_random80_epoch029/visual_review_zh.md)、[阶段决策](result/shadow_b0_random80_epoch029/stage_decision.json) 已保存。

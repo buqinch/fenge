@@ -19,6 +19,7 @@ def confusion_hard_pixel_loss(
     quota: int = 256,
     boundary_radius: int = 3,
     example_limit_per_direction: int = 2,
+    ignore_index: int = -100,
 ) -> tuple[Tensor, dict, list[dict]]:
     """Mine current directional mistakes on full-size continuous semantics.
 
@@ -53,7 +54,7 @@ def confusion_hard_pixel_loss(
     if quota == 0:
         return logits.sum() * 0, stats, []
 
-    ce_map = F.cross_entropy(logits, targets, reduction="none")
+    ce_map = F.cross_entropy(logits, targets, reduction="none", ignore_index=ignore_index)
     ce_flat = ce_map.flatten(1)
     ranks = ce_flat.detach()
     batch, height, width = targets.shape
@@ -148,6 +149,7 @@ class SegmentationCriterion(nn.Module):
         no_object_weight: float = 0.1,
         hard_pixel_weight: float = 0.0,
         hard_pixel_quota: int = 256,
+        ignore_index: int = -100,
     ) -> None:
         super().__init__()
         if num_classes < 2 or num_points < num_classes:
@@ -166,6 +168,9 @@ class SegmentationCriterion(nn.Module):
         self.num_points = num_points
         self.hard_pixel_weight = float(hard_pixel_weight)
         self.hard_pixel_quota = hard_pixel_quota
+        if isinstance(ignore_index, bool) or not isinstance(ignore_index, int) or 0 <= ignore_index < num_classes:
+            raise ValueError("ignore_index must be an integer outside semantic class IDs")
+        self.ignore_index = ignore_index
         self.latest_hard_pixel_stats = {}
         self.latest_hard_examples = []
         eos_weight = torch.ones(num_classes + 1)
@@ -176,19 +181,23 @@ class SegmentationCriterion(nn.Module):
         logits = logits.float()
         if logits.shape[-2:] != targets.shape[-2:]:
             logits = F.interpolate(logits, targets.shape[-2:], mode="bilinear", align_corners=False)
-        ce = F.cross_entropy(logits, targets)
+        valid = targets != self.ignore_index
+        ce = (F.cross_entropy(logits, targets, ignore_index=self.ignore_index)
+              if valid.any() else logits.sum() * 0)
         probabilities = logits.softmax(dim=1)
         # Avoid a full BxCxHxW one-hot target allocation at 1024 resolution.
         intersection, mass, present = [], [], []
         for index in range(self.num_classes):
             truth = targets == index
             pred = probabilities[:, index]
+            if not valid.all():
+                pred = pred * valid
             intersection.append((pred * truth).sum())
             mass.append(pred.sum() + truth.sum())
             present.append(truth.any())
         score = (2 * torch.stack(intersection) + 1) / (torch.stack(mass) + 1)
         keep = torch.stack(present)
-        dice = (1 - score[keep]).mean()
+        dice = (1 - score[keep]).mean() if keep.any() else logits.sum() * 0
         return {"loss_semantic_ce": ce, "loss_semantic_dice": dice}
 
     def _points(self, target: Tensor, labels: Tensor) -> tuple[Tensor, Tensor]:
@@ -201,7 +210,11 @@ class SegmentationCriterion(nn.Module):
             choices = torch.randint(len(locations), (per_class,), device=target.device)
             selected.append(locations[choices])
         remaining = self.num_points - per_class * len(labels)
-        selected.append(torch.randint(flat.numel(), (remaining,), device=target.device))
+        if (flat == self.ignore_index).any():
+            locations = (flat != self.ignore_index).nonzero(as_tuple=False).flatten()
+            selected.append(locations[torch.randint(len(locations), (remaining,), device=target.device)])
+        else:
+            selected.append(torch.randint(flat.numel(), (remaining,), device=target.device))
         indices = torch.cat(selected)
         height, width = target.shape
         x = (indices.remainder(width).float() + 0.5) / width * 2 - 1
@@ -221,6 +234,9 @@ class SegmentationCriterion(nn.Module):
         matched_masks, matched_truth = [], []
         for item in range(batch):
             labels = targets[item].unique(sorted=True)
+            labels = labels[labels != self.ignore_index]
+            if not len(labels):
+                continue
             if len(labels) > queries:
                 raise ValueError("There must be at least as many queries as present semantic classes")
             grid, truth = self._points(targets[item], labels)
@@ -244,7 +260,13 @@ class SegmentationCriterion(nn.Module):
             assigned[item, row] = labels[column]
             matched_masks.append(points[row])
             matched_truth.append(truth[column])
-        classification = F.cross_entropy(class_logits.transpose(1, 2), assigned, weight=self.eos_weight)
+        valid_items = (targets != self.ignore_index).flatten(1).any(1)
+        if not valid_items.any():
+            zero = class_logits.sum() * 0 + mask_logits.sum() * 0
+            return {"loss_region_class": zero, "loss_region_mask": zero, "loss_region_dice": zero}
+        classification = (F.cross_entropy(class_logits.transpose(1, 2), assigned, weight=self.eos_weight)
+                          if valid_items.all() else F.cross_entropy(class_logits[valid_items].transpose(1, 2),
+                                                                   assigned[valid_items], weight=self.eos_weight))
         masks, truth = torch.cat(matched_masks), torch.cat(matched_truth)
         mask_bce = F.binary_cross_entropy_with_logits(masks, truth)
         probabilities = masks.sigmoid()
@@ -256,7 +278,8 @@ class SegmentationCriterion(nn.Module):
     def forward(self, outputs: dict, targets: Tensor) -> dict[str, Tensor]:
         if targets.ndim != 3 or targets.dtype != torch.long:
             raise ValueError("Targets must be int64 class IDs with shape [batch, height, width]")
-        if targets.numel() == 0 or targets.min() < 0 or targets.max() >= self.num_classes:
+        valid = targets != self.ignore_index
+        if targets.numel() == 0 or ((targets < 0) & valid).any() or ((targets >= self.num_classes) & valid).any():
             raise ValueError("Targets contain an invalid semantic class ID")
         self.latest_hard_pixel_stats = {}
         self.latest_hard_examples = []
@@ -276,7 +299,7 @@ class SegmentationCriterion(nn.Module):
             total = total + self.aux_weight * auxiliary
         if self.hard_pixel_weight:
             hard, self.latest_hard_pixel_stats, self.latest_hard_examples = confusion_hard_pixel_loss(
-                outputs["semantic_logits"], targets, quota=self.hard_pixel_quota,
+                outputs["semantic_logits"], targets, quota=self.hard_pixel_quota, ignore_index=self.ignore_index,
             )
             losses["loss_hard_pixels"] = hard
             losses["loss_hard_pixels_weighted"] = self.hard_pixel_weight * hard

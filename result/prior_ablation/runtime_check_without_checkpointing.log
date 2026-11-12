@@ -1,0 +1,55 @@
+/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/_utils.py:831: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
+  return self.fget.__get__(instance, owner)()
+{"mode": "control", "passed": true, "seconds": 2.234884787001647, "max_allocated_bytes": 10587097088}
+{"mode": "context", "passed": true, "seconds": 0.682048520015087, "max_allocated_bytes": 11489061376}
+{"mode": "detail", "passed": true, "seconds": 0.8952003770100418, "max_allocated_bytes": 13148568576}
+{"mode": "affinity", "passed": true, "seconds": 1.0308147619944066, "max_allocated_bytes": 11027406336}
+Traceback (most recent call last):
+  File "/home/lzc/workspace/fenge/code/verify_prior_runtime.py", line 132, in <module>
+    main()
+  File "/home/lzc/workspace/fenge/code/verify_prior_runtime.py", line 84, in main
+    second_predictions = model(second_images)
+                         ^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lzc/workspace/fenge/code/lunarseg/model.py", line 206, in forward
+    return self._forward_at_size(images, expected, return_features=return_features)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lzc/workspace/fenge/code/lunarseg/model.py", line 231, in _forward_at_size
+    mask_features, pyramid = self.fusion(*self.encoder(images))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/lzc/workspace/fenge/code/lunarseg/model.py", line 80, in forward
+    m = self.mobile_projections[index](mobile[index])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/container.py", line 215, in forward
+    input = module(input)
+            ^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/modules/normalization.py", line 279, in forward
+    return F.group_norm(
+           ^^^^^^^^^^^^^
+  File "/home/vrlab/miniconda3/envs/lzc_fenge/lib/python3.11/site-packages/torch/nn/functional.py", line 2558, in group_norm
+    return torch.group_norm(input, num_groups, weight, bias, eps, torch.backends.cudnn.enabled)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 64.00 MiB. GPU 0 has a total capacty of 23.65 GiB of which 18.69 MiB is free. Process 1100365 has 6.44 GiB memory in use. Including non-PyTorch memory, this process has 17.15 GiB memory in use. Of the allocated memory 16.58 GiB is allocated by PyTorch, and 79.93 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF

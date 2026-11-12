@@ -1,0 +1,166 @@
+{
+  "schema": "lusnar_refinement_model_verification_v1",
+  "status": "passed",
+  "recorded_at": "2026-11-12T05:27:54.382890+00:00",
+  "environment": {
+    "python": "3.11.17",
+    "torch": "2.1.1+cu121",
+    "device": "cpu",
+    "gpu_visible": false
+  },
+  "source_sha256": {
+    "code/lunarseg/model.py": "99240e44bd74b40951a812662764f50a3a0628bbe634f6e96721ff520c74f222",
+    "code/lunarseg/refinement.py": "075806722af4d1f5280de6cba184d2cd66d5dda9043eafe2dfba76af7ee6baa7"
+  },
+  "pretrained_initialization_check": {
+    "weights": "real locally loaded DINOv3 ConvNeXt-Tiny and ImageNet MobileNetV3-Large",
+    "seed": 42,
+    "refinement_init_seed": 20261112,
+    "all_three_main_tensor_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+    "encoder_sha256": "78c71a948dc7212357be9c1836d80545954f61f1f5ceb53b74803520c280c790",
+    "fusion_sha256": "8002cfddc3e4f8e6fbcdeef7639e357c19bd5e1c2901d12d77bfd362cb53e3d6",
+    "decoder_sha256": "12147c57aa04c2c94aad7d77cd6f800c7cc74b63fd775a215838b9e10da250d0",
+    "CPU_RNG_after_construction_bitwise_equal": true,
+    "CUDA_reseed_calls_during_construction": 0,
+    "note": "Initialization/RNG hashes and independent directional rectangle checks were executed in the preceding CPU check with the same frozen sources."
+  },
+  "zero_identity": {
+    "none_context_detail_semantic_logits_and_FPN_bitwise_equal": true,
+    "BF16_output_dtype_and_values_preserved": true,
+    "pixel_decoder_identity": true,
+    "return_features_does_not_change_semantics": true
+  },
+  "context_geometry": {
+    "local_kernel": 9,
+    "outer_kernel": 33,
+    "boundary": "replicate",
+    "ring_excludes_local": true,
+    "direction_regions_have_independent_area_denominators": true,
+    "independent_border_and_interior_rectangle_means_passed": true,
+    "constant_response_exact": true
+  },
+  "refinement_checks": {
+    "context": {
+      "nonzero_logit_formula_bitwise_equal": true,
+      "normalized_probability_formula_matches": true,
+      "isolated_refiner_gradient_to_FPN_and_encoder_finite_nonzero": true,
+      "decoder_not_used_by_isolated_loss": true,
+      "full_semantic_CE_backward_finite": true,
+      "new_checkpoint_strict_roundtrip_exact": true
+    },
+    "detail": {
+      "nonzero_logit_formula_bitwise_equal": true,
+      "normalized_probability_formula_matches": true,
+      "isolated_refiner_gradient_to_FPN_and_encoder_finite_nonzero": true,
+      "decoder_not_used_by_isolated_loss": true,
+      "full_semantic_CE_backward_finite": true,
+      "new_checkpoint_strict_roundtrip_exact": true
+    }
+  },
+  "variable_eval_sizes_hw": [
+    [
+      32,
+      32
+    ],
+    [
+      37,
+      51
+    ],
+    [
+      64,
+      96
+    ]
+  ],
+  "variable_eval_zero_identity_exact": true,
+  "detail_actual_tensor_shapes": {
+    "rgb_full": [
+      1,
+      8,
+      64,
+      64
+    ],
+    "rgb_half": [
+      1,
+      32,
+      32,
+      32
+    ],
+    "semantic_projection": [
+      1,
+      32,
+      16,
+      16
+    ],
+    "delta": [
+      1,
+      5,
+      32,
+      32
+    ]
+  },
+  "parameter_partition_all_parameters_once_and_refiner_prefix": true,
+  "old_config_missing_field_defaults_none_and_old_state_strict_exact": true,
+  "illegal_refinement_values_rejected": 3,
+  "limitations": [
+    "CPU checks use small spatial inputs; real 1024 GPU memory/performance/update checks are performed separately by the root agent.",
+    "The zero output layer intentionally gives earlier refiner layers zero gradient on its initial step; branch gradient checks turn on output weights before testing shared-FPN connectivity."
+  ],
+  "activation_checkpointing": {
+    "status": "passed",
+    "recorded_at": "2026-11-12T05:36:27.415846+00:00",
+    "algorithm": "torch checkpoint use_reentrant=False, encoder and fusion; recomputation clones/replaces BN buffers temporarily and restores original references in finally",
+    "default": false,
+    "training_only": true,
+    "runtime_flag_not_saved_in_ModelConfig_or_state_dict": true,
+    "cases": [
+      {
+        "encoder_frozen": false,
+        "two_simultaneous_live_view_graphs": true,
+        "microbatch": 4,
+        "spatial_size": 64,
+        "input_requires_grad": false,
+        "forward_bitwise_equal": true,
+        "gradient_max_abs_difference": 0.0,
+        "gradient_allclose_atol": 2e-06,
+        "gradient_allclose_rtol": 2e-05,
+        "BN_buffers_bitwise_equal": true,
+        "BN_original_references_and_versions_preserved_during_backward": true,
+        "BN_counter_increment_per_two_real_forwards": [
+          2
+        ],
+        "torch_python_numpy_RNG_equal": true,
+        "checkpoint_forward_calls": [
+          "DualCNNEncoder",
+          "DualFusionFPN",
+          "DualCNNEncoder",
+          "DualFusionFPN"
+        ],
+        "eval_and_no_grad_checkpoint_calls": 0
+      },
+      {
+        "encoder_frozen": true,
+        "two_simultaneous_live_view_graphs": true,
+        "microbatch": 4,
+        "spatial_size": 64,
+        "input_requires_grad": false,
+        "forward_bitwise_equal": true,
+        "gradient_max_abs_difference": 0.0,
+        "gradient_allclose_atol": 2e-06,
+        "gradient_allclose_rtol": 2e-05,
+        "BN_buffers_bitwise_equal": true,
+        "BN_original_references_and_versions_preserved_during_backward": true,
+        "BN_counter_increment_per_two_real_forwards": [
+          0
+        ],
+        "torch_python_numpy_RNG_equal": true,
+        "checkpoint_forward_calls": [
+          "DualFusionFPN",
+          "DualFusionFPN"
+        ],
+        "eval_and_no_grad_checkpoint_calls": 0
+      }
+    ],
+    "invalid_setter_values_rejected": 3,
+    "limitation": "CPU small inputs only; root separately verifies actual 1024 GPU memory and update."
+  }
+}

@@ -1,0 +1,1157 @@
+{
+  "passed": true,
+  "partial": true,
+  "scope": "real execution checks only; no reported trained score",
+  "device": "cuda:0",
+  "gpu": "NVIDIA GeForce RTX 4090",
+  "cases": [
+    {
+      "mode": "control",
+      "passed": true,
+      "input_shape": [
+        4,
+        3,
+        1024,
+        1024
+      ],
+      "original_pretrained": true,
+      "gradient_checkpointing": false,
+      "common_initial_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+      "zero_initial_output_equal": true,
+      "loss": 16.925220489501953,
+      "gradient_l1": {
+        "convnext": 74442.08390194923,
+        "mobile": 1255.6635801313823,
+        "fusion": 21235.055440038443,
+        "decoder": 11475.307153335889
+      },
+      "four_view_inference_finite_normalized": true,
+      "seconds": 2.08988637800212,
+      "max_allocated_bytes": 10587097088
+    },
+    {
+      "mode": "context",
+      "passed": true,
+      "input_shape": [
+        4,
+        3,
+        1024,
+        1024
+      ],
+      "original_pretrained": true,
+      "gradient_checkpointing": false,
+      "common_initial_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+      "zero_initial_output_equal": true,
+      "loss": 16.925222396850586,
+      "gradient_l1": {
+        "convnext": 74452.09010435641,
+        "mobile": 1255.8257806168258,
+        "fusion": 21236.420753598213,
+        "decoder": 11475.349866038188,
+        "refiner": 5.581660270690918
+      },
+      "four_view_inference_finite_normalized": true,
+      "seconds": 0.9526795130223036,
+      "max_allocated_bytes": 11506100736
+    },
+    {
+      "mode": "detail",
+      "passed": true,
+      "input_shape": [
+        4,
+        3,
+        1024,
+        1024
+      ],
+      "original_pretrained": true,
+      "gradient_checkpointing": false,
+      "common_initial_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+      "zero_initial_output_equal": true,
+      "loss": 16.925220489501953,
+      "gradient_l1": {
+        "convnext": 74445.79056829214,
+        "mobile": 1255.655734983622,
+        "fusion": 21237.024309694767,
+        "decoder": 11475.658473971067,
+        "refiner": 6.003508567810059
+      },
+      "four_view_inference_finite_normalized": true,
+      "seconds": 0.7581337790179532,
+      "max_allocated_bytes": 13166918656
+    },
+    {
+      "mode": "affinity",
+      "passed": true,
+      "input_shape": [
+        4,
+        3,
+        1024,
+        1024
+      ],
+      "original_pretrained": true,
+      "gradient_checkpointing": false,
+      "common_initial_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+      "zero_initial_output_equal": true,
+      "loss": 16.959945678710938,
+      "gradient_l1": {
+        "convnext": 74463.43131970614,
+        "mobile": 1255.8083107659622,
+        "fusion": 21235.62104600668,
+        "decoder": 11475.215193354525,
+        "affinity": 0.15329642314463854
+      },
+      "four_view_inference_finite_normalized": true,
+      "seconds": 0.9701154089998454,
+      "max_allocated_bytes": 11030289920,
+      "affinity_feature_gradient_l1": 0.5949043035507202,
+      "affinity_loss": 0.6945199966430664,
+      "affinity_statistics": {
+        "schema": "semantic_affinity_stats_v1",
+        "batch_size": 4,
+        "selected_positive_pairs": 1024,
+        "selected_negative_pairs": 1024,
+        "valid_image_count": 4,
+        "gt_resolution_sampling": true,
+        "images": [
+          {
+            "sample_key": "Moon_3/1693290472399432960/1693290472399432960",
+            "epoch": 1,
+            "original_hw": [
+              1024,
+              1024
+            ],
+            "positive_count": 256,
+            "negative_count": 256,
+            "candidate_counts": {
+              "0-0@8": 16050,
+              "0-0@16": 15860,
+              "0-0@32": 15356,
+              "0-0@64": 14506,
+              "0-1@8": 2582,
+              "0-1@16": 4160,
+              "0-1@32": 5876,
+              "0-1@64": 7396,
+              "0-3@8": 1280,
+              "0-3@16": 2344,
+              "0-3@32": 4091,
+              "0-3@64": 4817,
+              "1-1@8": 12225,
+              "1-1@16": 9713,
+              "1-1@32": 6336,
+              "1-1@64": 2588,
+              "1-3@8": 1421,
+              "1-3@16": 2666,
+              "1-3@32": 4269,
+              "1-3@64": 3460,
+              "3-3@8": 12232,
+              "3-3@16": 9121,
+              "3-3@32": 4045,
+              "3-3@64": 2897
+            },
+            "candidate_count": 165291,
+            "selected_by_class_pair": {
+              "0-0": 85,
+              "1-1": 84,
+              "3-3": 87,
+              "1-3": 86,
+              "0-1": 86,
+              "0-3": 84
+            },
+            "selected_by_distance": {
+              "16": 128,
+              "8": 128,
+              "64": 127,
+              "32": 129
+            },
+            "boundary_endpoint_pairs": 200,
+            "boundary_radius": 3,
+            "duplicate_unordered_pairs": 0,
+            "sampling_sha256": "278c3e24bf3ac232143e9795b66a93973f49c7a93928527bb5834f79d6f3404e",
+            "selected_pairs_preview": [
+              {
+                "xyxy": [
+                  374,
+                  906,
+                  390,
+                  922
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  220,
+                  288,
+                  228,
+                  288
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  955,
+                  613,
+                  1019,
+                  613
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  991,
+                  367,
+                  991,
+                  375
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  306,
+                  251,
+                  274,
+                  283
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  70,
+                  262,
+                  102,
+                  262
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  447,
+                  554,
+                  447,
+                  586
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  730,
+                  246,
+                  730,
+                  262
+                ],
+                "same_class": true
+              }
+            ],
+            "sampling_reliability": {
+              "gt_resolution": "original",
+              "no_downsampled_gt": true,
+              "boundary_points_removed": false,
+              "sky_and_ignore_endpoints_excluded": true,
+              "sampling_without_replacement": true,
+              "quota_shortage_repeated": false,
+              "candidate_domain": "unordered 8-direction pairs from bounded original-GT class-balanced anchors at radii8/16/32/64",
+              "anchor_limit_per_class": 2048,
+              "anchors_by_class": {
+                "0": {
+                  "available_pixels": 743695,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "1": {
+                  "available_pixels": 22204,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "2": {
+                  "available_pixels": 0,
+                  "selected_anchors": 0,
+                  "all_class_pixels_preserved": true
+                },
+                "3": {
+                  "available_pixels": 27466,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                }
+              },
+              "rare_class_definition": "class pixel count<=anchor_limit; all its pixels are anchors",
+              "candidate_counts_cover_full_image_pairs": false,
+              "balance_domain": "available class-pair x radius strata within each sign",
+              "physical_instance_or_shadow_supervision": false
+            },
+            "positive_loss": 0.8030785322189331,
+            "negative_loss": 0.5855540037155151,
+            "valid_sign_groups": 2
+          },
+          {
+            "sample_key": "Moon_5/1693360338783701504/1693360338783701504",
+            "epoch": 1,
+            "original_hw": [
+              1024,
+              1024
+            ],
+            "positive_count": 256,
+            "negative_count": 256,
+            "candidate_counts": {
+              "0-0@8": 15952,
+              "0-0@16": 15632,
+              "0-0@32": 15188,
+              "0-0@64": 14455,
+              "0-1@8": 4205,
+              "0-1@16": 7091,
+              "0-1@32": 10018,
+              "0-1@64": 9442,
+              "1-1@8": 11650,
+              "1-1@16": 8584,
+              "1-1@32": 4704,
+              "1-1@64": 2607
+            },
+            "candidate_count": 119528,
+            "selected_by_class_pair": {
+              "1-1": 128,
+              "0-0": 128,
+              "0-1": 256
+            },
+            "selected_by_distance": {
+              "32": 128,
+              "64": 128,
+              "8": 128,
+              "16": 128
+            },
+            "boundary_endpoint_pairs": 208,
+            "boundary_radius": 3,
+            "duplicate_unordered_pairs": 0,
+            "sampling_sha256": "93656bb87e0a00d16cfae3a85205aaeb8df15fb6e329e8fd3438b582361f655f",
+            "selected_pairs_preview": [
+              {
+                "xyxy": [
+                  602,
+                  312,
+                  634,
+                  312
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  532,
+                  385,
+                  500,
+                  417
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  656,
+                  871,
+                  592,
+                  935
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  779,
+                  280,
+                  771,
+                  288
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  377,
+                  823,
+                  393,
+                  839
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  193,
+                  369,
+                  209,
+                  369
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  72,
+                  328,
+                  136,
+                  328
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  263,
+                  533,
+                  255,
+                  541
+                ],
+                "same_class": true
+              }
+            ],
+            "sampling_reliability": {
+              "gt_resolution": "original",
+              "no_downsampled_gt": true,
+              "boundary_points_removed": false,
+              "sky_and_ignore_endpoints_excluded": true,
+              "sampling_without_replacement": true,
+              "quota_shortage_repeated": false,
+              "candidate_domain": "unordered 8-direction pairs from bounded original-GT class-balanced anchors at radii8/16/32/64",
+              "anchor_limit_per_class": 2048,
+              "anchors_by_class": {
+                "0": {
+                  "available_pixels": 755127,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "1": {
+                  "available_pixels": 32468,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "2": {
+                  "available_pixels": 0,
+                  "selected_anchors": 0,
+                  "all_class_pixels_preserved": true
+                },
+                "3": {
+                  "available_pixels": 0,
+                  "selected_anchors": 0,
+                  "all_class_pixels_preserved": true
+                }
+              },
+              "rare_class_definition": "class pixel count<=anchor_limit; all its pixels are anchors",
+              "candidate_counts_cover_full_image_pairs": false,
+              "balance_domain": "available class-pair x radius strata within each sign",
+              "physical_instance_or_shadow_supervision": false
+            },
+            "positive_loss": 0.7925727367401123,
+            "negative_loss": 0.5899561643600464,
+            "valid_sign_groups": 2
+          },
+          {
+            "sample_key": "Moon_3/1693290411712023552/random80_s42_crater_0129",
+            "epoch": 1,
+            "original_hw": [
+              1024,
+              1024
+            ],
+            "positive_count": 256,
+            "negative_count": 256,
+            "candidate_counts": {
+              "0-0@8": 16037,
+              "0-0@16": 15763,
+              "0-0@32": 15224,
+              "0-0@64": 14250,
+              "0-1@8": 6396,
+              "0-1@16": 8153,
+              "0-1@32": 9745,
+              "0-1@64": 8644,
+              "0-2@8": 724,
+              "0-2@16": 1360,
+              "0-2@32": 2665,
+              "0-2@64": 4930,
+              "0-3@8": 756,
+              "0-3@16": 1401,
+              "0-3@32": 2852,
+              "0-3@64": 5282,
+              "1-1@8": 7422,
+              "1-1@16": 4684,
+              "1-1@32": 1456,
+              "1-1@64": 577,
+              "1-2@64": 27,
+              "1-3@8": 1236,
+              "1-3@16": 2550,
+              "1-3@32": 4043,
+              "1-3@64": 4661,
+              "2-2@8": 15395,
+              "2-2@16": 14669,
+              "2-2@32": 13204,
+              "2-2@64": 10444,
+              "2-3@64": 159,
+              "3-3@8": 14334,
+              "3-3@16": 12674,
+              "3-3@32": 9510,
+              "3-3@64": 4394
+            },
+            "candidate_count": 235621,
+            "selected_by_class_pair": {
+              "3-3": 64,
+              "0-0": 64,
+              "2-2": 64,
+              "1-1": 64,
+              "0-1": 57,
+              "0-3": 56,
+              "1-3": 57,
+              "0-2": 56,
+              "2-3": 15,
+              "1-2": 15
+            },
+            "selected_by_distance": {
+              "8": 121,
+              "16": 121,
+              "32": 120,
+              "64": 150
+            },
+            "boundary_endpoint_pairs": 217,
+            "boundary_radius": 3,
+            "duplicate_unordered_pairs": 0,
+            "sampling_sha256": "f12cb560006bef236c1e21127b30c292767f39b85488c538940d097c5ab986d8",
+            "selected_pairs_preview": [
+              {
+                "xyxy": [
+                  839,
+                  153,
+                  847,
+                  153
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  972,
+                  604,
+                  988,
+                  604
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  860,
+                  549,
+                  852,
+                  557
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  717,
+                  687,
+                  749,
+                  687
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  914,
+                  288,
+                  978,
+                  288
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  864,
+                  269,
+                  872,
+                  269
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  507,
+                  180,
+                  507,
+                  196
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  387,
+                  152,
+                  451,
+                  152
+                ],
+                "same_class": true
+              }
+            ],
+            "sampling_reliability": {
+              "gt_resolution": "original",
+              "no_downsampled_gt": true,
+              "boundary_points_removed": false,
+              "sky_and_ignore_endpoints_excluded": true,
+              "sampling_without_replacement": true,
+              "quota_shortage_repeated": false,
+              "candidate_domain": "unordered 8-direction pairs from bounded original-GT class-balanced anchors at radii8/16/32/64",
+              "anchor_limit_per_class": 2048,
+              "anchors_by_class": {
+                "0": {
+                  "available_pixels": 783527,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "1": {
+                  "available_pixels": 7289,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "2": {
+                  "available_pixels": 83382,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "3": {
+                  "available_pixels": 58745,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                }
+              },
+              "rare_class_definition": "class pixel count<=anchor_limit; all its pixels are anchors",
+              "candidate_counts_cover_full_image_pairs": false,
+              "balance_domain": "available class-pair x radius strata within each sign",
+              "physical_instance_or_shadow_supervision": false
+            },
+            "positive_loss": 0.7940012812614441,
+            "negative_loss": 0.5974849462509155,
+            "valid_sign_groups": 2
+          },
+          {
+            "sample_key": "Moon_3/1693290412587019520/crater_1397",
+            "epoch": 1,
+            "original_hw": [
+              1024,
+              1024
+            ],
+            "positive_count": 256,
+            "negative_count": 256,
+            "candidate_counts": {
+              "0-0@8": 16031,
+              "0-0@16": 15717,
+              "0-0@32": 15037,
+              "0-0@64": 13929,
+              "0-1@8": 6101,
+              "0-1@16": 7877,
+              "0-1@32": 9753,
+              "0-1@64": 8777,
+              "0-2@8": 650,
+              "0-2@16": 1327,
+              "0-2@32": 2673,
+              "0-2@64": 5074,
+              "0-3@8": 759,
+              "0-3@16": 1436,
+              "0-3@32": 2855,
+              "0-3@64": 5396,
+              "1-1@8": 7874,
+              "1-1@16": 5062,
+              "1-1@32": 1712,
+              "1-1@64": 611,
+              "1-3@8": 1224,
+              "1-3@16": 2527,
+              "1-3@32": 4053,
+              "1-3@64": 5005,
+              "2-2@8": 15372,
+              "2-2@16": 14561,
+              "2-2@32": 13011,
+              "2-2@64": 10109,
+              "2-3@64": 45,
+              "3-3@8": 14395,
+              "3-3@16": 12765,
+              "3-3@32": 9634,
+              "3-3@64": 4504
+            },
+            "candidate_count": 235856,
+            "selected_by_class_pair": {
+              "0-0": 64,
+              "3-3": 64,
+              "2-2": 64,
+              "1-1": 64,
+              "1-3": 61,
+              "0-3": 60,
+              "2-3": 15,
+              "0-2": 60,
+              "0-1": 60
+            },
+            "selected_by_distance": {
+              "8": 125,
+              "32": 124,
+              "16": 124,
+              "64": 139
+            },
+            "boundary_endpoint_pairs": 207,
+            "boundary_radius": 3,
+            "duplicate_unordered_pairs": 0,
+            "sampling_sha256": "6312624a4d5b1567b9d773a410ac47f1dbed92d42cbb622b614eb1b28dd531ac",
+            "selected_pairs_preview": [
+              {
+                "xyxy": [
+                  733,
+                  673,
+                  741,
+                  673
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  596,
+                  223,
+                  628,
+                  223
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  743,
+                  413,
+                  759,
+                  429
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  705,
+                  478,
+                  769,
+                  478
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  177,
+                  275,
+                  177,
+                  283
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  469,
+                  311,
+                  477,
+                  319
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  380,
+                  732,
+                  396,
+                  732
+                ],
+                "same_class": true
+              },
+              {
+                "xyxy": [
+                  513,
+                  294,
+                  529,
+                  294
+                ],
+                "same_class": true
+              }
+            ],
+            "sampling_reliability": {
+              "gt_resolution": "original",
+              "no_downsampled_gt": true,
+              "boundary_points_removed": false,
+              "sky_and_ignore_endpoints_excluded": true,
+              "sampling_without_replacement": true,
+              "quota_shortage_repeated": false,
+              "candidate_domain": "unordered 8-direction pairs from bounded original-GT class-balanced anchors at radii8/16/32/64",
+              "anchor_limit_per_class": 2048,
+              "anchors_by_class": {
+                "0": {
+                  "available_pixels": 666148,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "1": {
+                  "available_pixels": 7824,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "2": {
+                  "available_pixels": 75464,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                },
+                "3": {
+                  "available_pixels": 59928,
+                  "selected_anchors": 2048,
+                  "all_class_pixels_preserved": false
+                }
+              },
+              "rare_class_definition": "class pixel count<=anchor_limit; all its pixels are anchors",
+              "candidate_counts_cover_full_image_pairs": false,
+              "balance_domain": "available class-pair x radius strata within each sign",
+              "physical_instance_or_shadow_supervision": false
+            },
+            "positive_loss": 0.793964147567749,
+            "negative_loss": 0.5995478630065918,
+            "valid_sign_groups": 2
+          }
+        ]
+      }
+    },
+    {
+      "mode": "geometry_control",
+      "passed": true,
+      "input_shape": [
+        4,
+        3,
+        1024,
+        1024
+      ],
+      "original_pretrained": true,
+      "gradient_checkpointing": true,
+      "common_initial_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+      "zero_initial_output_equal": true,
+      "loss": 17.004545211791992,
+      "gradient_l1": {
+        "convnext": 69234.07221633196,
+        "mobile": 1114.2907880349521,
+        "fusion": 20647.900541335344,
+        "decoder": 11140.290949292248
+      },
+      "four_view_inference_finite_normalized": true,
+      "seconds": 1.3089520259818528,
+      "max_allocated_bytes": 10187195904,
+      "js": 0.00015078886644914746,
+      "geometry_statistics": {
+        "valid_pixels_by_image": [
+          918094,
+          1027170,
+          917376,
+          1039374
+        ],
+        "valid_pixels": 3902014,
+        "reduction": "per_image_valid_pixel_mean_then_batch_mean",
+        "schema": "geometry_consistency_stats_v1",
+        "comparison_grid": "transformed_view_B",
+        "probability_softmax_count_per_view": 1,
+        "mapped_probabilities_renormalized": true,
+        "sky_retained": true,
+        "ignored_gt_excluded": true,
+        "pixels_before_stability_by_image": [
+          921600,
+          1027170,
+          921600,
+          1039374
+        ],
+        "excluded_unstable_gt_pixels_by_image": [
+          3506,
+          0,
+          4224,
+          0
+        ],
+        "gt_stability_rule": "all bilinear interpolation mass belongs to transformed GT class",
+        "geometry": [
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_3/1693290472399432960/1693290472399432960",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": false,
+            "dx": 6,
+            "dy": -15,
+            "scale": 0.9375,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              960,
+              960
+            ],
+            "pad_ltrb": [
+              32,
+              32,
+              32,
+              32
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          },
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_5/1693360338783701504/1693360338783701504",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": false,
+            "dx": 7,
+            "dy": -14,
+            "scale": 1.0,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              1024,
+              1024
+            ],
+            "pad_ltrb": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          },
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_3/1693290411712023552/random80_s42_crater_0129",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": true,
+            "dx": -12,
+            "dy": -6,
+            "scale": 0.9375,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              960,
+              960
+            ],
+            "pad_ltrb": [
+              32,
+              32,
+              32,
+              32
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          },
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_3/1693290412587019520/crater_1397",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": true,
+            "dx": 7,
+            "dy": -2,
+            "scale": 1.0,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              1024,
+              1024
+            ],
+            "pad_ltrb": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          }
+        ],
+        "requires_gt_loss_for_both_views": true
+      }
+    },
+    {
+      "mode": "geometry",
+      "passed": true,
+      "input_shape": [
+        4,
+        3,
+        1024,
+        1024
+      ],
+      "original_pretrained": true,
+      "gradient_checkpointing": true,
+      "common_initial_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+      "zero_initial_output_equal": true,
+      "loss": 17.004552841186523,
+      "gradient_l1": {
+        "convnext": 69240.78525109589,
+        "mobile": 1114.311867772085,
+        "fusion": 20648.15039280057,
+        "decoder": 11140.723598437966
+      },
+      "four_view_inference_finite_normalized": true,
+      "seconds": 0.9418028290092479,
+      "max_allocated_bytes": 9274576384,
+      "js": 0.00015078886644914746,
+      "geometry_statistics": {
+        "valid_pixels_by_image": [
+          918094,
+          1027170,
+          917376,
+          1039374
+        ],
+        "valid_pixels": 3902014,
+        "reduction": "per_image_valid_pixel_mean_then_batch_mean",
+        "schema": "geometry_consistency_stats_v1",
+        "comparison_grid": "transformed_view_B",
+        "probability_softmax_count_per_view": 1,
+        "mapped_probabilities_renormalized": true,
+        "sky_retained": true,
+        "ignored_gt_excluded": true,
+        "pixels_before_stability_by_image": [
+          921600,
+          1027170,
+          921600,
+          1039374
+        ],
+        "excluded_unstable_gt_pixels_by_image": [
+          3506,
+          0,
+          4224,
+          0
+        ],
+        "gt_stability_rule": "all bilinear interpolation mass belongs to transformed GT class",
+        "geometry": [
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_3/1693290472399432960/1693290472399432960",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": false,
+            "dx": 6,
+            "dy": -15,
+            "scale": 0.9375,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              960,
+              960
+            ],
+            "pad_ltrb": [
+              32,
+              32,
+              32,
+              32
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          },
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_5/1693360338783701504/1693360338783701504",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": false,
+            "dx": 7,
+            "dy": -14,
+            "scale": 1.0,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              1024,
+              1024
+            ],
+            "pad_ltrb": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          },
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_3/1693290411712023552/random80_s42_crater_0129",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": true,
+            "dx": -12,
+            "dy": -6,
+            "scale": 0.9375,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              960,
+              960
+            ],
+            "pad_ltrb": [
+              32,
+              32,
+              32,
+              32
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          },
+          {
+            "schema": "geometry_view_v1",
+            "sample_key": "Moon_3/1693290412587019520/crater_1397",
+            "epoch": 1,
+            "seed": 4242,
+            "hflip": true,
+            "dx": 7,
+            "dy": -2,
+            "scale": 1.0,
+            "source_hw": [
+              1024,
+              1024
+            ],
+            "resized_hw": [
+              1024,
+              1024
+            ],
+            "pad_ltrb": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "order": "hflip_resize_centerpad_translate",
+            "align_corners": false,
+            "image_resize_antialias": true,
+            "target_resize": "nearest-exact",
+            "image_padding": "replicate",
+            "target_padding": 255
+          }
+        ],
+        "requires_gt_loss_for_both_views": true
+      }
+    }
+  ]
+}
