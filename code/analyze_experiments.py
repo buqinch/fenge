@@ -97,7 +97,7 @@ def scene_statistics(scene, label, image_count=None, require_all_classes=True):
             "top_errors": errors[:5], "crater_flows": crater_flows}
 
 
-def validate_test(path, mode, run, checkpoint_hash, best_epoch):
+def validate_test(path, mode, run, checkpoint_hash, best_epoch, tta_sizes=None):
     value = read_json(path)
     label = str(path)
     require(value.get("image_count") == 5004 and value.get("partial") is False,
@@ -106,10 +106,36 @@ def validate_test(path, mode, run, checkpoint_hash, best_epoch):
     require(value.get("split") == "test" and value.get("evaluation_only") is True,
             f"{label}: expected an explicit evaluation-only test result")
     require(value.get("input_size") == 1024, f"{label}: expected 1024 input")
-    require(value.get("tta_mode") == mode and value.get("test_time_augmentation") is (mode == "hflip"),
+    require(value.get("tta_mode") == mode and value.get("test_time_augmentation") is (mode != "none"),
             f"{label}: incorrect TTA mode")
-    expected_views = ["original", "horizontal_flip"] if mode == "hflip" else ["original"]
-    require(value.get("tta_views") == expected_views, f"{label}: incorrect TTA views")
+    if mode == "multiscale_hflip":
+        require(tta_sizes in ([1024, 768], [1024, 768, 512]) and all(type(size) is int for size in tta_sizes),
+                f"{label}: unexpected multiscale size combination")
+        require(value.get("tta_input_sizes") == tta_sizes and value.get("tta_padded_sizes") == tta_sizes,
+                f"{label}: multiscale content/padded sizes must match the requested exact input sizes")
+        views = [{"input_size": size, "transform": transform}
+                 for size in tta_sizes for transform in ("original", "horizontal_flip")]
+        require(value.get("tta_views") == views and value.get("tta_view_count") == 2 * len(tta_sizes)
+                and value.get("tta_forward_calls_per_batch") == 2 * len(tta_sizes)
+                and value.get("tta_view_weights") == [1.0 / len(views)] * len(views),
+                f"{label}: expected exactly original and horizontal-flip views at every scale")
+        require(value.get("tta_score_domain") == "probability"
+                and value.get("tta_aggregation") == "equal_weight_float32_probability_mean"
+                and value.get("tta_input_resize") == "bilinear_align_corners_false"
+                and value.get("tta_input_antialias") is True
+                and value.get("tta_score_resize") == "softmax_then_inverse_flip_then_bilinear_align_corners_false"
+                and value.get("tta_output_coordinates") == "original_input_image",
+                f"{label}: multiscale scores must use equal view probabilities restored to the original coordinates")
+        require(value.get("tta_padding") == {"multiple": 32, "mode": "replicate", "sides": "right_bottom",
+                    "semantic_logits_cropped_to_unpadded_size_before_softmax": True},
+                f"{label}: incorrect inference padding/crop protocol")
+        batch_size = value.get("batch_size")
+        require(type(batch_size) is int and batch_size > 0
+                and value.get("model_forward_calls") == math.ceil(5004 / batch_size) * len(views),
+                f"{label}: model forward count differs from the full dataset and view count")
+    else:
+        expected_views = ["original", "horizontal_flip"] if mode == "hflip" else ["original"]
+        require(value.get("tta_views") == expected_views, f"{label}: incorrect TTA views")
     require(value.get("continuous_scores_resized_before_argmax") is True,
             f"{label}: missing continuous-score-before-argmax protocol")
     require(value.get("checkpoint_epoch") == best_epoch, f"{label}: evaluated checkpoint is not this run's validation-selected best epoch")
@@ -684,17 +710,181 @@ def report(runs, output, curves, curve_note, reference, comparison="tta"):
     return "\n".join(lines)
 
 
+def multiscale_tta_analysis(run_path, test_paths, output):
+    """Compare complete inference-only results for one validation-selected model."""
+    require(test_paths is not None and len(test_paths) == 2,
+            "multiscale-tta requires the complete four-view and six-view --test-results")
+    paths = [Path(path).resolve() for path in test_paths]
+    require(len(set(paths)) == 2, "Multiscale test result paths must be distinct")
+    run = load_random_split_run(run_path, "同一随机 4:1 训练检查点")
+    directory = Path(run["run_dir"])
+    output = output.resolve()
+    require(not output.is_relative_to(directory) and not directory.is_relative_to(output),
+            "Analysis output and experiment directories must not contain each other")
+    tests = dict(run["tests"])
+    requested = {}
+    for path in paths:
+        value = read_json(path)
+        sizes = value.get("tta_input_sizes")
+        require(sizes in ([1024, 768], [1024, 768, 512]),
+                f"{path}: expected exactly [1024, 768] or [1024, 768, 512]")
+        key = "multiscale_hflip_" + "_".join(map(str, sizes))
+        require(key not in requested, "Both required multiscale combinations must be present once")
+        requested[key] = (path, sizes)
+    require(len(requested) == 2, "Missing one required multiscale size combination")
+    for key, (path, sizes) in sorted(requested.items(), key=lambda row: len(row[1][1])):
+        tests[key] = validate_test(path, "multiscale_hflip", directory,
+                                   run["checkpoint_sha256"], run["best_epoch"], tta_sizes=sizes)
+
+    baseline_identity = None
+    for key, test in tests.items():
+        source = read_json(test["source"])
+        test["pooled_statistics"] = scene_statistics(source, f"{test['source']}/all_test", 5004)
+        identity = source.get("data_identity", {})
+        require(identity.get("split") == "test" and identity.get("partial") is False
+                and identity.get("image_count") == identity.get("complete_image_count") == 5004
+                and identity.get("unique_source_count") == 5004
+                and isinstance(identity.get("ordered_samples_sha256"), str)
+                and len(identity["ordered_samples_sha256"]) == 64,
+                f"{test['source']}: incomplete test identity")
+        manifest = Path(identity.get("manifest", ""))
+        require(manifest.is_absolute() and manifest.is_file()
+                and digest(manifest) == identity.get("manifest_sha256"),
+                f"{test['source']}: test manifest path/SHA256 mismatch")
+        if baseline_identity is None:
+            baseline_identity = identity
+        require(identity == baseline_identity, f"{test['source']}: test sample/GT identity differs from baseline")
+        require(source.get("mountain_alpha", 1.0) == 1.0 and "mountain_score_sweep" not in source,
+                f"{test['source']}: compare uncalibrated scores with mountain alpha=1 only")
+        for scene in SCENES:
+            for name in CLASSES:
+                values = test["scenes"][scene]["classes"][name]
+                require(values["gt_pixels"] == tests["none"]["scenes"][scene]["classes"][name]["gt_pixels"],
+                        f"{test['source']}/{scene}/{name}: GT confusion-matrix row sum changed")
+                close(source["scenes"][scene].get("class_precision", {}).get(name), values["precision"],
+                      f"{test['source']}/{scene}/{name} precision")
+                close(source["scenes"][scene].get("class_recall", {}).get(name), values["recall"],
+                      f"{test['source']}/{scene}/{name} recall")
+        seconds = source.get("evaluation_seconds")
+        require(seconds is None or (not isinstance(seconds, bool) and isinstance(seconds, (int, float))
+                                   and math.isfinite(seconds) and seconds > 0),
+                f"{test['source']}: invalid evaluation duration")
+        sizes = source.get("tta_input_sizes") if key.startswith("multiscale_") else [1024]
+        views = 1 if key == "none" else 2 * len(sizes)
+        test.update(tta_input_sizes=sizes, tta_view_count=views,
+                    relative_input_pixels_vs_none=sum(size * size for size in sizes) * (1 if key == "none" else 2) / 1024 ** 2,
+                    evaluation_seconds=seconds, batch_size=source.get("batch_size"), amp=source.get("amp"),
+                    tta_metadata={name: value for name, value in source.items() if name.startswith("tta_")})
+    none, hflip = tests["none"], tests["hflip"]
+    for test in tests.values():
+        test["weighted_score_change_vs_none"] = test["weighted_score"] - none["weighted_score"]
+        test["weighted_score_change_vs_hflip"] = test["weighted_score"] - hflip["weighted_score"]
+    summary = {"schema": "lusnar_multiscale_tta_analysis_v1", "state": "complete", "comparison": "multiscale-tta",
+               "created_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
+               "run_dir": run["run_dir"], "checkpoint_epoch": run["best_epoch"],
+               "checkpoint_sha256": run["checkpoint_sha256"], "completed_epochs": run["completed_epochs"],
+               "best_validation_miou": run["best_validation_miou"], "checkpoint_selection_scene": "custom_validation",
+               "checkpoint_selection_uses_test": False, "retrained_for_this_comparison": False,
+               "new_multiscale_modes_selected_on_validation": False, "comparison_requested_on_test": True,
+               "test_is_previously_unseen_holdout": False, "statistical_significance_tested": False,
+               "protocol": {"test_images": 5004, "scene_image_counts": SCENES, "gt_identity": baseline_identity,
+                            "weighted_score": "(Moon_2 + Moon_4 + 2*Moon_9)/4", "mountain_alpha": 1.0,
+                            "official_platform_score": False},
+               "source_files_sha256": run["source_files_sha256"], "tests": tests,
+               "highest_observed_test_view": max(tests, key=lambda key: tests[key]["weighted_score"])}
+    names = {"none": "1024 单视图", "hflip": "1024 水平翻转（2 视图）",
+             "multiscale_hflip_1024_768": "1024+768 水平翻转（4 视图）",
+             "multiscale_hflip_1024_768_512": "1024+768+512 水平翻转（6 视图）"}
+    lines = ["# 同一检查点的多尺度水平翻转测试", "",
+             f"本次复用 `{directory.name}/best.pt`（第 **{run['best_epoch']}** 轮），没有重新训练。"
+             f"该轮由完整 1601 张随机划分验证集的总 mIoU 选择，验证 mIoU 为 {percent(run['best_validation_miou'])}；"
+             "两种新增多尺度 TTA 由用户直接指定在测试集比较，未通过验证集选择这两种模式。", "",
+             f"检查点 SHA256：`{run['checkpoint_sha256']}`。四种方式均覆盖完整 Moon_2/4/9 共 5004 张"
+             "（1597/1320/2087），数据身份和各场景每类真值像素数一致。指标由整数混淆矩阵独立重算。", "",
+             "每个尺度使用原图和水平翻转两次前向，翻转预测先还原到原坐标；连续类别概率恢复到 1024×1024 后等权平均，"
+             "最后执行一次 argmax。1024、768、512 均原尺寸输入两支 CNN，无补边或替代尺寸；山体缩放 α=1。", "",
+             "## 总体结果", "",
+             "S=(Moon_2 mIoU + Moon_4 mIoU + 2×Moon_9 mIoU)/4；变化列单位为百分点。", "",
+             "|推理方式|Moon_2|Moon_4|Moon_9|加权 S|较单视图|较 1024 翻转|",
+             "|---|---:|---:|---:|---:|---:|---:|"]
+    for key, test in tests.items():
+        lines.append(f"|{names[key]}|{percent(test['scenes']['Moon_2']['miou'])}|{percent(test['scenes']['Moon_4']['miou'])}|"
+                     f"{percent(test['scenes']['Moon_9']['miou'])}|{percent(test['weighted_score'])}|"
+                     f"{test['weighted_score_change_vs_none']*100:+.4f}|{test['weighted_score_change_vs_hflip']*100:+.4f}|")
+    lines += ["", "## 各场景类别 IoU", "",
+              "|推理方式|场景|月壤|岩石|撞击坑|山体|天空|", "|---|---|---:|---:|---:|---:|---:|"]
+    rows, matrices = [], []
+    for key, test in tests.items():
+        for scene, values in test["scenes"].items():
+            lines.append("|" + "|".join([names[key], scene] + [percent(values["classes"][name]["iou"]) for name in CLASSES]) + "|")
+            for name, item in values["classes"].items():
+                rows.append({"test_view": key, "tta_sizes": "+".join(map(str, test["tta_input_sizes"])),
+                             "view_count": test["tta_view_count"], "scene": scene, "class": name, **item,
+                             "scene_miou": values["miou"], "weighted_score": test["weighted_score"],
+                             "checkpoint_epoch": run["best_epoch"], "checkpoint_sha256": run["checkpoint_sha256"]})
+            for r, row in enumerate(values["confusion_matrix_gt_rows_pred_cols"]):
+                for c, count in enumerate(row):
+                    matrices.append({"test_view": key, "scene": scene, "gt_class": CLASSES[r],
+                                     "predicted_class": CLASSES[c], "pixels": count})
+    lines += ["", "## Moon_9 精确率、召回率与撞击坑去向", "",
+              "|推理方式|类别|IoU|精确率|召回率|", "|---|---|---:|---:|---:|"]
+    for key, test in tests.items():
+        scene = test["scenes"]["Moon_9"]
+        for name, item in scene["classes"].items():
+            lines.append(f"|{names[key]}|{ZH[name]}|{percent(item['iou'])}|{percent(item['precision'])}|{percent(item['recall'])}|")
+    for key, test in tests.items():
+        scene = test["scenes"]["Moon_9"]
+        crater = scene["classes"]["crater"]
+        flow = scene["crater_flows"]["false_negative_to_regolith"]
+        lines += ["", f"{names[key]}：撞击坑漏检 {crater['fn']:,} 像素，误检 {crater['fp']:,} 像素；"
+                  f"漏检流向月壤 {flow['pixels']:,} 像素，占撞击坑漏检 {percent(flow['fraction_of_crater_false_negatives'])}。"]
+    lines += ["", "## 推理代价与解释范围", "",
+              "|推理方式|每图网络前向次数|输入像素总量/单视图|记录的评估秒数|", "|---|---:|---:|---:|"]
+    for key, test in tests.items():
+        seconds = test["evaluation_seconds"]
+        lines.append(f"|{names[key]}|{test['tta_view_count']}|{test['relative_input_pixels_vs_none']:.4f}×|"
+                     f"{'未记录' if seconds is None else f'{seconds:.2f}'}|")
+    lines += ["", "输入像素总量仅描述计算输入规模，不等同于实际耗时或显存倍数。两种新测试在不同 GPU 并行运行，"
+              "旧测试也未保证相同负载；记录秒数不能用作严格的速度基准。", "",
+              "这是同一模型的推理方式比较。测试集已被查看并用于先前方案比较；本次没有多种子重复或显著性检验，"
+              "不将测试集上最高分模式表述为在独立验证集上选择的结论，也不等同于官方平台成绩。", "",
+              "## 可复核来源", "", "- [逐场景逐类别 IoU、精确率、召回率](metrics.csv)",
+              "- [完整整数混淆矩阵](confusion_matrices.csv)", "- [检查点与来源 SHA256、完整指标](summary.json)"]
+    for key, test in tests.items():
+        lines.append(f"- [{names[key]}原始测试记录]({relative_link(test['source'], output)})")
+    lines.append("")
+    # No output directory or final report is created before all four results
+    # and their shared checkpoint/ground-truth protocol pass the checks above.
+    output.mkdir(parents=True, exist_ok=True)
+    write_csv(output / "metrics.csv", rows, list(rows[0]))
+    write_csv(output / "confusion_matrices.csv", matrices, list(matrices[0]))
+    for filename, text in (("summary.json", json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False) + "\n"),
+                           ("report_zh.md", "\n".join(lines))):
+        temporary = output / (filename + ".tmp")
+        temporary.write_text(text)
+        temporary.replace(output / filename)
+    print(json.dumps({"state": "complete", "report": str(output / "report_zh.md"),
+                      "metrics": str(output / "metrics.csv"), "summary": str(output / "summary.json")}, ensure_ascii=False))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run-off", type=Path, required=True)
+    parser.add_argument("--run-off", type=Path)
     parser.add_argument("--run-on", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=PROJECT / "result" / "analysis")
     parser.add_argument("--reference", type=Path, default=None, help="Optional historical full-test summary JSON")
-    parser.add_argument("--comparison", choices=("tta", "hard-pixels", "random-split"), default="tta")
+    parser.add_argument("--comparison", choices=("tta", "hard-pixels", "random-split", "multiscale-tta"), default="tta")
+    parser.add_argument("--test-results", type=Path, nargs="+", help="Complete four/six-view result JSONs for multiscale-tta")
     parser.add_argument("--reference-tta", choices=("none", "hflip"), default="none",
                         help="Test TTA used to select the old reference recipe in random-split mode")
     args = parser.parse_args(argv)
     try:
+        if args.comparison == "multiscale-tta":
+            require(args.run_off is None and args.reference is None, "multiscale-tta compares one --run-on checkpoint")
+            multiscale_tta_analysis(args.run_on, args.test_results, args.output)
+            return
+        require(args.run_off is not None, f"{args.comparison} requires --run-off")
+        require(args.test_results is None, "--test-results is only supported by multiscale-tta")
         if args.comparison == "random-split":
             require(args.reference is None, "random-split uses --run-off as its explicit reference run")
             old_config = read_json(args.run_off.resolve() / "run_config.json")

@@ -15,7 +15,7 @@ from PIL import Image
 from torch.nn import functional as F
 
 from lunarseg.model import ModelConfig, build_model
-from lunarseg.metrics import adjust_mountain_scores, predict_semantic_scores, tta_metadata
+from lunarseg.metrics import adjust_mountain_scores, predict_semantic_scores, tta_metadata, validate_tta_sizes
 
 
 PALETTE = np.asarray([[187, 70, 156], [232, 250, 80], [120, 0, 200], [173, 69, 31], [34, 201, 248]], dtype=np.uint8)
@@ -30,12 +30,18 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--amp", choices=("none", "bf16", "fp16"), default="none")
-    parser.add_argument("--tta", choices=("none", "hflip"), default="none",
+    parser.add_argument("--tta", choices=("none", "hflip", "multiscale_hflip"), default="none",
                         help="hflip averages original/undo-flipped class probabilities; none keeps single-view inference")
+    parser.add_argument("--tta-sizes", type=int, nargs="+", default=None,
+                        help="Square image sizes for multiscale_hflip, e.g. 1024 768 512")
     parser.add_argument("--mountain-alpha", type=float, default=1.0,
                         help="Multiply final mountain class probability by this positive factor before argmax")
     parser.add_argument("--overlay", action="store_true")
     args = parser.parse_args()
+    try:
+        args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
+    except (ValueError, TypeError) as exc:
+        parser.error(str(exc))
     if not math.isfinite(args.mountain_alpha) or args.mountain_alpha <= 0:
         parser.error("mountain-alpha must be finite and greater than zero")
     device = torch.device(args.device)
@@ -82,7 +88,7 @@ def main() -> None:
             image = (image - mean) / std
             context = torch.autocast("cuda", dtype=dtype) if args.amp != "none" else nullcontext()
             with context:
-                scores = predict_semantic_scores(model, image, tta=args.tta)
+                scores = predict_semantic_scores(model, image, tta=args.tta, tta_sizes=args.tta_sizes)
             # Interpolate continuous class scores before assigning class IDs.
             scores = F.interpolate(scores.float(), size=(original_size[1], original_size[0]), mode="bilinear", align_corners=False)
             scores = adjust_mountain_scores(scores, mountain_alpha=args.mountain_alpha, tta=args.tta)
@@ -113,7 +119,7 @@ def main() -> None:
     summary = {
         "checkpoint": str(args.checkpoint.resolve()), "checkpoint_sha256": digest.hexdigest(),
         "model_config": config.to_dict(), "device": str(device), "amp": args.amp,
-        **tta_metadata(args.tta), "continuous_scores_resized_before_argmax": True,
+        **tta_metadata(args.tta, args.tta_sizes), "continuous_scores_resized_before_argmax": True,
         "mountain_alpha": args.mountain_alpha,
         "mountain_score_adjustment": "Multiply final continuous class-3 probability by alpha after resizing, before argmax; "
                                      "single-view logits/log-probabilities use +log(alpha), hflip probabilities use *alpha; "

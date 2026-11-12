@@ -9,7 +9,7 @@ import torch
 from PIL import Image, ImageDraw, ImageFont
 
 from .data import CLASS_NAMES
-from .metrics import validate_mountain_alpha
+from .metrics import validate_mountain_alpha, tta_metadata, validate_tta_sizes
 
 
 PALETTE = np.asarray([[187, 70, 156], [232, 250, 80], [120, 0, 200],
@@ -66,15 +66,17 @@ class EvaluationImageExporter:
     the confusion matrix, including test labels originally stored in a ZIP.
     """
 
-    def __init__(self, output_root, experiment_name, split, tta, mountain_alpha=1.0):
-        if split not in ("val", "test") or tta not in ("none", "hflip"):
-            raise ValueError("Image exports support val/test and none/hflip")
+    def __init__(self, output_root, experiment_name, split, tta, mountain_alpha=1.0, tta_sizes=None):
+        if split not in ("val", "test"):
+            raise ValueError("Image exports support val/test")
+        self.tta_sizes = validate_tta_sizes(tta, tta_sizes)
         self.output_root = Path(output_root).resolve()
         self.experiment_name = component(experiment_name, "experiment")
         self.split, self.tta = split, tta
         self.mountain_alpha = validate_mountain_alpha(mountain_alpha)
         suffix = f"_mountain_{str(self.mountain_alpha).replace('.', 'p')}" if self.mountain_alpha != 1 else ""
-        self.directory = self.output_root / self.experiment_name / f"{split}_{tta}{suffix}"
+        scale_suffix = "_" + "_".join(map(str, self.tta_sizes)) if self.tta_sizes else ""
+        self.directory = self.output_root / self.experiment_name / f"{split}_{tta}{scale_suffix}{suffix}"
         self.index_path = self.directory / "index.json"
         self.records, self.seen = [], set()
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -84,6 +86,7 @@ class EvaluationImageExporter:
     def _index(self, state):
         return {"schema": "lusnar_evaluation_images_v1", "state": state,
                 "experiment": self.experiment_name, "split": self.split, "tta_mode": self.tta,
+                **tta_metadata(self.tta, self.tta_sizes),
                 "mountain_alpha": self.mountain_alpha,
                 "image_count": len(self.records), "class_names": list(CLASS_NAMES),
                 "palette_rgb": PALETTE.tolist(),

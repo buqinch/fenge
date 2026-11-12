@@ -1,0 +1,330 @@
+{
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "device": "cpu",
+  "multiscale_tta_only": true,
+  "multiscale_tta_checks": {
+    "multiscale_cases": [
+      {
+        "tta_sizes": [
+          1024,
+          768
+        ],
+        "model_forward_calls": 4,
+        "output_shape": [
+          1,
+          5,
+          1024,
+          1024
+        ],
+        "maximum_probability_error_against_independent_mean": 5.960464477539063e-08,
+        "input_downsample_antialias_maximum_differences": {
+          "768": 0.040327250957489014
+        },
+        "adversarial_alternative_maximum_errors": {
+          "missing_inverse_flip": 0.20422714948654175,
+          "average_logits_then_softmax": 0.10746246576309204,
+          "resize_logits_before_softmax": 0.03278183937072754,
+          "unequal_view_weights": 0.10771423578262329,
+          "class_id_voting": 0.6635547876358032
+        },
+        "metadata": {
+          "test_time_augmentation": true,
+          "tta_mode": "multiscale_hflip",
+          "tta_input_sizes": [
+            1024,
+            768
+          ],
+          "tta_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_view_count": 4,
+          "tta_view_weights": [
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          "tta_forward_calls_per_batch": 4,
+          "tta_score_domain": "probability",
+          "tta_aggregation": "equal_weight_float32_probability_mean",
+          "tta_input_resize": "bilinear_align_corners_false",
+          "tta_input_antialias": true,
+          "tta_padded_sizes": [
+            1024,
+            768
+          ],
+          "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+          "tta_output_coordinates": "original_input_image",
+          "tta_padding": {
+            "multiple": 32,
+            "mode": "replicate",
+            "sides": "right_bottom",
+            "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+          }
+        }
+      },
+      {
+        "tta_sizes": [
+          1024,
+          768,
+          512
+        ],
+        "model_forward_calls": 6,
+        "output_shape": [
+          1,
+          5,
+          1024,
+          1024
+        ],
+        "maximum_probability_error_against_independent_mean": 1.1920928955078125e-07,
+        "input_downsample_antialias_maximum_differences": {
+          "768": 0.040327250957489014,
+          "512": 0.024769186973571777
+        },
+        "adversarial_alternative_maximum_errors": {
+          "missing_inverse_flip": 0.22846867144107819,
+          "average_logits_then_softmax": 0.10672587156295776,
+          "resize_logits_before_softmax": 0.030166804790496826,
+          "unequal_view_weights": 0.09647989273071289,
+          "class_id_voting": 0.6517115831375122
+        },
+        "metadata": {
+          "test_time_augmentation": true,
+          "tta_mode": "multiscale_hflip",
+          "tta_input_sizes": [
+            1024,
+            768,
+            512
+          ],
+          "tta_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 512,
+              "transform": "original"
+            },
+            {
+              "input_size": 512,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_view_count": 6,
+          "tta_view_weights": [
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666,
+            0.16666666666666666
+          ],
+          "tta_forward_calls_per_batch": 6,
+          "tta_score_domain": "probability",
+          "tta_aggregation": "equal_weight_float32_probability_mean",
+          "tta_input_resize": "bilinear_align_corners_false",
+          "tta_input_antialias": true,
+          "tta_padded_sizes": [
+            1024,
+            768,
+            512
+          ],
+          "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+          "tta_output_coordinates": "original_input_image",
+          "tta_padding": {
+            "multiple": 32,
+            "mode": "replicate",
+            "sides": "right_bottom",
+            "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+          }
+        }
+      }
+    ],
+    "input_tensor_unchanged": true,
+    "torch_rng_unchanged": true,
+    "legacy_none_preserves_original_tensor_and_dtype": true,
+    "legacy_hflip_bitwise_compatible": true,
+    "softmax_precedes_probability_resize": true,
+    "flips_inverted_before_equal_view_fusion": true,
+    "argmax_and_class_id_voting_are_not_used_for_fusion": true,
+    "invalid_tta_parameter_cases_rejected_before_forward": 13,
+    "real_forward_inference_with_fake_backbone": [
+      {
+        "input_hw": [
+          1024,
+          1024
+        ],
+        "encoder_hw": [
+          1024,
+          1024
+        ],
+        "replicate_pad_right_bottom": [
+          0,
+          0
+        ],
+        "cropped_semantic_hw": [
+          1024,
+          1024
+        ],
+        "experiment_scale": true
+      },
+      {
+        "input_hw": [
+          768,
+          768
+        ],
+        "encoder_hw": [
+          768,
+          768
+        ],
+        "replicate_pad_right_bottom": [
+          0,
+          0
+        ],
+        "cropped_semantic_hw": [
+          768,
+          768
+        ],
+        "experiment_scale": true
+      },
+      {
+        "input_hw": [
+          512,
+          512
+        ],
+        "encoder_hw": [
+          512,
+          512
+        ],
+        "replicate_pad_right_bottom": [
+          0,
+          0
+        ],
+        "cropped_semantic_hw": [
+          512,
+          512
+        ],
+        "experiment_scale": true
+      },
+      {
+        "input_hw": [
+          786,
+          786
+        ],
+        "encoder_hw": [
+          800,
+          800
+        ],
+        "replicate_pad_right_bottom": [
+          14,
+          14
+        ],
+        "cropped_semantic_hw": [
+          786,
+          786
+        ],
+        "experiment_scale": false
+      },
+      {
+        "input_hw": [
+          65,
+          79
+        ],
+        "encoder_hw": [
+          96,
+          96
+        ],
+        "replicate_pad_right_bottom": [
+          17,
+          31
+        ],
+        "cropped_semantic_hw": [
+          65,
+          79
+        ],
+        "experiment_scale": false
+      }
+    ],
+    "nonmultiple_786_metadata_keeps_exact_input_and_reports_800_padding": {
+      "test_time_augmentation": true,
+      "tta_mode": "multiscale_hflip",
+      "tta_input_sizes": [
+        1024,
+        786
+      ],
+      "tta_views": [
+        {
+          "input_size": 1024,
+          "transform": "original"
+        },
+        {
+          "input_size": 1024,
+          "transform": "horizontal_flip"
+        },
+        {
+          "input_size": 786,
+          "transform": "original"
+        },
+        {
+          "input_size": 786,
+          "transform": "horizontal_flip"
+        }
+      ],
+      "tta_view_count": 4,
+      "tta_view_weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "tta_forward_calls_per_batch": 4,
+      "tta_score_domain": "probability",
+      "tta_aggregation": "equal_weight_float32_probability_mean",
+      "tta_input_resize": "bilinear_align_corners_false",
+      "tta_input_antialias": true,
+      "tta_padded_sizes": [
+        1024,
+        800
+      ],
+      "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+      "tta_output_coordinates": "original_input_image",
+      "tta_padding": {
+        "multiple": 32,
+        "mode": "replicate",
+        "sides": "right_bottom",
+        "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+      }
+    },
+    "training_mode_and_invalid_adapter_inputs_rejected": 5,
+    "size_786_is_only_a_padding_edge_case_not_an_experiment_scale": true
+  },
+  "status": "passed"
+}

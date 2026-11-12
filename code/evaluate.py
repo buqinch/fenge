@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import time
 
 import torch
 from torch.utils.data import DataLoader
 
 from lunarseg.data import DEFAULT_MANIFEST, DEFAULT_TEST_MANIFEST, LunarDataset, sha256_file
-from lunarseg.metrics import evaluate_loader, validate_mountain_alpha
+from lunarseg.metrics import evaluate_loader, validate_mountain_alpha, validate_tta_sizes
 from lunarseg.model import ModelConfig, build_model
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -30,8 +31,12 @@ def main(argv=None):
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--amp", choices=("bf16", "fp16", "none"), default="bf16")
-    parser.add_argument("--tta", choices=("none", "hflip"), default="none",
+    parser.add_argument("--tta", choices=("none", "hflip", "multiscale_hflip"), default="none",
                         help="none or original plus horizontal-flip continuous-score averaging")
+    parser.add_argument("--tta-sizes", type=int, nargs="+", default=None,
+                        help="Square image sizes for multiscale_hflip, e.g. 1024 768 512")
+    parser.add_argument("--progress-every", type=int, default=0,
+                        help="Print progress after this many batches; 0 disables progress logging")
     parser.add_argument("--mountain-alpha", type=float, default=1.0,
                         help="Multiply only the final mountain score by this positive factor before argmax")
     parser.add_argument("--mountain-alphas", type=float, nargs="+", default=None,
@@ -48,9 +53,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not args.checkpoint:
         parser.error("--checkpoint is required")
-    if args.batch_size < 1 or args.workers < 0:
-        parser.error("batch-size must be positive and workers nonnegative")
+    if args.batch_size < 1 or args.workers < 0 or args.progress_every < 0:
+        parser.error("batch-size must be positive; workers and progress-every must be nonnegative")
     try:
+        args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
         args.mountain_alpha = validate_mountain_alpha(args.mountain_alpha)
         if args.mountain_alphas is not None:
             args.mountain_alphas = [validate_mountain_alpha(a) for a in args.mountain_alphas]
@@ -93,35 +99,45 @@ def main(argv=None):
     if args.save_images:
         from lunarseg.visualization import EvaluationImageExporter
         image_exporter = EvaluationImageExporter(path(args.image_output_root), checkpoint_path.parent.name,
-                                                 args.split, args.tta, mountain_alpha=args.mountain_alpha)
+                                                 args.split, args.tta, mountain_alpha=args.mountain_alpha,
+                                                 tta_sizes=args.tta_sizes)
+    evaluation_started = time.perf_counter()
     result = evaluate_loader(model, loader, device, args.amp, tta=args.tta, image_exporter=image_exporter,
-                             mountain_alpha=args.mountain_alpha, mountain_alphas=args.mountain_alphas)
+                             mountain_alpha=args.mountain_alpha, mountain_alphas=args.mountain_alphas,
+                             tta_sizes=args.tta_sizes, progress_every=args.progress_every)
+    view_protocol = (f"sizes {args.tta_sizes}, original + horizontal flip at each size, equal view probability averaging"
+                     if args.tta == "multiscale_hflip" else
+                     f"{config.input_size} original + horizontal-flip score averaging" if args.tta == "hflip" else "single view")
     result.update(checkpoint=str(checkpoint_path.resolve()), checkpoint_sha256=sha256_file(checkpoint_path),
                   checkpoint_epoch=checkpoint.get("epoch"), split=args.split,
+                  evaluation_seconds=time.perf_counter() - evaluation_started,
                   mountain_alpha=args.mountain_alpha,
                   mountain_score_adjustment="Only mountain probability multiplied by alpha after final resize, before argmax; not a threshold",
                   batch_size=args.batch_size, amp=args.amp,
                   cudnn_deterministic=True, cudnn_benchmark=False,
                   checkpoint_partial_training=checkpoint.get("partial", False),
                   protocol=("Independent scene confusion matrices, GT-present class mean; "
-                            + (f"{config.input_size} original + horizontal-flip score averaging" if args.tta == "hflip" else "single view")
-                            + "; no label postprocessing"),
+                            + view_protocol + "; no label postprocessing"),
                   evaluation_only=True)
     if image_exporter is not None:
         result["saved_images"] = image_exporter.finalize(result["image_count"], metadata={
             "checkpoint": result["checkpoint"], "checkpoint_sha256": result["checkpoint_sha256"],
             "checkpoint_epoch": result["checkpoint_epoch"], "input_size": config.input_size,
+            "tta_input_sizes": args.tta_sizes,
             "mountain_alpha": args.mountain_alpha,
             "partial": result["partial"], "continuous_scores_resized_before_argmax": True})
     calibration_suffix = ("_mountain_sweep" if args.mountain_alphas is not None else
                           f"_mountain_{str(args.mountain_alpha).replace('.', 'p')}" if args.mountain_alpha != 1 else "")
-    suffix = ("_hflip" if args.tta == "hflip" else "") + calibration_suffix + ("_partial" if dataset.partial else "")
+    tta_suffix = ("_multiscale_hflip_" + "_".join(map(str, args.tta_sizes)) if args.tta == "multiscale_hflip"
+                  else "_hflip" if args.tta == "hflip" else "")
+    suffix = tta_suffix + calibration_suffix + ("_partial" if dataset.partial else "")
     output = path(args.output) if args.output else checkpoint_path.parent / f"{args.split}{suffix}_metrics.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(output.suffix + ".tmp")
     temporary.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n")
     temporary.replace(output)
     printed = {"output": str(output), "image_count": result["image_count"], "partial": result["partial"],
+                      "tta_mode": args.tta, "tta_input_sizes": args.tta_sizes,
                       "miou": result["miou"], "scene_miou": {s: v["miou"] for s, v in result["scenes"].items()},
                       "weighted_score": result.get("weighted_score")}
     if "saved_images" in result:

@@ -303,7 +303,7 @@ python code/evaluate.py --checkpoint result/dual_region_balanced8000_bs8_tta/bes
 python code/evaluate.py --checkpoint result/dual_region_balanced8000_bs8_tta/best.pt --split test --tta hflip
 ```
 
-TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`）；独立评估和推理使用 `--tta none|hflip`。当前 `hflip` 是 **左右镜像**，保持上下方向及 1024×1024 尺寸，每张图使用原图和镜像图共两个视图。
+TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`）；独立评估和推理使用 `--tta none|hflip|multiscale_hflip`。`hflip` 是 **左右镜像**，保持上下方向及 1024×1024 尺寸，每张图使用原图和镜像图共两个视图。
 
 1. 原图通过同一个完整模型，得到每个像素的五类概率 `P_original`。
 2. 输入沿宽度翻转：`images.flip(-1)`。坐标 `(x, y)` 对应 `(1023-x, y)`，镜像图再次通过该模型。
@@ -311,6 +311,17 @@ TTA 开关：训练期评估使用 `--val-tta none|hflip`（配置键 `val_tta`�
 4. 两份概率各占 50%，计算 `P_final = (P_original + P_flip_back) / 2`，需要时将连续分数插值到目标尺寸，最后 `argmax` 得到类别。
 
 实现见 [predict_semantic_scores](code/lunarseg/metrics.py)。概率在 float32 下平均，两次前向共享同一套模型权重。TTA 用于验证和推理；训练中的随机水平翻转由数据增强开关单独控制。当前第 29 轮检查点的同权重对照见 README 顶部。
+
+多尺度模式通过 `--tta multiscale_hflip --tta-sizes 1024 768` 指定尺寸；再追加 `512` 即为三尺度。每个尺度均运行原图和水平翻转，因此两尺度为 4 个视图、三尺度为 6 个视图。各尺度都从同一 1024 输入以双线性、抗锯齿方式缩放，翻转预测先恢复方向，五类概率再以双线性插值恢复到 1024，最后对全部视图等权平均并 argmax。GT 保持原始 1024 尺寸，所有视图共享现有权重，山体系数保持 α=1。
+
+本次尺寸为 **1024、768、512**，均直接进入两个 CNN，无需补边。可变尺寸入口仅用于 eval，训练入口仍检查配置尺寸。使用相同第 29 轮权重、在两张卡上分别复现完整 Moon_2/4/9：
+
+```bash
+CUDA_VISIBLE_DEVICES=3 python code/evaluate.py --config config/evaluate_random80_multiscale_1024_768.json
+CUDA_VISIBLE_DEVICES=4 python code/evaluate.py --config config/evaluate_random80_multiscale_1024_768_512.json
+```
+
+两份配置均为 batch 2、BF16、完整 5004 张；结果在 `result/dual_region_random80_1024/` 下分别保存为 `test_multiscale_hflip_1024_768_metrics.json` 和 `test_multiscale_hflip_1024_768_512_metrics.json`，保留各视图尺寸、权重、检查点 SHA256 和逐场景混淆矩阵。不同尺度组合有独立文件名，不覆盖原有单尺度成绩。
 
 评估先累计每个场景的像素混淆矩阵，再对 GT 实际出现的类别计算 mIoU。完整测试的加权分数为 `S=(Moon_2+Moon_4+2×Moon_9)/4`，不是单图 mIoU 的平均值，也不是官方平台提交分数。各实验的检查点均由验证集选轮；本次随机划分采用的训练方案参考了历史测试结果，选择依据和解释范围见前文。
 

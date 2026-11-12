@@ -188,6 +188,31 @@ class LunarSegmentationModel(nn.Module):
         expected = (self.config.input_size, self.config.input_size)
         if images.ndim != 4 or images.shape[1] != 3 or tuple(images.shape[-2:]) != expected:
             raise ValueError(f"Expected Bx3x{expected[0]}x{expected[1]} normalized RGB; got {tuple(images.shape)}")
+        return self._forward_at_size(images, expected)
+
+    def forward_inference(self, images: Tensor) -> dict:
+        """Evaluate variable spatial sizes without changing their image scale.
+
+        Both CNNs receive the same tensor, padded only on the right/bottom
+        with replicated edge values to a multiple of 32. Continuous semantic
+        predictions are upsampled to that padded size, then cropped back to
+        the input size. Query masks and auxiliary masks retain their native
+        low-resolution coordinates on the padded grid.
+        """
+        if self.training:
+            raise RuntimeError("forward_inference requires model.eval(); training uses fixed-size forward")
+        if images.ndim != 4 or images.shape[1] != 3 or min(images.shape[-2:]) < 32:
+            raise ValueError(f"Expected Bx3xHxW normalized RGB with H,W >= 32; got {tuple(images.shape)}")
+        height, width = images.shape[-2:]
+        pad_bottom, pad_right = (-height) % 32, (-width) % 32
+        if pad_bottom or pad_right:
+            images = F.pad(images, (0, pad_right, 0, pad_bottom), mode="replicate")
+        output = self._forward_at_size(images, tuple(images.shape[-2:]))
+        if pad_bottom or pad_right:
+            output["semantic_logits"] = output["semantic_logits"][..., :height, :width]
+        return output
+
+    def _forward_at_size(self, images: Tensor, expected: tuple[int, int]) -> dict:
         mask_features, pyramid = self.fusion(*self.encoder(images))
         if self.config.decoder == "pixel":
             scores = F.interpolate(self.decoder(mask_features), size=expected, mode="bilinear", align_corners=False)

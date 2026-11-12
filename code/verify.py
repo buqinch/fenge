@@ -29,6 +29,219 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = Path("/media/nas/lzc/fenge/baseline_segformer_20261026/manifest.json")
 
 
+def check_multiscale_tta() -> dict:
+    """Check continuous multiscale fusion and the real variable-size adapter."""
+    from lunarseg.metrics import predict_semantic_scores, tta_metadata, validate_tta_sizes
+    from lunarseg.model import LunarSegmentationModel
+
+    class RecordingModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.calls = []
+
+        def predict(self, images, method):
+            # Spatial and scale-dependent evidence makes a missed inverse flip,
+            # probability/logit interpolation swap, or unequal weighting visible.
+            signal = F.adaptive_avg_pool2d(images[:, :1].double(), (3, 5))
+            horizontal = torch.linspace(-1, 1, 5, dtype=torch.float64).reshape(1, 1, 1, 5)
+            vertical = torch.linspace(-.8, .8, 3, dtype=torch.float64).reshape(1, 1, 3, 1)
+            scale = images.shape[-1] / 512
+            logits = torch.cat((2.3 * signal + horizontal - .8 * vertical + scale,
+                                -1.7 * signal - .4 * horizontal + .5 * vertical,
+                                .5 * signal + 1.4 * vertical - .7 * horizontal,
+                                -.3 * signal + .2 * horizontal - vertical + .5 * scale,
+                                -.8 * signal + horizontal + .2 * vertical - scale), dim=1)
+            self.calls.append({"method": method, "input": images.detach().clone(),
+                               "logits": logits.detach().clone(), "returned": logits})
+            return {"semantic_logits": logits}
+
+        def forward(self, images):
+            return self.predict(images, "forward")
+
+        def forward_inference(self, images):
+            return self.predict(images, "forward_inference")
+
+    y, x = torch.meshgrid(torch.linspace(-.7, .9, 1024), torch.linspace(-1.1, .6, 1024), indexing="ij")
+    row, column = torch.meshgrid(torch.arange(1024), torch.arange(1024), indexing="ij")
+    texture = ((3 * row + 5 * column).remainder(11).float() / 11) * .25
+    images = torch.stack((x + .3 * y + .2 * x * y + texture,
+                          .4 * x - y - texture, x.square() + .6 * y + .5 * texture)).unsqueeze(0)
+    unchanged = images.clone()
+    legacy = RecordingModel().eval()
+    none = predict_semantic_scores(legacy, images, tta="none")
+    assert len(legacy.calls) == 1 and legacy.calls[0]["method"] == "forward"
+    assert none is legacy.calls[0]["returned"] and none.dtype == torch.float64
+    assert torch.equal(none, legacy.calls[0]["logits"])
+    legacy.calls.clear()
+    hflip = predict_semantic_scores(legacy, images, tta="hflip")
+    assert len(legacy.calls) == 2 and all(call["method"] == "forward" for call in legacy.calls)
+    expected_hflip = (legacy.calls[0]["logits"].float().softmax(1)
+                      + legacy.calls[1]["logits"].float().softmax(1).flip(-1)) * .5
+    assert torch.equal(hflip, expected_hflip)
+    assert torch.equal(legacy.calls[0]["input"], images)
+    assert torch.equal(legacy.calls[1]["input"], images.flip(-1))
+    assert validate_tta_sizes("none", None) is None and validate_tta_sizes("hflip", None) is None
+    assert tta_metadata("none") == {"test_time_augmentation": False, "tta_mode": "none", "tta_views": ["original"]}
+    assert tta_metadata("hflip") == {"test_time_augmentation": True, "tta_mode": "hflip", "tta_views": ["original", "horizontal_flip"]}
+    edge_metadata = tta_metadata("multiscale_hflip", tta_sizes=[1024, 786])
+    assert edge_metadata["tta_input_sizes"] == [1024, 786]
+    assert edge_metadata["tta_padded_sizes"] == [1024, 800]
+    cases = []
+    for sizes in ([1024, 768], [1024, 768, 512]):
+        model = RecordingModel().eval()
+        rng = torch.get_rng_state().clone()
+        actual = predict_semantic_scores(model, images, tta="multiscale_hflip", tta_sizes=sizes)
+        assert torch.equal(torch.get_rng_state(), rng)
+        assert len(model.calls) == 2 * len(sizes)
+        assert all(call["method"] == "forward_inference" for call in model.calls)
+        assert actual.shape == (1, 5, 1024, 1024) and actual.dtype == torch.float32
+        expected_views, unaligned_views, resized_logits = [], [], []
+        antialias_differences = {}
+        for index, size in enumerate(sizes):
+            resized = F.interpolate(images, (size, size), mode="bilinear", align_corners=False, antialias=True)
+            if size != 1024:
+                without_antialias = F.interpolate(images, (size, size), mode="bilinear", align_corners=False)
+                antialias_differences[str(size)] = float((resized - without_antialias).abs().max())
+                assert antialias_differences[str(size)] > 1e-4
+            ordinary, mirrored = model.calls[index * 2:index * 2 + 2]
+            assert ordinary["input"].shape[-2:] == mirrored["input"].shape[-2:] == (size, size)
+            torch.testing.assert_close(ordinary["input"], resized, rtol=0, atol=0)
+            torch.testing.assert_close(mirrored["input"], resized.flip(-1), rtol=0, atol=0)
+            # An independent oracle starts with the recorded, unmodified raw
+            # model outputs and explicitly constructs the equal view measure.
+            for call, flip_back in ((ordinary, False), (mirrored, True)):
+                probability = call["logits"].float().softmax(1)
+                aligned = probability.flip(-1) if flip_back else probability
+                expected_views.append(F.interpolate(aligned, images.shape[-2:], mode="bilinear", align_corners=False))
+                unaligned_views.append(F.interpolate(probability, images.shape[-2:], mode="bilinear", align_corners=False))
+                logits = call["logits"].float().flip(-1) if flip_back else call["logits"].float()
+                resized_logits.append(F.interpolate(logits, images.shape[-2:], mode="bilinear", align_corners=False))
+        # Sum in float64 for a reference independent of accumulation order.
+        expected = torch.stack(expected_views).double().mean(0).float()
+        torch.testing.assert_close(actual, expected, rtol=2e-6, atol=2e-7)
+        torch.testing.assert_close(actual.sum(1), torch.ones_like(actual[:, 0]), rtol=2e-6, atol=2e-6)
+        assert torch.equal(images, unchanged)
+        wrong_flip = torch.stack(unaligned_views).mean(0)
+        wrong_logit_fusion = torch.stack(resized_logits).mean(0).softmax(1)
+        wrong_resize_order = torch.stack([scores.softmax(1) for scores in resized_logits]).mean(0)
+        wrong_weighting = (torch.stack(expected_views[:-1]).sum(0) + 3 * expected_views[-1]) / (len(expected_views) + 2)
+        wrong_ids = torch.stack([F.one_hot(scores.argmax(1), 5).permute(0, 3, 1, 2).float()
+                                 for scores in expected_views]).mean(0)
+        alternatives = {"missing_inverse_flip": wrong_flip, "average_logits_then_softmax": wrong_logit_fusion,
+                        "resize_logits_before_softmax": wrong_resize_order, "unequal_view_weights": wrong_weighting,
+                        "class_id_voting": wrong_ids}
+        differences = {name: float((actual - scores).abs().max()) for name, scores in alternatives.items()}
+        assert all(difference > 1e-4 for difference in differences.values()), differences
+        metadata = tta_metadata("multiscale_hflip", tta_sizes=sizes)
+        assert metadata["tta_mode"] == "multiscale_hflip" and metadata["test_time_augmentation"] is True
+        assert metadata["tta_input_sizes"] == sizes and metadata["tta_padded_sizes"] == sizes
+        assert metadata["tta_input_antialias"] is True
+        assert metadata["tta_view_count"] == metadata["tta_forward_calls_per_batch"] == 2 * len(sizes)
+        assert metadata["tta_view_weights"] == [1 / (2 * len(sizes))] * (2 * len(sizes))
+        assert metadata["tta_views"] == [{"input_size": size, "transform": transform}
+                                          for size in sizes for transform in ("original", "horizontal_flip")]
+        assert metadata["tta_score_domain"] == "probability"
+        assert metadata["tta_padding"]["semantic_logits_cropped_to_unpadded_size_before_softmax"] is True
+        cases.append({"tta_sizes": sizes, "model_forward_calls": len(model.calls), "output_shape": list(actual.shape),
+                      "maximum_probability_error_against_independent_mean": float((actual - expected).abs().max()),
+                      "input_downsample_antialias_maximum_differences": antialias_differences,
+                      "adversarial_alternative_maximum_errors": differences, "metadata": metadata})
+
+    invalid_parameters = [("invalid", None), ("none", [1024, 768]), ("hflip", [1024, 768]),
+                          ("multiscale_hflip", None), ("multiscale_hflip", []),
+                          ("multiscale_hflip", [1024]), ("multiscale_hflip", [768, 512]),
+                          ("multiscale_hflip", [1024, 1024]), ("multiscale_hflip", [1024, 31]),
+                          ("multiscale_hflip", [1024, -1]), ("multiscale_hflip", [1024, True]),
+                          ("multiscale_hflip", [1024, 768.0]), ("multiscale_hflip", "1024,768")]
+    for mode, sizes in invalid_parameters:
+        model = RecordingModel().eval()
+        for validator in (lambda: validate_tta_sizes(mode, sizes),
+                          lambda: predict_semantic_scores(model, images, tta=mode, tta_sizes=sizes)):
+            try:
+                validator()
+            except (ValueError, TypeError):
+                pass
+            else:
+                raise AssertionError(f"Invalid TTA parameters accepted: {mode}/{sizes}")
+        assert not model.calls
+
+    # Exercise the REAL forward_inference implementation with a pointwise fake
+    # encoder/decoder, so expected border values need no pretrained model.
+    class RecordingEncoder(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.inputs = []
+
+        def forward(self, tensor):
+            self.inputs.append(tensor.detach().clone())
+            return tensor, None
+
+    class PassthroughFusion(torch.nn.Module):
+        def forward(self, tensor, _mobile):
+            return tensor, []
+
+    class PointwiseDecoder(torch.nn.Module):
+        def forward(self, tensor):
+            return torch.cat((tensor, tensor[:, :1] + tensor[:, 1:2], -tensor[:, 2:3]), dim=1)
+
+    adapter = LunarSegmentationModel.__new__(LunarSegmentationModel)
+    torch.nn.Module.__init__(adapter)
+    adapter.config = ModelConfig(decoder="pixel", input_size=1024)
+    adapter.encoder, adapter.fusion, adapter.decoder = RecordingEncoder(), PassthroughFusion(), PointwiseDecoder()
+    adapter.eval()
+    padding_cases = []
+    for height, width in ((1024, 1024), (768, 768), (512, 512), (786, 786), (65, 79)):
+        tensor = torch.arange(3 * height * width, dtype=torch.float32).reshape(1, 3, height, width) / (height * width)
+        original = tensor.clone()
+        output = adapter.forward_inference(tensor)
+        pad_bottom, pad_right = (-height) % 32, (-width) % 32
+        # Build the replicated border by concatenating edge values, not F.pad.
+        expected = torch.cat((tensor, tensor[..., -1:].expand(-1, -1, -1, pad_right)), dim=-1)
+        expected = torch.cat((expected, expected[..., -1:, :].expand(-1, -1, pad_bottom, -1)), dim=-2)
+        assert torch.equal(adapter.encoder.inputs[-1], expected)
+        assert output["semantic_logits"].shape == (1, 5, height, width)
+        assert torch.equal(output["semantic_logits"], adapter.decoder(tensor))
+        assert torch.equal(tensor, original)
+        if height == width == 1024:
+            assert torch.equal(adapter(tensor)["semantic_logits"], output["semantic_logits"])
+        padding_cases.append({"input_hw": [height, width], "encoder_hw": list(expected.shape[-2:]),
+                              "replicate_pad_right_bottom": [pad_right, pad_bottom],
+                              "cropped_semantic_hw": list(output["semantic_logits"].shape[-2:]),
+                              "experiment_scale": height == width and height in (1024, 768, 512)})
+        adapter.encoder.inputs.clear()
+    rejected_adapter_inputs = 0
+    adapter.train()
+    try:
+        adapter.forward_inference(torch.zeros(1, 3, 32, 32))
+    except RuntimeError:
+        rejected_adapter_inputs += 1
+    else:
+        raise AssertionError("Variable-size inference accepted training mode")
+    adapter.eval()
+    for tensor in (torch.zeros(3, 32, 32), torch.zeros(1, 1, 32, 32), torch.zeros(1, 3, 31, 32)):
+        try:
+            adapter.forward_inference(tensor)
+        except ValueError:
+            rejected_adapter_inputs += 1
+        else:
+            raise AssertionError("Variable-size inference accepted invalid RGB shape")
+    try:
+        adapter(torch.zeros(1, 3, 768, 768))
+    except ValueError:
+        rejected_adapter_inputs += 1
+    else:
+        raise AssertionError("Fixed-size forward accepted an altered training size")
+    return {"multiscale_cases": cases, "input_tensor_unchanged": True, "torch_rng_unchanged": True,
+            "legacy_none_preserves_original_tensor_and_dtype": True, "legacy_hflip_bitwise_compatible": True,
+            "softmax_precedes_probability_resize": True, "flips_inverted_before_equal_view_fusion": True,
+            "argmax_and_class_id_voting_are_not_used_for_fusion": True,
+            "invalid_tta_parameter_cases_rejected_before_forward": len(invalid_parameters),
+            "real_forward_inference_with_fake_backbone": padding_cases,
+            "nonmultiple_786_metadata_keeps_exact_input_and_reports_800_padding": edge_metadata,
+            "training_mode_and_invalid_adapter_inputs_rejected": rejected_adapter_inputs,
+            "size_786_is_only_a_padding_edge_case_not_an_experiment_scale": True}
+
+
 def check_mountain_calibration() -> dict:
     """Check score-domain calibration on CPU without weights or a dataset."""
     # Pixel zero has a negative mountain logit that must lose after downweighting.
@@ -902,9 +1115,12 @@ def main() -> None:
                             help="Run only lightweight CPU hard-pixel loss checks; no weights or dataset are loaded")
     cpu_checks.add_argument("--split-only", action="store_true",
                             help="Audit a saved random split and CPU data-loader rejection fixtures; no model is loaded")
+    cpu_checks.add_argument("--multiscale-tta-only", action="store_true",
+                            help="Check multiscale score fusion and variable-size inference on CPU; no weights or dataset are loaded")
     args = parser.parse_args()
     if args.output is None:
-        filename = ("split_verification.json" if args.split_only else
+        filename = ("multiscale_tta_verification.json" if args.multiscale_tta_only else
+                    "split_verification.json" if args.split_only else
                     "hard_pixel_verification.json" if args.hard_pixel_only else
                     "calibration_verification.json" if args.calibration_only else "verification.json")
         args.output = PROJECT_ROOT / "result" / filename
@@ -917,6 +1133,13 @@ def main() -> None:
     torch.set_num_threads(4)
     if args.split_manifest is not None and not args.split_only:
         parser.error("--split-manifest requires --split-only")
+    if args.multiscale_tta_only:
+        report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
+                  "multiscale_tta_only": True, "multiscale_tta_checks": check_multiscale_tta(), "status": "passed"}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        print(f"CPU multiscale TTA checks passed. Verification report: {args.output}", flush=True)
+        return
     if args.split_only:
         split_path = (args.split_manifest or args.manifest).resolve()
         schema = json.loads(split_path.read_text()).get("schema")
