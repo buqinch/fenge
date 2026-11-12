@@ -1,0 +1,132 @@
+{
+  "schema": "lusnar_prior_ablation_v1",
+  "created_at": "2026-11-12T05:27:08.409511+00:00",
+  "initialization": "original_pretrained",
+  "trained_checkpoint_loaded": false,
+  "expected_common_initial_tensor_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+  "training_count": 8000,
+  "validation_count": 1601,
+  "same_training_selection": "result/selections/random80_4000_2000_2000_seed42_20261112.json",
+  "epochs_max": 30,
+  "effective_batch": 8,
+  "microbatch": 4,
+  "accumulation": 2,
+  "common_main_seed": 42,
+  "checkpoint_selection": "first strictly highest full pooled validation mIoU, single 1024 view",
+  "early_stopping": {
+    "patience": 5,
+    "min_delta": 0.0005,
+    "start_epoch": 4,
+    "metric": "custom_validation_miou"
+  },
+  "runs": [
+    {
+      "name": "control",
+      "control": null,
+      "config": "config/dual_region_priors_control_1024.json",
+      "output": "result/dual_region_priors_control_8000_1024",
+      "config_sha256": "727a6a4b3bc1abf5ab9d932919a2d9eccf046cdbf9a4ef5b4bfc925b28ff7a97"
+    },
+    {
+      "name": "affinity",
+      "control": "control",
+      "config": "config/dual_region_priors_affinity_1024.json",
+      "output": "result/dual_region_priors_affinity_8000_1024",
+      "config_sha256": "f7524c51904b34648850a01b91b428bed9e1fcf3662dce10868b8c51418746a6"
+    },
+    {
+      "name": "geometry_control",
+      "control": null,
+      "config": "config/dual_region_priors_geometry_control_1024.json",
+      "output": "result/dual_region_priors_geometry_control_8000_1024",
+      "config_sha256": "7ebd7afcc964a34bc93d14152b4b816c4cc0c8dbc3ce49063c52c777291e6423"
+    },
+    {
+      "name": "geometry",
+      "control": "geometry_control",
+      "config": "config/dual_region_priors_geometry_1024.json",
+      "output": "result/dual_region_priors_geometry_8000_1024",
+      "config_sha256": "f8f8dc3645f1d2ea5a930520ce273aec2d98ef447f6f0f89d57a7111c92b8316"
+    },
+    {
+      "name": "context",
+      "control": "control",
+      "config": "config/dual_region_priors_context_1024.json",
+      "output": "result/dual_region_priors_context_8000_1024",
+      "config_sha256": "2273393d8c75e6794d39e867c1c2700fe824245fe1d4dfe84eb2e77c897d9798"
+    },
+    {
+      "name": "detail",
+      "control": "control",
+      "config": "config/dual_region_priors_detail_1024.json",
+      "output": "result/dual_region_priors_detail_8000_1024",
+      "config_sha256": "a75c9552c498522cc4486c1eaa9aa80e4d25db6052bc239f1c120d0766f04ef6"
+    }
+  ],
+  "source_sha256": {
+    "code/analyze_experiments.py": "5d7885853cd01949d99a9fce1746970161e5f8098c0d9121a925121a0d86ce86",
+    "code/analyze_saved_images.py": "0de105f29daf8eeda18bd0d74a05c6981214e27144097e83097f2d727d6b0c55",
+    "code/download_weights.py": "6986cdb06bc7b1d72e95f08abd9505f9ca25a90d6f3de15ab385ee55f6ba9609",
+    "code/evaluate.py": "ae1af8a13e450804eb3a319410830181434c6a1437b504ff648ef196c7432a7f",
+    "code/infer.py": "f5708d9ff3316bba0b95154346fa47c647f2962c2b665b02b4dbb5445e829bbc",
+    "code/lunarseg/__init__.py": "e7fb791158eb2f05373450fa98185ad4b5411c414e71c0397115c865b3b38ffe",
+    "code/lunarseg/augmentation.py": "c7cf49f9a56e8b04ef53cfd96f39984febec16df2c669303423f372e8f834755",
+    "code/lunarseg/backbones.py": "08190064edb1f74ee7c191d6d370c0b5a8c6c96a0a00a9090f1c3f61bcd63635",
+    "code/lunarseg/brightness.py": "fb845179425d9d14a94af56b01a44cae6f745893876bd2047d19083064ea6656",
+    "code/lunarseg/brightness_diagnostics.py": "423d3d722599d95821b61d6d6d598e21ba245e613a8759470a2c5d8a435352e9",
+    "code/lunarseg/brightness_visualization.py": "526f8ab1a674328f13d7dfea2775c54f61e6c170adabc025c0f9635db706f801",
+    "code/lunarseg/data.py": "d6bf1ab5e74c88f860a917db155253ca7eefef5be0d47d82537a507018bf0d42",
+    "code/lunarseg/early_stopping.py": "5727ddf9788a881ae7895e569d41884672b554aad86ff04f2f537a2463db9f46",
+    "code/lunarseg/losses.py": "d8a310d57a7d811f44415edf1765b6281f6168ac907839a1bf32ccc2cca07bf2",
+    "code/lunarseg/metrics.py": "bbaca8858516e80cdcee9a22090072988a0d540d81498b7607d2936f45224fd6",
+    "code/lunarseg/model.py": "99240e44bd74b40951a812662764f50a3a0628bbe634f6e96721ff520c74f222",
+    "code/lunarseg/priors.py": "80604ff9610ae141cac6348ed918b9212ed00c246f770cd6859a9790143f4ebd",
+    "code/lunarseg/refinement.py": "075806722af4d1f5280de6cba184d2cd66d5dda9043eafe2dfba76af7ee6baa7",
+    "code/lunarseg/training_priors.py": "ffd2441e4b597e96e62a996b289ed121956d586f3d3c6cae347c0c4a3af0b4b5",
+    "code/lunarseg/visualization.py": "296db344f584326597b38af073fc4ebad00c13755b19296cc8a5b9fe7ea8a25d",
+    "code/monitor_experiments.py": "2e74a9519d8a22ec92935c833ff52de205d81b84d1fdba05df4dae3d05d2ad75",
+    "code/prior_ablation.py": "7b4a29d856042489197744c491d22dd5fb7844f868a4b8dce11c1b92b2846cf7",
+    "code/publish_results.py": "d0351c2c713d8cb3c3b4d2eb0b27c8b2115da7f3253adf6f6e7f13b50864f7b6",
+    "code/select_training_data.py": "f29063e0c0313ed7e348148d457d01e1395614370e64c2d588b47ef89bfe9a53",
+    "code/train.py": "1eb6ccc883c303b2b16fbeb1e5f20d147d6616b8bd8ac26dc948f6b9c2fb2b51",
+    "code/verify.py": "bc008c9ea4d99d74c16c850cb3d088171b2bb62c14cf11359b1a9b32156697c6",
+    "code/verify_monitor.py": "d5ba6c8dc9dc121f892c0ea472454516682724b84dbf9aed3c36d5db1fd53817",
+    "code/verify_prior_runtime.py": "01aaaac9636676a6c90a597d3f4b1f87c623b52f583d43cb479a89c7e291aa70",
+    "code/verify_priors.py": "305dab7ddf167d2fd348e977c4ed4a98f96f4d32cf2b9bdf7783fbdbfbd3734d"
+  },
+  "status": "ready",
+  "frozen_at": "2026-11-12T05:42:40.215614+00:00",
+  "git_base_commit": "0c4d03b6cb0de9e947af7e35d26bde39dff6dfb4",
+  "verification_sha256": {
+    "verification_model.json": "b34f6005b984fa89edaa740f2b923ca1df3f84446926b2b8d7ff8a841f79b6a9",
+    "verification_priors.json": "094c53ca0326c951068132d8dad2a9563d7ec13b12cff645732f7657011daf79",
+    "verification_trainer.json": "693ef3fc4d81f796b215df30ed6dcdba14614455199ee97f0ade04ca41a186f5",
+    "verification_runner.json": "4f05e16bb45390b584360e3f0028bddad84806cd29fdc340aab80ec96bd15cfe",
+    "verification_runtime.json": "eb4a27d2ea5f548abce8c53f222eabb68413373c85bea233906dd7700fd7f9bc"
+  },
+  "device_policy": {
+    "eligible_physical_devices": [
+      0,
+      1,
+      2,
+      4
+    ],
+    "max_parallel": 4,
+    "minimum_free_mib": 15000,
+    "existing_training_on_gpu3": "left running"
+  },
+  "initialization_reference": "result/selections/prior_ablation_original_pretrained_20261112.json",
+  "source_revisions": [
+    {
+      "at": "2026-11-12T05:48:04.498794+00:00",
+      "reason": "User requested removing hard_raw, hard_weighted and hard/base from log output only",
+      "previous_plan_sha256": "cd275106a20c5d6c8e48666e61b27f2ec012da06b8f33cc2ee8785f43db9b5b7",
+      "previous_plan_git_commit": "96feb8137fb4f9cc31eb5bd0d45e24e580faf364",
+      "changed_file": "code/train.py",
+      "previous_source_sha256": "457d0ed6014ece4133072379027e204fd5098fa5f1d4717eecaa596f19f55cab",
+      "new_source_sha256": "1eb6ccc883c303b2b16fbeb1e5f20d147d6616b8bd8ac26dc948f6b9c2fb2b51",
+      "only_three_print_fields_removed_verified": true,
+      "existing_trainers_restarted": false
+    }
+  ]
+}

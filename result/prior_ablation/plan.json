@@ -53,21 +53,21 @@
       "control": "control",
       "config": "config/dual_region_priors_context_1024.json",
       "output": "result/dual_region_priors_context_8000_1024",
-      "config_sha256": "2273393d8c75e6794d39e867c1c2700fe824245fe1d4dfe84eb2e77c897d9798"
+      "config_sha256": "a81c4fad8a8fd9c8e523bc98819360b45d0bc49853de5171d206e8229eb0a19f"
     },
     {
       "name": "detail",
       "control": "control",
       "config": "config/dual_region_priors_detail_1024.json",
       "output": "result/dual_region_priors_detail_8000_1024",
-      "config_sha256": "a75c9552c498522cc4486c1eaa9aa80e4d25db6052bc239f1c120d0766f04ef6"
+      "config_sha256": "9bb3d6d3274dd53bdab67c116c61f643e0b476f8d186b8be9075c5216c78cba5"
     }
   ],
   "source_sha256": {
     "code/analyze_experiments.py": "5d7885853cd01949d99a9fce1746970161e5f8098c0d9121a925121a0d86ce86",
     "code/analyze_saved_images.py": "0de105f29daf8eeda18bd0d74a05c6981214e27144097e83097f2d727d6b0c55",
     "code/download_weights.py": "6986cdb06bc7b1d72e95f08abd9505f9ca25a90d6f3de15ab385ee55f6ba9609",
-    "code/evaluate.py": "ae1af8a13e450804eb3a319410830181434c6a1437b504ff648ef196c7432a7f",
+    "code/evaluate.py": "bf8f4113b4ba9438a3376d46bc7fa2c65cb504b70176449339a327bd37ffeebb",
     "code/infer.py": "f5708d9ff3316bba0b95154346fa47c647f2962c2b665b02b4dbb5445e829bbc",
     "code/lunarseg/__init__.py": "e7fb791158eb2f05373450fa98185ad4b5411c414e71c0397115c865b3b38ffe",
     "code/lunarseg/augmentation.py": "c7cf49f9a56e8b04ef53cfd96f39984febec16df2c669303423f372e8f834755",
@@ -85,14 +85,16 @@
     "code/lunarseg/training_priors.py": "ffd2441e4b597e96e62a996b289ed121956d586f3d3c6cae347c0c4a3af0b4b5",
     "code/lunarseg/visualization.py": "296db344f584326597b38af073fc4ebad00c13755b19296cc8a5b9fe7ea8a25d",
     "code/monitor_experiments.py": "2e74a9519d8a22ec92935c833ff52de205d81b84d1fdba05df4dae3d05d2ad75",
-    "code/prior_ablation.py": "7b4a29d856042489197744c491d22dd5fb7844f868a4b8dce11c1b92b2846cf7",
+    "code/prior_ablation.py": "8f92f59bebfe77b5aee30bccb0614f49ad8478f4a3b4531a1dfbfe6ce2378d1b",
     "code/publish_results.py": "d0351c2c713d8cb3c3b4d2eb0b27c8b2115da7f3253adf6f6e7f13b50864f7b6",
     "code/select_training_data.py": "f29063e0c0313ed7e348148d457d01e1395614370e64c2d588b47ef89bfe9a53",
     "code/train.py": "1eb6ccc883c303b2b16fbeb1e5f20d147d6616b8bd8ac26dc948f6b9c2fb2b51",
     "code/verify.py": "bc008c9ea4d99d74c16c850cb3d088171b2bb62c14cf11359b1a9b32156697c6",
     "code/verify_monitor.py": "d5ba6c8dc9dc121f892c0ea472454516682724b84dbf9aed3c36d5db1fd53817",
     "code/verify_prior_runtime.py": "01aaaac9636676a6c90a597d3f4b1f87c623b52f583d43cb479a89c7e291aa70",
-    "code/verify_priors.py": "305dab7ddf167d2fd348e977c4ed4a98f96f4d32cf2b9bdf7783fbdbfbd3734d"
+    "code/verify_priors.py": "305dab7ddf167d2fd348e977c4ed4a98f96f4d32cf2b9bdf7783fbdbfbd3734d",
+    "code/run_on_103.sh": "d9bd9037a865719dd2ec6bd84d8067fbebcdf9c968916550fd1922be3788e9d0",
+    "code/sync_remote_results.py": "0b376b2c3aa9dee0c7de72427816175fcdbe1d48414db987d767780fbaa8a947"
   },
   "status": "ready",
   "frozen_at": "2026-11-12T05:42:40.215614+00:00",
@@ -101,7 +103,7 @@
     "verification_model.json": "b34f6005b984fa89edaa740f2b923ca1df3f84446926b2b8d7ff8a841f79b6a9",
     "verification_priors.json": "094c53ca0326c951068132d8dad2a9563d7ec13b12cff645732f7657011daf79",
     "verification_trainer.json": "693ef3fc4d81f796b215df30ed6dcdba14614455199ee97f0ade04ca41a186f5",
-    "verification_runner.json": "4f05e16bb45390b584360e3f0028bddad84806cd29fdc340aab80ec96bd15cfe",
+    "verification_runner.json": "856e69cf6087e2b2b77320fa3c6a6af98c8bd40eed01fc28e49a68f1f6a7c97a",
     "verification_runtime.json": "eb4a27d2ea5f548abce8c53f222eabb68413373c85bea233906dd7700fd7f9bc"
   },
   "device_policy": {
@@ -127,6 +129,89 @@
       "new_source_sha256": "1eb6ccc883c303b2b16fbeb1e5f20d147d6616b8bd8ac26dc948f6b9c2fb2b51",
       "only_three_print_fields_removed_verified": true,
       "existing_trainers_restarted": false
+    },
+    {
+      "at": "2026-11-12T07:04:48Z",
+      "reason": "Assign queued context/detail to Server103; preserve running trainers; add host-specific runner ownership and NAS image output default",
+      "previous_plan_sha256": "dc01152c56cbf0b4def5162e3f586e7f549425e07e8914330af08be489a1e6a5",
+      "changed_sources": {
+        "code/evaluate.py": {
+          "before": "ae1af8a13e450804eb3a319410830181434c6a1437b504ff648ef196c7432a7f",
+          "after": "bf8f4113b4ba9438a3376d46bc7fa2c65cb504b70176449339a327bd37ffeebb"
+        },
+        "code/prior_ablation.py": {
+          "before": "7b4a29d856042489197744c491d22dd5fb7844f868a4b8dce11c1b92b2846cf7",
+          "after": "7f45d66358a9468021b360bb4b2e3f740fedfde61d23ce921f9934c64349cece"
+        }
+      },
+      "existing_trainers_restarted": false
+    },
+    {
+      "at": "2026-11-12T07:15:50Z",
+      "reason": "User explicitly changed only Server103 context/detail to actual batch8 accumulation1; activation checkpointing verified on RTX3090; original-pretrained restart after zero completed epochs",
+      "previous_plan_sha256": "bf7b0c7a813f2e7045faac3656e70f3bb770669400c2d03afb25211b84761b1f",
+      "changed_sources": {
+        "code/prior_ablation.py": {
+          "before": "7f45d66358a9468021b360bb4b2e3f740fedfde61d23ce921f9934c64349cece",
+          "after": "8f92f59bebfe77b5aee30bccb0614f49ad8478f4a3b4531a1dfbfe6ce2378d1b"
+        },
+        "code/sync_remote_results.py": {
+          "before": null,
+          "after": "0b376b2c3aa9dee0c7de72427816175fcdbe1d48414db987d767780fbaa8a947"
+        }
+      },
+      "local_trainers_restarted": false,
+      "remote_previous_attempt_archive": "result/remote103/batch4_interrupted"
     }
-  ]
+  ],
+  "execution_assignment": {
+    "local": {
+      "host": "Server70",
+      "managed_runs": [
+        "control",
+        "affinity",
+        "geometry_control",
+        "geometry"
+      ],
+      "python": "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python"
+    },
+    "remote103": {
+      "host": "Server103",
+      "ssh": "fenge103",
+      "managed_runs": [
+        "context",
+        "detail"
+      ],
+      "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "physical_devices": [
+        0,
+        1
+      ]
+    }
+  },
+  "storage": {
+    "source_project": "/home/lzc/workspace/fenge",
+    "data": "unchanged shared NAS with original canonical paths",
+    "image_output_root": "/media/nas/lzc/fenge_result",
+    "text_results": "local copies on both training host and source host",
+    "sync_config": "config/remote103.json"
+  },
+  "per_run_training_overrides": {
+    "context": {
+      "batch_size": 8,
+      "accumulation": 1,
+      "gradient_checkpointing": true
+    },
+    "detail": {
+      "batch_size": 8,
+      "accumulation": 1,
+      "gradient_checkpointing": true
+    }
+  },
+  "initialization_reference_overrides": {
+    "context": "result/selections/prior_ablation_original_pretrained_bs8_20261112.json",
+    "detail": "result/selections/prior_ablation_original_pretrained_bs8_20261112.json"
+  },
+  "remote_runtime_batch8_verification_sha256": "908f9f2d345c0d70155c0e14d1a204535615d5e20a5168457f7245bb5cfb11de",
+  "text_sync_verification_sha256": "632a96e7f436fddd2de0804fa13c69cdb0f0f7816bed6c8cae09a8e17f6558ac"
 }

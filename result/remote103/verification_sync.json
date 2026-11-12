@@ -1,0 +1,87 @@
+{
+  "schema": "lusnar_remote_text_sync_verification_v1",
+  "status": "passed",
+  "recorded_at_utc": "2026-11-12T07:13:55.623366+00:00",
+  "verification_basis": "Records the 14 CPU checks already executed successfully in this session; no tests were rerun while writing this report.",
+  "source_file": "code/sync_remote_results.py",
+  "source_sha256": "0b376b2c3aa9dee0c7de72427816175fcdbe1d48414db987d767780fbaa8a947",
+  "check_count": 14,
+  "checks": [
+    {
+      "name": "not_created_remote_directories_are_pending",
+      "status": "passed"
+    },
+    {
+      "name": "text_whitelist_excludes_checkpoint_and_image",
+      "status": "passed"
+    },
+    {
+      "name": "run_config_validation_history_publish_before_summary",
+      "status": "passed"
+    },
+    {
+      "name": "remote_host_and_PID_provenance_preserved_without_process_actions",
+      "status": "passed"
+    },
+    {
+      "name": "summary_waits_for_missing_completed_validation",
+      "status": "passed"
+    },
+    {
+      "name": "partial_JSONL_tail_is_not_published_as_committed_epoch",
+      "status": "passed"
+    },
+    {
+      "name": "later_consistent_epoch_recovers_pending_boundary",
+      "status": "passed"
+    },
+    {
+      "name": "malformed_JSON_rejected_and_next_attempt_recovers",
+      "status": "passed"
+    },
+    {
+      "name": "transport_failure_keeps_published_results_and_retries",
+      "status": "passed"
+    },
+    {
+      "name": "temporary_staging_removed_without_historical_duplicates",
+      "status": "passed"
+    },
+    {
+      "name": "comparison_continues_after_local_runner_releases_shared_analysis_lock",
+      "status": "passed"
+    },
+    {
+      "name": "remote_epoch_regression_cannot_overwrite_newer_local_summary",
+      "status": "passed"
+    },
+    {
+      "name": "changed_run_config_rejected_even_when_summary_is_unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "watch_and_once_share_exclusive_flock_without_network_or_process_actions",
+      "status": "passed"
+    }
+  ],
+  "test_environment": {
+    "python": "/usr/bin/python3",
+    "scope": "CPU temporary local and simulated remote directories",
+    "rsync": "Real /usr/bin/rsync subprocesses with the actual text filters, checksum and compare-dest options; source replaced by a temporary local directory.",
+    "ssh": "Injected directory-existence responses; no actual SSH/server transfer during these checks.",
+    "transport_failure": "Injected subprocess.TimeoutExpired, then a successful subsequent attempt.",
+    "analysis": "Actual fcntl lock contention/release; comparison analyzer replaced by a stub, without rewriting a real six-run report.",
+    "atomic_publication": "Actual temporary files and Path.replace; asserted validation/history/run_config existed before summary replacement.",
+    "watch_lock": "Actual fcntl exclusive lock; duplicate --once rejected before any transfer.",
+    "temporary_staging": "Temporary directory lifecycle checked empty after attempts; no persistent duplicated histories."
+  },
+  "not_exercised": [
+    "Live SSH transport to 103 in this test suite",
+    "A long-running production watch",
+    "Real experiment analysis or trainer lifecycle",
+    "GPU execution"
+  ],
+  "training_started_or_stopped": false,
+  "process_ids_signalled": false,
+  "permanent_test_script_added": false
+}

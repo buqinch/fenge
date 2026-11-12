@@ -1,0 +1,46 @@
+{
+  "schema": "lusnar_remote_text_sync_v1",
+  "host": "fenge103",
+  "ssh_endpoint": "lzc@10.134.171.103",
+  "remote_project": "/home/lzc/workspace/fenge",
+  "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+  "remote_devices": [
+    0,
+    1
+  ],
+  "remote_managed_runs": [
+    "context",
+    "detail"
+  ],
+  "local_managed_runs": [
+    "control",
+    "affinity",
+    "geometry_control",
+    "geometry"
+  ],
+  "image_output_root": "/media/nas/lzc/fenge_result",
+  "interval_seconds": 60,
+  "timeout_seconds": 120,
+  "state_path": "result/remote103/sync_state.json",
+  "runner": {
+    "remote": "result/prior_ablation_remote103",
+    "local": "result/remote103/runner"
+  },
+  "runs": [
+    {
+      "name": "context",
+      "remote": "result/dual_region_priors_context_8000_1024",
+      "local": "result/dual_region_priors_context_8000_1024"
+    },
+    {
+      "name": "detail",
+      "remote": "result/dual_region_priors_detail_8000_1024",
+      "local": "result/dual_region_priors_detail_8000_1024"
+    }
+  ],
+  "analysis_plan": "result/prior_ablation/plan.json",
+  "analysis_output": "result/prior_ablation",
+  "batch_size": 8,
+  "accumulation": 1,
+  "gradient_checkpointing": true
+}

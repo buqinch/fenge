@@ -123,8 +123,8 @@ def main(argv=None):
                         help="Optionally save scored class-ID/color predictions and RGB/GT/prediction comparisons")
     parser.add_argument("--image-output-mode", choices=("all", "comparison"), default="all",
                         help="comparison saves only the RGB/GT/prediction JPG and per-image IoU JSON/CSV")
-    parser.add_argument("--image-output-root", default=str(PROJECT.parent / "fenge_result"),
-                        help="Image root; each checkpoint's experiment directory name is preserved underneath")
+    parser.add_argument("--image-output-root", default="/media/nas/lzc/fenge_result",
+                        help="NAS image root; each checkpoint's experiment directory name is preserved underneath")
     parser.add_argument("--brightness-thresholds", default=None,
                         help="Frozen training-only luminance thresholds; enables validation diagnostics")
     parser.add_argument("--brightness-output", default=None,

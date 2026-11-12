@@ -1,0 +1,101 @@
+{
+  "schema": "lusnar_test_selected_recipe_v1",
+  "created_at_utc": "2026-11-12T07:10:36Z",
+  "selected_using_test": true,
+  "selection_rule": "Architecture and dataset retain earlier test-informed design history; this ablation restarts each model from original pretrained DINOv3/MobileNet backbones. No trained segmentation checkpoint is loaded. Rank new ablations only on fixed validation.",
+  "selected_run": "dual_region_random80_1024",
+  "selected_checkpoint": "/home/lzc/workspace/fenge/result/dual_region_random80_1024/best.pt",
+  "selected_checkpoint_sha256": "ed1e2096ccd3be31b7ba40ac07c4dbd7849ed1823cb942f4b802706fe1cc6828",
+  "selected_checkpoint_epoch": 29,
+  "selected_metrics_file": "/home/lzc/workspace/fenge/result/dual_region_random80_1024/test_multiscale_hflip_1024_768_metrics.json",
+  "selected_metrics_sha256": "9e9da5c95daf9f4e61600c334bb03e52ff9069b62c8e6e943d0167cff9f870d0",
+  "selected_test_tta": "multiscale_hflip",
+  "selected_test_tta_sizes": [
+    1024,
+    768
+  ],
+  "selected_weighted_score": 0.8973656102983278,
+  "initialization_mode": "original_pretrained",
+  "initial_checkpoint_loaded": false,
+  "new_split_manifest": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_pool_20261112.json",
+  "new_split_manifest_sha256": "dfcb4d28eaeb5ecce6d60a2fd8ede7768d813e6aaec8c43f2c319e79b2a14dd5",
+  "training_selection_manifest": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_seed42_20261112.json",
+  "training_selection_manifest_sha256": "f6948e94ede914a53fd957d5a457284d34a18319c151511e2448e34a98f1ef6c",
+  "training_counts": {
+    "original": 4000,
+    "crater": 2000,
+    "mountain_rock": 2000
+  },
+  "validation_count": 1601,
+  "training_recipe": {
+    "manifest": "result/selections/random80_4000_2000_2000_pool_20261112.json",
+    "augmented_manifest": null,
+    "augmentation_groups": [],
+    "selection_manifest": "result/selections/random80_4000_2000_2000_seed42_20261112.json",
+    "train_source": "original",
+    "decoder": "region",
+    "backbone": "dual",
+    "input_size": 1024,
+    "weight_dir": "model",
+    "epochs": 30,
+    "freeze_epochs": 3,
+    "batch_size": 8,
+    "accumulation": 1,
+    "head_lr": 0.0001,
+    "backbone_lr": 1e-05,
+    "weight_decay": 0.01,
+    "workers": 4,
+    "seed": 42,
+    "amp": "bf16",
+    "device": "cuda:0",
+    "val_batch_size": 2,
+    "val_tta": "none",
+    "gradient_clip": 1.0,
+    "hard_pixel_weight": 0.0,
+    "hard_pixel_quota": 256,
+    "horizontal_flip": true,
+    "num_queries": 32,
+    "decoder_layers": 4,
+    "pretrained": true,
+    "initial_checkpoint": null,
+    "convnext_checkpoint": null,
+    "resume": null,
+    "design_selection_reference": "result/selections/prior_ablation_original_pretrained_bs8_20261112.json",
+    "val_tta_sizes": null,
+    "prior_warmup_updates": 1000,
+    "prior_lr": 0.0001,
+    "prior_seed": 4242,
+    "epoch_zero_validation": false,
+    "gradient_checkpointing": true
+  },
+  "candidate_results": [
+    {
+      "run": "dual_region_random80_1024",
+      "tta": "multiscale_hflip",
+      "tta_sizes": [
+        1024,
+        768
+      ],
+      "view_weights": [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ],
+      "weighted_score": 0.8973656102983278,
+      "metrics_file": "/home/lzc/workspace/fenge/result/dual_region_random80_1024/test_multiscale_hflip_1024_768_metrics.json",
+      "metrics_sha256": "9e9da5c95daf9f4e61600c334bb03e52ff9069b62c8e6e943d0167cff9f870d0"
+    }
+  ],
+  "test_scene_weights": {
+    "Moon_2": 1,
+    "Moon_4": 1,
+    "Moon_9": 2
+  },
+  "checkpoint_selection_uses_test": false,
+  "parent_reference": {
+    "path": "/home/lzc/workspace/fenge/result/selections/prior_ablation_original_pretrained_20261112.json",
+    "sha256": "fa26e9df4447f83e33d7bb94818d9c59cf751bab84b2c26d80a95e1bff398911"
+  },
+  "user_change": "Only Server103 context/detail use physical batch 8, accumulation 1, activation checkpointing; original pretrained initialization retained."
+}

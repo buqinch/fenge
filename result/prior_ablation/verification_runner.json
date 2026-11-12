@@ -1,1 +1,249 @@
-{"schema": "lusnar_prior_runner_cpu_verification_v1", "status": "passed", "source_sha256": "7b4a29d856042489197744c491d22dd5fb7844f868a4b8dce11c1b92b2846cf7", "checks": [{"name": "complete_six_run_val_CM_first_max_tie_and_matched_budget", "passed": true, "scene_counts": {"Moon_1": 217, "Moon_3": 253, "Moon_5": 324, "Moon_6": 216, "Moon_7": 334, "Moon_8": 257}, "pooled_CM_pixels": 1678770176}, {"name": "partial_validation_rejected", "passed": true, "rejection_message": "Ablation requires complete fixed validation"}, {"name": "stored_miou_tamper_rejected", "passed": true, "rejection_message": "Stored validation mIoU differs from its confusion matrix"}, {"name": "class_iou_tamper_rejected", "passed": true, "rejection_message": "Stored class_iou differs from its confusion matrix"}, {"name": "best_epoch_late_tie_rejected", "passed": true, "rejection_message": "Best epoch must be first strictly highest validation mIoU"}, {"name": "initial_hash_mismatch_rejected", "passed": true, "rejection_message": "Initial common backbone/fusion/decoder tensors differ"}, {"name": "trained_initial_checkpoint_rejected", "passed": true, "rejection_message": "This ablation must start from original pretrained backbones"}, {"name": "shared_learning_rate_mismatch_rejected", "passed": true, "rejection_message": "Shared training/validation setting differs: head_lr"}, {"name": "data_identity_mismatch_rejected", "passed": true, "rejection_message": "Ablation train/validation identities differ"}, {"name": "sample_order_mismatch_rejected", "passed": true, "rejection_message": "Matched training stream differs for affinity: sample_order_sha256"}, {"name": "geometry_transform_mismatch_rejected", "passed": true, "rejection_message": "Geometry and its control used different transforms"}, {"name": "pooled_matrix_pixel_coverage_1601_images_rejected", "passed": true, "rejection_message": "Confusion matrix does not cover every full-resolution validation pixel"}, {"name": "scene_matrix_pixel_coverage_rejected", "passed": true, "rejection_message": "Confusion matrix does not cover every full-resolution validation pixel"}, {"name": "scene_matrices_must_sum_to_pooled_rejected", "passed": true, "rejection_message": "Per-scene confusion matrices do not sum to the pooled matrix"}, {"name": "fixed_real_scene_image_counts_rejected", "passed": true, "rejection_message": "Validation scene image counts differ from the fixed 1601-image split"}, {"name": "CM_fractional_counts_rejected", "passed": true, "rejection_message": "Confusion matrix must contain nonnegative integer 5x5 pixel counts"}, {"name": "CM_negative_counts_rejected", "passed": true, "rejection_message": "Confusion matrix must contain nonnegative integer 5x5 pixel counts"}, {"name": "CM_wrong_shape_counts_rejected", "passed": true, "rejection_message": "Confusion matrix must contain nonnegative integer 5x5 pixel counts"}, {"name": "JSON_restart_recovers_terminal_prior_process_and_launches_queued_once", "passed": true, "mock_launched_runs": ["context", "detail", "affinity", "geometry_control", "geometry"]}, {"name": "empty_source_hash_launch_rejected_before_GPU", "passed": true}], "findings": [], "previous_finding_resolution": "The formerly accepted total50-pixel CM claiming1601images is now rejected by coverage checks. Scene coverage and exact pooled integer summation are independently checked.", "scope": "Temporary independent full-coverage integer CM/JSON fixtures with real six-scene counts; process/GPU/clock operations mocked. No training or GPU was run; production data/results were unchanged."}
+{
+  "schema": "lusnar_prior_runner_cpu_verification_v1",
+  "status": "passed",
+  "source_sha256": "8f92f59bebfe77b5aee30bccb0614f49ad8478f4a3b4531a1dfbfe6ce2378d1b",
+  "checks": [
+    {
+      "name": "complete_six_run_val_CM_first_max_tie_and_matched_budget",
+      "passed": true,
+      "scene_counts": {
+        "Moon_1": 217,
+        "Moon_3": 253,
+        "Moon_5": 324,
+        "Moon_6": 216,
+        "Moon_7": 334,
+        "Moon_8": 257
+      },
+      "pooled_CM_pixels": 1678770176
+    },
+    {
+      "name": "partial_validation_rejected",
+      "passed": true,
+      "rejection_message": "Ablation requires complete fixed validation"
+    },
+    {
+      "name": "stored_miou_tamper_rejected",
+      "passed": true,
+      "rejection_message": "Stored validation mIoU differs from its confusion matrix"
+    },
+    {
+      "name": "class_iou_tamper_rejected",
+      "passed": true,
+      "rejection_message": "Stored class_iou differs from its confusion matrix"
+    },
+    {
+      "name": "best_epoch_late_tie_rejected",
+      "passed": true,
+      "rejection_message": "Best epoch must be first strictly highest validation mIoU"
+    },
+    {
+      "name": "initial_hash_mismatch_rejected",
+      "passed": true,
+      "rejection_message": "Initial common backbone/fusion/decoder tensors differ"
+    },
+    {
+      "name": "trained_initial_checkpoint_rejected",
+      "passed": true,
+      "rejection_message": "This ablation must start from original pretrained backbones"
+    },
+    {
+      "name": "shared_learning_rate_mismatch_rejected",
+      "passed": true,
+      "rejection_message": "Shared training/validation setting differs: head_lr"
+    },
+    {
+      "name": "data_identity_mismatch_rejected",
+      "passed": true,
+      "rejection_message": "Ablation train/validation identities differ"
+    },
+    {
+      "name": "sample_order_mismatch_rejected",
+      "passed": true,
+      "rejection_message": "Matched training stream differs for affinity: sample_order_sha256"
+    },
+    {
+      "name": "geometry_transform_mismatch_rejected",
+      "passed": true,
+      "rejection_message": "Geometry and its control used different transforms"
+    },
+    {
+      "name": "pooled_matrix_pixel_coverage_1601_images_rejected",
+      "passed": true,
+      "rejection_message": "Confusion matrix does not cover every full-resolution validation pixel"
+    },
+    {
+      "name": "scene_matrix_pixel_coverage_rejected",
+      "passed": true,
+      "rejection_message": "Confusion matrix does not cover every full-resolution validation pixel"
+    },
+    {
+      "name": "scene_matrices_must_sum_to_pooled_rejected",
+      "passed": true,
+      "rejection_message": "Per-scene confusion matrices do not sum to the pooled matrix"
+    },
+    {
+      "name": "fixed_real_scene_image_counts_rejected",
+      "passed": true,
+      "rejection_message": "Validation scene image counts differ from the fixed 1601-image split"
+    },
+    {
+      "name": "CM_fractional_counts_rejected",
+      "passed": true,
+      "rejection_message": "Confusion matrix must contain nonnegative integer 5x5 pixel counts"
+    },
+    {
+      "name": "CM_negative_counts_rejected",
+      "passed": true,
+      "rejection_message": "Confusion matrix must contain nonnegative integer 5x5 pixel counts"
+    },
+    {
+      "name": "CM_wrong_shape_counts_rejected",
+      "passed": true,
+      "rejection_message": "Confusion matrix must contain nonnegative integer 5x5 pixel counts"
+    },
+    {
+      "name": "JSON_restart_recovers_terminal_prior_process_and_launches_queued_once",
+      "passed": true,
+      "mock_launched_runs": [
+        "context",
+        "detail",
+        "affinity",
+        "geometry_control",
+        "geometry"
+      ]
+    },
+    {
+      "name": "empty_source_hash_launch_rejected_before_GPU",
+      "passed": true
+    }
+  ],
+  "findings": [],
+  "previous_finding_resolution": "The formerly accepted total50-pixel CM claiming1601images is now rejected by coverage checks. Scene coverage and exact pooled integer summation are independently checked.",
+  "scope": "Temporary independent full-coverage integer CM/JSON fixtures with real six-scene counts; process/GPU/clock operations mocked. No training or GPU was run; production data/results were unchanged.",
+  "previous_verification_source_sha256": "7b4a29d856042489197744c491d22dd5fb7844f868a4b8dce11c1b92b2846cf7",
+  "managed_runs_verification": {
+    "status": "passed",
+    "recorded_at": "2026-11-12T07:01:06.754447+00:00",
+    "checks": [
+      {
+        "name": "legacy_local_four_running_identity_recovery_and_external_read_only",
+        "passed": true,
+        "local_identity_lookups": [
+          2000,
+          2001,
+          2002,
+          2003
+        ],
+        "foreign_identity_lookups": 0,
+        "external_run_writes": 0,
+        "managed_terminal_exits_without_missing_external_summary": true,
+        "analysis_complete": false,
+        "plan_unchanged": true
+      },
+      {
+        "name": "remote_two_only_launch_once_exit_and_restart_no_duplicate",
+        "passed": true,
+        "launched_runs": [
+          "context",
+          "detail"
+        ],
+        "managed_terminal_exit": true,
+        "unmanaged_missing_summaries": 4,
+        "analysis_complete": false,
+        "launch_gpu_env_and_provenance_recorded": true
+      },
+      {
+        "name": "patience_replay_signals_only_owned_jobs_external_patience_read_only",
+        "passed": true,
+        "stopped_names": [
+          "context",
+          "detail"
+        ],
+        "patience": 5,
+        "min_delta": 0.0005,
+        "start_epoch": 4,
+        "replayed_stop_epoch": 9,
+        "external_writes": 0
+      },
+      {
+        "name": "default_manages_all_six_and_full_comparison_keeps_six",
+        "passed": true,
+        "six_run_comparison_complete": true,
+        "tie_selects_first_plan_run": true
+      },
+      {
+        "name": "invalid_scope_and_cross_host_or_assignment_resume_rejected_before_process_access",
+        "passed": true,
+        "invalid_scope_cases": 4,
+        "resume_guard_cases": 2
+      },
+      {
+        "name": "external_partial_validation_rejected_by_existing_strict_completed_tracker",
+        "passed": true
+      }
+    ],
+    "source_sha256": "7f45d66358a9468021b360bb4b2e3f740fedfde61d23ce921f9934c64349cece",
+    "scope": "Independent full-1601-pixel-count CM/JSON fixtures in auto-removed temporary directories; process, GPU, hostname and sleep operations mocked. No training, real GPU query, signaling, plan/state modification or production report generation."
+  },
+  "batch_override_verification": {
+    "status": "passed",
+    "recorded_at": "2026-11-12T07:14:43.035139+00:00",
+    "source_sha256": "8f92f59bebfe77b5aee30bccb0614f49ad8478f4a3b4531a1dfbfe6ce2378d1b",
+    "checks": [
+      {
+        "name": "default_six_run_4x2_remains_strict_and_complete",
+        "passed": true
+      },
+      {
+        "name": "undeclared_8x1_rejected",
+        "passed": true
+      },
+      {
+        "name": "explicit_remote_8x1_cp_true_matches_plan_and_reports_flip_mismatches_not_module_causality",
+        "passed": true,
+        "observed_flip_mismatch_epochs": [
+          1,
+          2
+        ],
+        "sample_order_strict": true,
+        "hosts_reported": true
+      },
+      {
+        "name": "sample_order_stays_strict_equal_batch_flips_stay_strict_missing_hash_rejected",
+        "passed": true,
+        "rejection_cases": 3
+      },
+      {
+        "name": "invalid_overrides_and_each_actual_config_mismatch_rejected",
+        "passed": true,
+        "rejection_cases": 9
+      },
+      {
+        "name": "real_LunarDataset_and_train_seed_worker_4workers_4vs8_two_epochs",
+        "passed": true,
+        "sample_count": 96,
+        "image_size": [
+          32,
+          32
+        ],
+        "workers": 4,
+        "epochs": [
+          {
+            "epoch": 1,
+            "sample_order_equal": true,
+            "horizontal_flip_equal": false,
+            "combined_equal": false
+          },
+          {
+            "epoch": 2,
+            "sample_order_equal": true,
+            "horizontal_flip_equal": false,
+            "combined_equal": false
+          }
+        ],
+        "finding": "Same shuffled sample order; per-image horizontal flips differ because workers receive batches of different sizes."
+      }
+    ],
+    "scope": "Temporary independent full-coverage six-scene CM fixtures plus actual LunarDataset __getitem__/train.seed_worker/DataLoader CPU iteration on 96 small images for two epochs. No neural network training, GPU query, process signaling, production plan/state edits or production analysis generation."
+  }
+}

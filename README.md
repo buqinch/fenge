@@ -260,7 +260,7 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 
 本轮按用户更正，**所有组都从原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 权重开始**，不加载第 29 轮或其他已训练的分割检查点。融合层、FPN、区域解码器以 seed 42 重新初始化；这些共同参数的初始 SHA256 均为 `48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`。新增模块使用隔离随机数，不改变共同主体或数据顺序。
 
-| 实验 | 配置 | 比较对象 | 唯一主要变化 |
+| 实验 | 配置 | 比较对象 | 模型变化 |
 |---|---|---|---|
 | control | [配置](config/dual_region_priors_control_1024.json) | — | 原双 CNN 区域模型 |
 | affinity | [配置](config/dual_region_priors_affinity_1024.json) | control | 训练专用语义亲和辅助监督 |
@@ -269,7 +269,7 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 | geometry_control | [配置](config/dual_region_priors_geometry_control_1024.json) | — | 两幅几何视图，平均两份完整 GT 损失 |
 | geometry | [配置](config/dual_region_priors_geometry_1024.json) | geometry_control | 同样两份 GT 损失，再加对齐概率 JS |
 
-六组统一使用固定 **4000 原图＋2000 坑增强＋2000 山岩增强**、原来的 **1601 张验证图**；输入 1024，实际 **batch 4、累积 2、有效 batch 8**。最多 30 轮，前 3 轮冻结骨干；原头部学习率 `1e-4`、骨干 `1e-5`，新增可训练模块 `1e-4`。训练更新上限为 30000 次。每轮用单尺度原图、无分数校准的完整验证 mIoU 选最佳；不能将这一分数与旧四视图 TTA 分数直接比较。外部队列继续读取已提交的验证 JSON，从第 4 轮开始，连续 5 轮未累计提高 0.05 个百分点则停止。各组可能在不同轮次早停，汇总同时给出共同更新预算内的对照。
+六组统一使用固定 **4000 原图＋2000 坑增强＋2000 山岩增强**、原来的 **1601 张验证图**；输入 1024，有效 batch 均为 8。本机四组保持 **batch 4、累积 2**；按后续用户要求，103 的 context／detail 改为 **batch 8、累积 1**，并开启激活重计算。最多 30 轮，前 3 轮冻结骨干；原头部学习率 `1e-4`、骨干 `1e-5`，新增可训练模块 `1e-4`。训练更新上限为 30000 次。每轮用单尺度原图、无分数校准的完整验证 mIoU 选最佳；不能将这一分数与旧四视图 TTA 分数直接比较。外部队列继续读取已提交的验证 JSON，从第 4 轮开始，连续 5 轮未累计提高 0.05 个百分点则停止。各组可能在不同轮次早停，汇总同时给出共同更新预算内的对照。
 
 **语义亲和**：FPN 128 通道投影为 32 通道，利用两端特征均值、绝对差、乘积与归一化相对位置预测同类／异类。GT 始终在原图尺寸读取，每图每个地表类别最多选 2048 个候选锚点，小类别不足时全部保留；在原图 8／16／32／64 像素邻域构造候选、去除反向重复，再按正负关系、类别对、距离平衡选取最多 512 对。不把颜色相近规定为同类，不删除边界或小岩石来凑配额；配额不足不重复填充。辅助 BCE 权重起点为 0.05，前 1000 次更新渐增；推理不调用亲和头，原分割监督保留。
 
@@ -283,7 +283,7 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 
 实验计划及状态位于 [prior_ablation](result/prior_ablation/)，每组日志、逐轮指标和权重保存在 `result/dual_region_priors_<实验名>_8000_1024/`。队列入口为 `python code/prior_ablation.py --plan result/prior_ablation/plan.json`；已经启动的队列不需要再次运行。单组可直接传上述 JSON 给 `code/train.py`。所有开关默认关闭，旧检查点可继续严格加载；CPU 统计、坐标对齐、损失与精确续训检查，以及真实 batch 4／1024／全部骨干解冻反向更新和四视图推理检查均已通过，见 [验证记录](result/prior_ablation/verification_runtime.json)。这些运行检查不代表已取得分割提升，结果以完整训练后的对照报告为准。
 
-已于 **2026-11-12 13:42（北京时间）**启动：GPU 0 为 control，GPU 1 为 affinity，GPU 2 为 geometry_control，GPU 4 为 geometry；context 和 detail 排队自动接续。原有 GPU 3 实验保持运行。四组均已实际进入训练、共同初始化哈希及首批原损失核验一致，见 [启动核验](result/prior_ablation/startup_check.json)。实时进度看 [队列状态](result/prior_ablation/state.json) 和 [队列日志](result/prior_ablation/runner.log)，逐轮完成后自动更新 [对照报告](result/prior_ablation/report_zh.md)。
+已于 **2026-11-12 13:42（北京时间）**启动：GPU 0 为 control，GPU 1 为 affinity，GPU 2 为 geometry_control，GPU 4 为 geometry；context 和 detail 最初排队，现已分配到 Server103 的 GPU 0／1 并行运行（见下文）。原有 GPU 3 实验保持运行。四组均已实际进入训练、共同初始化哈希及首批原损失核验一致，见 [启动核验](result/prior_ablation/startup_check.json)。实时进度看 [队列状态](result/prior_ablation/state.json) 和 [队列日志](result/prior_ablation/runner.log)，逐轮完成后自动更新 [对照报告](result/prior_ablation/report_zh.md)。
 
 ### 亮度条件诊断：固定第 29 轮 B0
 
@@ -376,6 +376,28 @@ CPU 损失与梯度验证使用现有入口 `python code/verify.py --hard-pixel-
 上述 CPU 检查已通过，包括 λ=0 与旧实现的损失、梯度、RNG 精确一致；真实 GPU 检查也已通过，两骨干梯度有限非零，峰值分配显存约 **19.67 GiB**，并完成优化器更新与检查点严格重载。对应报告为 `result/hard_pixel_verification.json` 和 `result/verification_hard_pixel_batch8.json`。
 
 `config/early_stopping_monitor.json` 保留这两组已完成对照的监控配置，按完整 Moon_5 连续 5 轮没有增加 0.05 个百分点早停；结果与分析位于 `result/hard_pixel_monitor/`、`result/hard_pixel_analysis/`。当前随机实验使用单独的 `config/early_stopping_random80.json`，按自定义验证集的汇总 mIoU 判断。
+
+### Server103 并行实验与结果存放
+
+`context` 和 `detail` 在 `lzc@10.134.171.103` 的物理 GPU 0／1 上运行，使用现有 **`/home/lzc/miniconda3/envs/lusnar/bin/python`**。固定训练 4000 原图＋2000 坑增强＋2000 山岩增强、1601 张验证，原始 DINOv3／MobileNet 初始化。按用户后续要求，两组以 **batch 8、累积 1** 重新开始，启用激活重计算；此前 batch 4 的尝试尚未完成第 1 轮，已停止并归档。原始数据清单与样本数保持不变。
+
+当前服务器保留主代码、原数据清单及文字结果；103 在相同项目路径 `/home/lzc/workspace/fenge` 使用同步的代码副本，直接读取共享 NAS，不复制训练图片。103 的 NAS 挂载通过 [run_on_103.sh](code/run_on_103.sh) 在进程内映射，使 `/media/nas` 和 `/home/nas` 保留原清单所需的规范路径，不改宿主机挂载。所有远端训练、续训和评估应通过这个入口运行：
+
+```bash
+cd /home/lzc/workspace/fenge
+bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python code/evaluate.py   --checkpoint result/dual_region_priors_context_8000_1024/best.pt --split val
+```
+
+任务已经启动，不要重复启动训练。103 队列只管理 `context detail`；本机队列只管理 `control affinity geometry_control geometry`，不会操作另一台机器的 PID。两边都使用完整验证 JSON 的五轮／0.05 个百分点早停规则，六组对照仍汇总于 [prior_ablation/report_zh.md](result/prior_ablation/report_zh.md)。
+
+- **图片结果**：后续 `evaluate.py --save-images --image-output-mode comparison` 默认保存到 NAS `/media/nas/lzc/fenge_result/<实验名>/<评估模式>/<场景>/<样本>/`。每张保存三联图与 IoU；已有历史图库路径保持其原记录。
+- **文字结果**：103 的两组 `result/dual_region_priors_*_8000_1024/` 日志、配置、JSON、JSONL、CSV、Markdown 每 60 秒同步到当前服务器同名目录；先核验逐轮记录，再原子发布 summary。同步不包含权重和图片。
+- **检查点**：由训练进程保存在 103 的对应实验目录，当前服务器镜像中的远端 PID 和 checkpoint 路径仅表示来源。
+
+同步配置为 [remote103.json](config/remote103.json)，运行状态见 [sync_state.json](result/remote103/sync_state.json)，可用 `python code/sync_remote_results.py --config config/remote103.json --once` 手动同步一次。103 队列状态镜像见 [remote103/runner](result/remote103/runner/)。
+
+[环境及数据核验](result/remote103/preflight.json)确认两边样本身份、原始骨干／主头初始参数 SHA 一致；[RTX 3090 运行检查](result/remote103/verification_runtime_batch8.json)验证两组真实 batch 8／1024 解冻反向和 1024／768 四视图推理，峰值分配显存约 14.1 GiB。103 使用 PyTorch 2.2.2、torchvision 0.17.2、timm 1.0.22，本机为 PyTorch 2.1.1、torchvision 0.16.1、timm 1.0.30，GPU 型号也不同；因此跨机器训练不能声称逐位复现。另两组实际 batch 与 control 不同，MobileNet BN 更新频次、worker 内随机翻转和训练随机采样轨迹也可能变化；比较报告明确保留这些差异，不把分数变化全部归于新增模块。
+
 
 ## 外部 JSON 监控、早停与最终分析
 
@@ -571,10 +593,10 @@ python code/evaluate.py \
   --save-images
 ```
 
-默认图片根目录为 **`/home/lzc/workspace/fenge_result`**，独立于代码仓库。第一层实验文件夹与检查点所在 `fenge/result` 实验目录同名，再按 split、TTA 模式、场景和样本分开，避免跨场景同名覆盖：
+默认图片根目录现为 NAS **`/media/nas/lzc/fenge_result`**，独立于代码仓库。第一层实验文件夹与检查点所在 `fenge/result` 实验目录同名，再按 split、TTA 模式、场景和样本分开，避免跨场景同名覆盖：
 
 ```text
-/home/lzc/workspace/fenge_result/
+/media/nas/lzc/fenge_result/
 └── dual_region_balanced8000_bs8/
     └── test_none/
         ├── index.json
