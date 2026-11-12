@@ -1,0 +1,341 @@
+{
+  "schema": "lusnar_vit_end_to_end_verification_v1",
+  "status": "passed",
+  "scope": "Execution verification only: partial C smoke checkpoint, 3 training images, 2 validation images, 2 completed epochs; not a trained model quality result or independent test evaluation.",
+  "environment": {
+    "hostname": "Server103",
+    "torch": "2.2.2+cu121",
+    "cuda_runtime": "12.1",
+    "device_used": "cuda:2",
+    "amp": "bf16"
+  },
+  "checkpoint": {
+    "path": "/home/lzc/workspace/fenge_vit/result/runtime_check_c/best_smoke.pt",
+    "sha256": "ed0a3e647ee012d95c02a0aa0ba468e23f6e3dbfd6ce85dee724d1c1dd13f14d",
+    "epoch": 1
+  },
+  "training": {
+    "completed_epochs": 2,
+    "train_image_count": 3,
+    "val_image_count": 2,
+    "best_epoch": 1,
+    "resume_verification": "See result/verification_resume_gpu.json; numerical allclose equivalence only, not bitwise deterministic."
+  },
+  "evaluation": {
+    "path": "/home/lzc/workspace/fenge_vit/result/runtime_check_c/evaluation_metrics.json",
+    "image_count": 2,
+    "partial": true,
+    "weighted_score": null,
+    "miou": 0.1410165786743164,
+    "tta": "none",
+    "model_forward_calls": 2,
+    "image_output_root": "/media/nas/lzc/fenge_result/runtime_check_c/val_none_partial2",
+    "local_text_root": "/home/lzc/workspace/fenge_vit/result/runtime_check_c/val_none_partial2_per_image",
+    "audit_basis": "saved_per_image_confusion_matrices_compared_to_source_GT_totals_and_JPEG_content",
+    "samples": [
+      {
+        "scene": "Moon_5",
+        "sample_id": "1693360261034991360",
+        "source_id": "Moon_5/1693360261034991360",
+        "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_5/color/1693360261034991360.png",
+        "image_sha256": "e0d76b6de8df515386c18f3bce7bf2c54f55d5bb1504e545ed6cd47f961338f6",
+        "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_5/1693360261034991360.png",
+        "mask_sha256": "525daf9ca37a72d2a030e42db00f113d435ad7369bcc5f9ca23a2e072564601e",
+        "comparison": "/media/nas/lzc/fenge_result/runtime_check_c/val_none_partial2/Moon_5/1693360261034991360/comparison.jpg",
+        "metrics": "/media/nas/lzc/fenge_result/runtime_check_c/val_none_partial2/Moon_5/1693360261034991360/metrics.json",
+        "miou": 0.1457284927368164,
+        "files": [
+          "comparison.jpg",
+          "metrics.json"
+        ]
+      },
+      {
+        "scene": "Moon_6",
+        "sample_id": "1693382865013827584",
+        "source_id": "Moon_6/1693382865013827584",
+        "image": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_6/color/1693382865013827584.png",
+        "image_sha256": "67a4dbf30f4c5a7cb5a135fb35a371ed1d1a8fa051c2e4b7653031af40e99533",
+        "mask": "/home/nas/lzc/fenge/baseline_segformer_20261026/masks_id/Moon_6/1693382865013827584.png",
+        "mask_sha256": "17adcc0d111bceae217945b71ace311f05c9e886d6ddad1e4e163348740f0ef9",
+        "comparison": "/media/nas/lzc/fenge_result/runtime_check_c/val_none_partial2/Moon_6/1693382865013827584/comparison.jpg",
+        "metrics": "/media/nas/lzc/fenge_result/runtime_check_c/val_none_partial2/Moon_6/1693382865013827584/metrics.json",
+        "miou": 0.1703808307647705,
+        "files": [
+          "comparison.jpg",
+          "metrics.json"
+        ]
+      }
+    ]
+  },
+  "inference": {
+    "output_root": "/media/nas/lzc/fenge_result/fenge_vit_runtime_check/inference",
+    "input": "/home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_5/color/1693360261034991360.png",
+    "tta": "multiscale_hflip",
+    "tta_sizes": [
+      1024,
+      768
+    ],
+    "views": 4,
+    "raw_id_shape": [
+      1024,
+      1024
+    ],
+    "unique_ids": [
+      0
+    ]
+  },
+  "checks": [
+    {
+      "name": "two_epoch_three_train_two_val_smoke_only",
+      "passed": true,
+      "detail": {
+        "best_epoch": 1,
+        "best_miou": 0.1410165786743164
+      }
+    },
+    {
+      "name": "evaluation_partial_and_no_official_weighted_score",
+      "passed": true
+    },
+    {
+      "name": "checkpoint_epoch_and_sha",
+      "passed": true
+    },
+    {
+      "name": "fixed_val_identity_and_limit",
+      "passed": true
+    },
+    {
+      "name": "index_text_matches_nas",
+      "passed": true
+    },
+    {
+      "name": "two_files_only_Moon_5/1693360261034991360",
+      "passed": true,
+      "detail": [
+        "comparison.jpg",
+        "metrics.json"
+      ]
+    },
+    {
+      "name": "local_metrics_equal_nas_Moon_5/1693360261034991360",
+      "passed": true
+    },
+    {
+      "name": "source_gt_pixel_totals_Moon_5/1693360261034991360",
+      "passed": true
+    },
+    {
+      "name": "comparison_dimensions_Moon_5/1693360261034991360",
+      "passed": true
+    },
+    {
+      "name": "comparison_rgb_gt_correspond_to_source_Moon_5/1693360261034991360",
+      "passed": true,
+      "detail": {
+        "rgb_mean_absolute_jpeg_error": 2.154071489969889,
+        "gt_mean_absolute_jpeg_error": 0.9487380981445312
+      }
+    },
+    {
+      "name": "two_files_only_Moon_6/1693382865013827584",
+      "passed": true,
+      "detail": [
+        "comparison.jpg",
+        "metrics.json"
+      ]
+    },
+    {
+      "name": "local_metrics_equal_nas_Moon_6/1693382865013827584",
+      "passed": true
+    },
+    {
+      "name": "source_gt_pixel_totals_Moon_6/1693382865013827584",
+      "passed": true
+    },
+    {
+      "name": "comparison_dimensions_Moon_6/1693382865013827584",
+      "passed": true
+    },
+    {
+      "name": "comparison_rgb_gt_correspond_to_source_Moon_6/1693382865013827584",
+      "passed": true,
+      "detail": {
+        "rgb_mean_absolute_jpeg_error": 2.0067288080851235,
+        "gt_mean_absolute_jpeg_error": 0.7306435902913412
+      }
+    },
+    {
+      "name": "per_image_matrices_sum_to_overall",
+      "passed": true
+    },
+    {
+      "name": "per_scene_matrices_sum_to_overall",
+      "passed": true
+    },
+    {
+      "name": "all_scene_matrices_match_per_images",
+      "passed": true
+    },
+    {
+      "name": "no_mask_png_exports",
+      "passed": true
+    },
+    {
+      "name": "inference_metadata",
+      "passed": true
+    },
+    {
+      "name": "actual_validation_inference_source",
+      "passed": true
+    },
+    {
+      "name": "raw_prediction_ids_shape_dtype_range",
+      "passed": true,
+      "detail": {
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "uint8",
+        "unique_ids": [
+          0
+        ]
+      }
+    },
+    {
+      "name": "color_matches_raw_ids_exactly",
+      "passed": true
+    },
+    {
+      "name": "overlay_matches_source_rgb_and_prediction_exactly",
+      "passed": true
+    },
+    {
+      "name": "inference_expected_three_png_files",
+      "passed": true
+    },
+    {
+      "name": "local_copied_training_identity_confirms_three_train_two_val",
+      "passed": true
+    },
+    {
+      "name": "remote_executed_evaluate_infer_metrics_visualization_match_local_source_sha256",
+      "passed": true
+    },
+    {
+      "name": "copied_runtime_artifacts_are_only_small_text_and_no_weights",
+      "passed": true,
+      "file_count": 18,
+      "total_bytes": 67178
+    },
+    {
+      "name": "actual_comparison_and_overlay_visually_opened",
+      "passed": true,
+      "detail": "Viewed one Moon_5 comparison and four-view overlay. RGB/GT geometry and footer are readable; this 3-image smoke checkpoint predicts only regolith in this example. This is an execution check, not evidence of useful segmentation quality."
+    }
+  ],
+  "check_count": 29,
+  "source_sha256": {
+    "code/evaluate.py": "edcb9f56dc973038fdbbde87e438b03c9e15c0fa22a6d67fc7dce7952fd1982e",
+    "code/infer.py": "a96b3c8d63685403da36f9260ec403a6a979459b274fa2cd51e50bea7ab9ae72",
+    "code/vitseg/metrics.py": "582acd2cd0833b2cca0fd79d39744c0d88f827a4b5af5374c783f3ac0d3a196b",
+    "code/vitseg/visualization.py": "01539be949ab7e3cf522cf1792ae5930b800109e6f64baee53a025d03995cd4a"
+  },
+  "copied_artifacts": [
+    {
+      "path": "result/runtime_check_c/data_identity.json",
+      "bytes": 4877,
+      "sha256": "e109664de0d5ddb187243c17c948fabc389abb03e43414b69a9185b958c2ccbb"
+    },
+    {
+      "path": "result/runtime_check_c/end_to_end_audit.json",
+      "bytes": 7161,
+      "sha256": "bca8cc6d2bbe84f8c6d3923008121ed108ea6b869a5c56f89f37e8278571a18d"
+    },
+    {
+      "path": "result/runtime_check_c/evaluation.log",
+      "bytes": 148,
+      "sha256": "6dedf7a0e632fe70585139fbcf5a57019ad4441e59640d0554d60ca72e1c072b"
+    },
+    {
+      "path": "result/runtime_check_c/evaluation_metrics.json",
+      "bytes": 11758,
+      "sha256": "69c646f848622058e4aebe2fae6deca2dc97c39b16481596912aadedfcf24f71"
+    },
+    {
+      "path": "result/runtime_check_c/history.jsonl",
+      "bytes": 4745,
+      "sha256": "699c666dfe764c6b5d8e827d06adead3688be263312ab088db5de714bd33bfdb"
+    },
+    {
+      "path": "result/runtime_check_c/history_uncommitted_after_001_1794470094163525606.jsonl",
+      "bytes": 2422,
+      "sha256": "ddc43f9f3b081e095e0c6cd7004255dce609af94e5d1d238fe22d0bdc00991a3"
+    },
+    {
+      "path": "result/runtime_check_c/inference.log",
+      "bytes": 159,
+      "sha256": "5d94a5ef972f1190619d27b1d9b3b4df0e6a2a03a6139f2c7281ae9454f3e819"
+    },
+    {
+      "path": "result/runtime_check_c/inference_predictions.json",
+      "bytes": 671,
+      "sha256": "46f286e8fb004db40ad628ed3bb382e2ae931bb14e6aa0859f83977fd2b28c91"
+    },
+    {
+      "path": "result/runtime_check_c/masking_epoch_001.json",
+      "bytes": 672,
+      "sha256": "12f5116999bb36f7983c227a428e9f461e21dee8eaf5cd57083449e8b84fd881"
+    },
+    {
+      "path": "result/runtime_check_c/masking_epoch_002.json",
+      "bytes": 702,
+      "sha256": "a49874d0c73a50c9d19b8462eb390aeaa660a7d3a5064e19ef72d20e4c58aa86"
+    },
+    {
+      "path": "result/runtime_check_c/run_config.json",
+      "bytes": 4278,
+      "sha256": "35f5591498018605bcae00051ac3bcc3384bc91b9c6bfb9bfb33a0849fb3277d"
+    },
+    {
+      "path": "result/runtime_check_c/summary.json",
+      "bytes": 6187,
+      "sha256": "e389b3c4c21c57ed9b13b77ad89a3f52fe9505bb3baab663dc44f65bb2c16eb8"
+    },
+    {
+      "path": "result/runtime_check_c/val_none_partial2_per_image/Moon_5/1693360261034991360/metrics.json",
+      "bytes": 1925,
+      "sha256": "941bb26e59aa89b6d982d915b3beed4ed726c389addae822b941329f9232c209"
+    },
+    {
+      "path": "result/runtime_check_c/val_none_partial2_per_image/Moon_6/1693382865013827584/metrics.json",
+      "bytes": 1906,
+      "sha256": "a3bc3d9b58760221d0bc9281a98538253c9aca66f4135a227819babc810c5e92"
+    },
+    {
+      "path": "result/runtime_check_c/val_none_partial2_per_image/index.json",
+      "bytes": 1194,
+      "sha256": "689e945fa0a114b03f15a91e4da655e74cc0829c28dde273e80d30cb3596d817"
+    },
+    {
+      "path": "result/runtime_check_c/val_none_partial2_per_image/per_image_metrics.csv",
+      "bytes": 215,
+      "sha256": "7445f7d7a92ca2cf06de998de8578901247df887b929ae1730c704f3f771d910"
+    },
+    {
+      "path": "result/runtime_check_c/validation_epoch_001.json",
+      "bytes": 9079,
+      "sha256": "30d1f3da891b6bab7ec550da28d2b91cad0719efbe212797cdd37e3d26ffd8f4"
+    },
+    {
+      "path": "result/runtime_check_c/validation_epoch_002.json",
+      "bytes": 9079,
+      "sha256": "2119d4804222c419c09d966e0083dcaa4417053ef92d0e2c2224960839aca7d0"
+    }
+  ],
+  "commands": {
+    "evaluate": "ssh fenge103 'cd /home/lzc/workspace/fenge_vit && bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python -B code/evaluate.py --checkpoint result/runtime_check_c/best_smoke.pt --split val --max-samples 2 --workers 0 --device cuda:2 --amp bf16 --output result/runtime_check_c/evaluation_metrics.json --save-images'",
+    "infer": "ssh fenge103 'cd /home/lzc/workspace/fenge_vit && bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python -B code/infer.py --checkpoint result/runtime_check_c/best_smoke.pt --input /home/nas/lzc/fenge/baseline_segformer_20261026/data/LuSNAR_train/Moon_5/color/1693360261034991360.png --device cuda:2 --amp bf16 --tta multiscale_hflip --tta-sizes 1024 768 --overlay --output /media/nas/lzc/fenge_result/fenge_vit_runtime_check/inference'"
+  }
+}

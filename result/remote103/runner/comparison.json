@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-11-12T07:17:59.623166+00:00",
+  "updated_at": "2026-11-12T09:59:31.143098+00:00",
   "complete": false,
   "validation_only_selection": true,
   "initialization": "original_pretrained_backbones_and_identical_random_main_head",
-  "common_initial_tensor_sha256": null,
+  "common_initial_tensor_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
   "per_run_training_overrides": {
     "context": {
       "batch_size": 8,
@@ -16,7 +16,162 @@
       "gradient_checkpointing": true
     }
   },
-  "runs": [],
+  "runs": [
+    {
+      "name": "context",
+      "control": "control",
+      "status": "running",
+      "batch_size": 8,
+      "accumulation": 1,
+      "effective_batch": 8,
+      "gradient_checkpointing": true,
+      "explicit_training_overrides": {
+        "batch_size": 8,
+        "accumulation": 1,
+        "gradient_checkpointing": true
+      },
+      "execution_host": "Server103",
+      "completed_epochs": 11,
+      "best_epoch": 11,
+      "best_validation_miou": 0.980570892049809,
+      "class_iou": {
+        "regolith": 0.997837820782308,
+        "rock": 0.9421573975530632,
+        "crater": 0.9755690855102805,
+        "mountain": 0.9880372914622179,
+        "sky": 0.9992528649411753
+      },
+      "class_precision": {
+        "regolith": 0.9989959997903787,
+        "rock": 0.9674454806994444,
+        "crater": 0.9893336825199703,
+        "mountain": 0.99425118475798,
+        "sky": 0.9995213269240886
+      },
+      "class_recall": {
+        "regolith": 0.9988394932130756,
+        "rock": 0.973005139810211,
+        "crater": 0.9859391112813886,
+        "mountain": 0.993714267958503,
+        "sky": 0.9997312808559512
+      },
+      "directions": {
+        "2->0": {
+          "pixels": 306912,
+          "gt_conditional_rate": 0.013725392248457362
+        },
+        "0->2": {
+          "pixels": 229414,
+          "gt_conditional_rate": 0.0001983766224978757
+        },
+        "2->3": {
+          "pixels": 26,
+          "gt_conditional_rate": 1.1627443647035353e-06
+        },
+        "3->1": {
+          "pixels": 159749,
+          "gt_conditional_rate": 0.002686049748945675
+        },
+        "1->3": {
+          "pixels": 186038,
+          "gt_conditional_rate": 0.005215589014792847
+        }
+      },
+      "global_update": 11000,
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_context_8000_1024/best.pt",
+      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_context_8000_1024/validation_epoch_011.json",
+      "scenes": {
+        "Moon_1": 0.9925203760926681,
+        "Moon_3": 0.9809009448791046,
+        "Moon_5": 0.9783092217154298,
+        "Moon_6": 0.9761237269395965,
+        "Moon_7": 0.977550968779299,
+        "Moon_8": 0.9716116815203248
+      },
+      "training_seconds": 9299.141414492999,
+      "delta_vs_control_pp": null,
+      "comparison_budget_equal": false,
+      "batch_layout_differs_from_control": false,
+      "comparison_caveats": []
+    },
+    {
+      "name": "detail",
+      "control": "control",
+      "status": "running",
+      "batch_size": 8,
+      "accumulation": 1,
+      "effective_batch": 8,
+      "gradient_checkpointing": true,
+      "explicit_training_overrides": {
+        "batch_size": 8,
+        "accumulation": 1,
+        "gradient_checkpointing": true
+      },
+      "execution_host": "Server103",
+      "completed_epochs": 10,
+      "best_epoch": 10,
+      "best_validation_miou": 0.9813939849252774,
+      "class_iou": {
+        "regolith": 0.9979664229638628,
+        "rock": 0.946745774484708,
+        "crater": 0.9744400539134338,
+        "mountain": 0.9885283242115042,
+        "sky": 0.9992893490528785
+      },
+      "class_precision": {
+        "regolith": 0.9989256224056103,
+        "rock": 0.9734785228609645,
+        "crater": 0.9891967625950335,
+        "mountain": 0.9945639170769327,
+        "sky": 0.9995623942132419
+      },
+      "class_recall": {
+        "regolith": 0.9990387371398896,
+        "rock": 0.9718118829743139,
+        "crater": 0.9849216652413358,
+        "mountain": 0.9938984505759213,
+        "sky": 0.9997267157430793
+      },
+      "directions": {
+        "2->0": {
+          "pixels": 330187,
+          "gt_conditional_rate": 0.014766272059552546
+        },
+        "0->2": {
+          "pixels": 233815,
+          "gt_conditional_rate": 0.00020218221202429149
+        },
+        "2->3": {
+          "pixels": 37,
+          "gt_conditional_rate": 1.6546746728473388e-06
+        },
+        "3->1": {
+          "pixels": 151757,
+          "gt_conditional_rate": 0.002551670756942133
+        },
+        "1->3": {
+          "pixels": 179234,
+          "gt_conditional_rate": 0.005024838374296547
+        }
+      },
+      "global_update": 10000,
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_detail_8000_1024/best.pt",
+      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_detail_8000_1024/validation_epoch_010.json",
+      "scenes": {
+        "Moon_1": 0.9929105232365524,
+        "Moon_3": 0.9814227882360944,
+        "Moon_5": 0.9788740802988606,
+        "Moon_6": 0.9772260625795998,
+        "Moon_7": 0.9790631152311082,
+        "Moon_8": 0.9732654254728867
+      },
+      "training_seconds": 9007.355135768003,
+      "delta_vs_control_pp": null,
+      "comparison_budget_equal": false,
+      "batch_layout_differs_from_control": false,
+      "comparison_caveats": []
+    }
+  ],
   "selected_run": null,
   "interpretation": "Independent single-seed experiments. Shared effective batch 8, maximum update budget and patience policy; actual early-stop epochs may differ. Explicitly overridden microbatches can change MobileNet BatchNorm, worker horizontal flips, random point sampling and numerical trajectories; their differences do not isolate a module effect. Paired geometry must be compared to geometry_control. No combined model has been tested."
 }

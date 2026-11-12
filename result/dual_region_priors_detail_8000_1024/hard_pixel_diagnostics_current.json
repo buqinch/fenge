@@ -1,6 +1,6 @@
 {
   "schema": "lusnar_hard_pixel_diagnostics_v1",
-  "epoch": 1,
+  "epoch": 11,
   "enabled": false,
   "hard_pixel_weight": 0.0,
   "hard_pixel_quota": 256,
@@ -71,28 +71,28 @@
     "augmented/crater": 2000,
     "augmented/mountain_rock": 2000
   },
-  "training_batches": 125,
+  "training_batches": 800,
   "direction_definition": "GT class ID -> current predicted class ID; training data only",
   "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
   "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
   "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
   "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
   "training_loss": {
-    "loss_semantic_ce": 0.24895732247829438,
-    "loss_semantic_dice": 0.3181379716396332,
-    "loss_region_class": 0.16147929413616657,
-    "loss_region_mask": 0.0845825370401144,
-    "loss_region_dice": 0.24182946306467057,
-    "loss_auxiliary": 3.4495298886299133,
-    "loss_total": 3.2795609674453736,
+    "loss_semantic_ce": 0.006074856889608782,
+    "loss_semantic_dice": 0.010899077604408376,
+    "loss_region_class": 0.000605124251703728,
+    "loss_region_mask": 0.003389603747637011,
+    "loss_region_dice": 0.012534711335902102,
+    "loss_auxiliary": 0.09247168610803783,
+    "loss_total": 0.09390275603625924,
     "loss_hard_pixels": 0.0,
     "loss_hard_pixels_weighted": 0.0,
-    "loss_base": 3.2795609674453736,
+    "loss_base": 0.09390275603625924,
     "loss_affinity": 0.0,
     "loss_affinity_weighted": 0.0,
     "loss_consistency": 0.0,
     "loss_consistency_weighted": 0.0,
-    "prior_warmup_scale": 0.06300000000000001,
+    "prior_warmup_scale": 1.0,
     "affinity_to_base_ratio": 0.0,
     "consistency_to_base_ratio": 0.0,
     "hard_to_base_ratio": 0.0
@@ -166,5 +166,5 @@
     }
   },
   "partial_epoch": true,
-  "images_seen": 1000
+  "images_seen": 6400
 }

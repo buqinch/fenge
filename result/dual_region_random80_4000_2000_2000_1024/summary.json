@@ -1,8 +1,8 @@
 {
-  "status": "running",
-  "completed_epochs": 16,
-  "best_epoch": 16,
-  "best_validation_miou": 0.9735624530039921,
+  "status": "early_stopped",
+  "completed_epochs": 27,
+  "best_epoch": 24,
+  "best_validation_miou": 0.9754196219285909,
   "partial": false,
   "selection_scene": "custom_validation",
   "val_tta": "multiscale_hflip",
@@ -11,5 +11,136 @@
     768
   ],
   "official_test_used_for_selection": true,
-  "checkpoint_selection_uses_test": false
+  "checkpoint_selection_uses_test": false,
+  "stopped_at": "2026-11-12T07:25:23.169373+00:00",
+  "stop_reason": "custom validation mIoU failed to improve by at least 0.0005 above anchor 0.975085289655 for 5 consecutive eligible epochs; stop at completed epoch 27",
+  "early_stopping": {
+    "schema": "lusnar_patience_tracker_v1",
+    "policy": {
+      "patience": 5,
+      "min_delta": 0.0005,
+      "start_epoch": 4,
+      "metric": "custom_validation_miou",
+      "threshold_comparison": "score >= anchor + min_delta"
+    },
+    "anchor_score": 0.9750852896545361,
+    "anchor_epoch": 22,
+    "bad_epochs": 5,
+    "last_epoch": 27,
+    "stopped": true,
+    "stop_epoch": 27,
+    "stop_reason": "custom validation mIoU failed to improve by at least 0.0005 above anchor 0.975085289655 for 5 consecutive eligible epochs; stop at completed epoch 27",
+    "last_event": "no_significant_improvement",
+    "observations": [
+      {
+        "epoch": 1,
+        "miou": 0.9220850139642423
+      },
+      {
+        "epoch": 2,
+        "miou": 0.9390762432768204
+      },
+      {
+        "epoch": 3,
+        "miou": 0.9473448470766739
+      },
+      {
+        "epoch": 4,
+        "miou": 0.9559095481252962
+      },
+      {
+        "epoch": 5,
+        "miou": 0.9619390128820109
+      },
+      {
+        "epoch": 6,
+        "miou": 0.9627920312903496
+      },
+      {
+        "epoch": 7,
+        "miou": 0.9669369186398205
+      },
+      {
+        "epoch": 8,
+        "miou": 0.9678758519724819
+      },
+      {
+        "epoch": 9,
+        "miou": 0.9683339782673384
+      },
+      {
+        "epoch": 10,
+        "miou": 0.9710394669733292
+      },
+      {
+        "epoch": 11,
+        "miou": 0.9705050097764765
+      },
+      {
+        "epoch": 12,
+        "miou": 0.9716104252788075
+      },
+      {
+        "epoch": 13,
+        "miou": 0.9713152798220419
+      },
+      {
+        "epoch": 14,
+        "miou": 0.9721847489089457
+      },
+      {
+        "epoch": 15,
+        "miou": 0.9727301612633215
+      },
+      {
+        "epoch": 16,
+        "miou": 0.9735624530039921
+      },
+      {
+        "epoch": 17,
+        "miou": 0.9729536839924338
+      },
+      {
+        "epoch": 18,
+        "miou": 0.9739702736258208
+      },
+      {
+        "epoch": 19,
+        "miou": 0.9743179444118777
+      },
+      {
+        "epoch": 20,
+        "miou": 0.974040329388974
+      },
+      {
+        "epoch": 21,
+        "miou": 0.9742969367692815
+      },
+      {
+        "epoch": 22,
+        "miou": 0.9750852896545361
+      },
+      {
+        "epoch": 23,
+        "miou": 0.9750045651761345
+      },
+      {
+        "epoch": 24,
+        "miou": 0.9754196219285909
+      },
+      {
+        "epoch": 25,
+        "miou": 0.9752036888468026
+      },
+      {
+        "epoch": 26,
+        "miou": 0.9753963410097816
+      },
+      {
+        "epoch": 27,
+        "miou": 0.9752280818151338
+      }
+    ]
+  },
+  "stop_mechanism": "external_completed_validation_json_monitor"
 }

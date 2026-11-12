@@ -1,0 +1,67 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "two_microbatches_three_real_CPU_AdamW_updates_and_C_sequential_full_then_masked_backward",
+      "passed": true,
+      "events": [
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward",
+        "forward",
+        "backward"
+      ],
+      "optimizer_state": {
+        "components": {
+          "vit": {
+            "parameters_with_state": 2,
+            "state_tensor_bytes": 136
+          },
+          "convnext": {
+            "parameters_with_state": 2,
+            "state_tensor_bytes": 136
+          },
+          "head": {
+            "parameters_with_state": 2,
+            "state_tensor_bytes": 208
+          }
+        },
+        "minimum_parameter_step": 3,
+        "maximum_parameter_step": 3
+      }
+    },
+    {
+      "name": "fresh_worker_for_each_batch_OOM_keeps_next_case_running_and_no_real_process_started",
+      "passed": true
+    },
+    {
+      "name": "worker_catches_CUDA_OutOfMemoryError_and_commits_structured_result",
+      "passed": true
+    },
+    {
+      "name": "full_run_peak_keeps_larger_warmup_and_handles_no_cuda_setup_failure",
+      "passed": true
+    }
+  ],
+  "source_sha256": "10fb09d76f0b32776ad6ea7cc703d0b1816087e17a48a46791acfdf8eff4c4ae",
+  "scope": "CPU toy objective checks execution/gradient sequencing and real AdamW states; subprocess/CUDA control tests use temporary isolated fixtures and mocked hardware. Actual1024 GPU results are separately reported in memory_B_local4090.json and memory_C_local4090.json."
+}

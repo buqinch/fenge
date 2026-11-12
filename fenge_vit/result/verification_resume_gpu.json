@@ -1,0 +1,638 @@
+{
+  "status": "differences_detected",
+  "timestamp_utc": "2026-11-12T07:56:29.732581+00:00",
+  "host": "Server103",
+  "scope": "Real CUDA full1024 adapter+masking trainer on 103 GPU2: 3 training / 2 validation images, 2 epochs, freeze1, BF16, micro1 accumulation2, mask fraction1, warmup1. Comparison exclusively CPU map_location; no GPU computation launched by verifier.",
+  "checkpoint_format": "lusnar_vit_checkpoint_v1",
+  "paths": {
+    "uninterrupted": "/home/lzc/workspace/fenge_vit/result/runtime_check_c/uninterrupted_last.pt",
+    "resumed": "/home/lzc/workspace/fenge_vit/result/runtime_check_c/last.pt",
+    "epoch1_snapshot": "/home/lzc/workspace/fenge_vit/result/runtime_check_c/epoch1_check.pt"
+  },
+  "checkpoint_sha256": {
+    "uninterrupted_last.pt": "7f411dbe2f098052111a094638056357c016d525c34f3e334d190db11e06d22b",
+    "last.pt": "4d5bafcd92ccbe6c2d080553a90c08a144d3ed6f17bb485993233f3eb9089db4",
+    "epoch1_check.pt": "6fdbbdadbb87ddfe7eef3698207ccc0e4d32e99ef2be62097dd6f2ba3a489527"
+  },
+  "metadata": {
+    "epoch": {
+      "uninterrupted": 2,
+      "resumed": 2,
+      "equal": true
+    },
+    "global_update": {
+      "uninterrupted": 4,
+      "resumed": 4,
+      "equal": true
+    },
+    "best_epoch": {
+      "uninterrupted": 1,
+      "resumed": 1,
+      "equal": true
+    },
+    "best_miou": {
+      "uninterrupted": 0.1410165786743164,
+      "resumed": 0.1410165786743164,
+      "equal": true
+    },
+    "partial": {
+      "uninterrupted": true,
+      "resumed": true,
+      "equal": true
+    },
+    "status": {
+      "uninterrupted": "complete",
+      "resumed": "complete",
+      "equal": true
+    }
+  },
+  "components": {
+    "model": {
+      "equal": false,
+      "tensor_count": 697,
+      "different_tensor_count": 684,
+      "different_elements": 52020734,
+      "max_abs_diff": 0.00004435703158378601,
+      "max_rel_diff": 5938.663701017576,
+      "differences": [
+        {
+          "path": ".encoder.vit.model.cls_token",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000018030405044555664,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.reg_token",
+          "kind": "tensor_values",
+          "max_abs_diff": 3.0547380447387695e-7,
+          "different_elements": 967,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.patch_embed.proj.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000028014183044433594,
+          "different_elements": 294103,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.patch_embed.proj.bias",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000010281801223754883,
+          "different_elements": 336,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.gamma_1",
+          "kind": "tensor_values",
+          "max_abs_diff": 8.500501280650496e-8,
+          "different_elements": 382,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.gamma_2",
+          "kind": "tensor_values",
+          "max_abs_diff": 3.3155083656311035e-7,
+          "different_elements": 344,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.norm1.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000017881393432617188,
+          "different_elements": 286,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.norm1.bias",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000011920928955078125,
+          "different_elements": 63,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.attn.qkv.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000018551945686340332,
+          "different_elements": 293194,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.attn.proj.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 7.450580596923828e-8,
+          "different_elements": 16564,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.attn.proj.bias",
+          "kind": "tensor_values",
+          "max_abs_diff": 7.450580596923828e-9,
+          "different_elements": 5,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.norm2.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.384185791015625e-7,
+          "different_elements": 10,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.norm2.bias",
+          "kind": "tensor_values",
+          "max_abs_diff": 1.1920928955078125e-7,
+          "different_elements": 294,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.mlp.fc1.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 1.30385160446167e-7,
+          "different_elements": 171839,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.mlp.fc1.bias",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.384185791015625e-7,
+          "different_elements": 162,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.mlp.fc2.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 1.73225998878479e-7,
+          "different_elements": 201808,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.0.mlp.fc2.bias",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.384185791015625e-7,
+          "different_elements": 118,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.1.gamma_1",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.384185791015625e-7,
+          "different_elements": 304,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.1.gamma_2",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.8312206268310547e-7,
+          "different_elements": 331,
+          "finite": true
+        },
+        {
+          "path": ".encoder.vit.model.blocks.1.norm1.weight",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.384185791015625e-7,
+          "different_elements": 25,
+          "finite": true
+        }
+      ]
+    },
+    "optimizer": {
+      "equal": false,
+      "tensor_count": 2085,
+      "different_tensor_count": 1390,
+      "different_elements": 131781762,
+      "max_abs_diff": 0.002100573852658272,
+      "max_rel_diff": 183613.1629089641,
+      "differences": [
+        {
+          "path": ".state.0.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.000015989760868251324,
+          "different_elements": 73728,
+          "finite": true
+        },
+        {
+          "path": ".state.0.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 8.933014328249556e-10,
+          "different_elements": 73727,
+          "finite": true
+        },
+        {
+          "path": ".state.1.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.000007171358447521925,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.1.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.0122392641042097e-10,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.2.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 9.303930710302666e-7,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.2.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 3.241046320212604e-12,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.3.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 8.31540091894567e-7,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.3.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 1.9782231408527196e-12,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.4.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.00002284639049321413,
+          "different_elements": 147456,
+          "finite": true
+        },
+        {
+          "path": ".state.4.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 1.4701129202876473e-9,
+          "different_elements": 147444,
+          "finite": true
+        },
+        {
+          "path": ".state.5.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 3.4148251870647073e-7,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.5.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 5.058661822765487e-13,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.6.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000011582797014852986,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.6.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 2.335798221508867e-12,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.7.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 7.526105036959052e-7,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.7.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 1.5422663146580362e-12,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.8.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.0000029283546609804034,
+          "different_elements": 294912,
+          "finite": true
+        },
+        {
+          "path": ".state.8.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 3.109990043270727e-11,
+          "different_elements": 294876,
+          "finite": true
+        },
+        {
+          "path": ".state.9.exp_avg",
+          "kind": "tensor_values",
+          "max_abs_diff": 0.000002390064764767885,
+          "different_elements": 384,
+          "finite": true
+        },
+        {
+          "path": ".state.9.exp_avg_sq",
+          "kind": "tensor_values",
+          "max_abs_diff": 1.7312540290248535e-11,
+          "different_elements": 384,
+          "finite": true
+        }
+      ]
+    },
+    "scaler": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "scheduler": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "rng": {
+      "equal": true,
+      "tensor_count": 2,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "loader_generator": {
+      "equal": true,
+      "tensor_count": 1,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "val_generator": {
+      "equal": true,
+      "tensor_count": 1,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "data_identity": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "early_stopping": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "metrics": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    }
+  },
+  "epoch2_record_comparison": {
+    "data_order_and_hflip_sha256": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "masking": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "losses": {
+      "equal": false,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": [
+        {
+          "path": ".loss_class",
+          "kind": "scalar",
+          "uninterrupted": 1.8664048910140991,
+          "resumed": 1.8578052123387654
+        },
+        {
+          "path": ".loss_mask",
+          "kind": "scalar",
+          "uninterrupted": 2.1043562491734824,
+          "resumed": 2.1009514729181924
+        },
+        {
+          "path": ".loss_dice",
+          "kind": "scalar",
+          "uninterrupted": 0.6831119259198507,
+          "resumed": 0.6816125313440958
+        },
+        {
+          "path": ".loss_mask_0",
+          "kind": "scalar",
+          "uninterrupted": 0.5161545475323995,
+          "resumed": 0.5163198709487915
+        },
+        {
+          "path": ".loss_dice_0",
+          "kind": "scalar",
+          "uninterrupted": 0.6671733657519022,
+          "resumed": 0.6669940153757731
+        },
+        {
+          "path": ".loss_class_1",
+          "kind": "scalar",
+          "uninterrupted": 1.6611089706420898,
+          "resumed": 1.6610260804494221
+        },
+        {
+          "path": ".loss_mask_1",
+          "kind": "scalar",
+          "uninterrupted": 0.5714831153551737,
+          "resumed": 0.5730389853318533
+        },
+        {
+          "path": ".loss_dice_1",
+          "kind": "scalar",
+          "uninterrupted": 0.6646145184834799,
+          "resumed": 0.6654545466105143
+        },
+        {
+          "path": ".loss_class_2",
+          "kind": "scalar",
+          "uninterrupted": 1.9290246566136677,
+          "resumed": 1.913110574086507
+        },
+        {
+          "path": ".loss_mask_2",
+          "kind": "scalar",
+          "uninterrupted": 0.7847959895928701,
+          "resumed": 0.7812092204888662
+        },
+        {
+          "path": ".loss_dice_2",
+          "kind": "scalar",
+          "uninterrupted": 0.8069868087768555,
+          "resumed": 0.8072172602017721
+        },
+        {
+          "path": ".loss_class_3",
+          "kind": "scalar",
+          "uninterrupted": 1.6309551397959392,
+          "resumed": 1.6322473287582397
+        },
+        {
+          "path": ".loss_mask_3",
+          "kind": "scalar",
+          "uninterrupted": 0.8150172233581543,
+          "resumed": 0.8188817898432413
+        },
+        {
+          "path": ".loss_dice_3",
+          "kind": "scalar",
+          "uninterrupted": 0.7349336544672648,
+          "resumed": 0.7347267071406046
+        },
+        {
+          "path": ".loss_class_4",
+          "kind": "scalar",
+          "uninterrupted": 1.825069745381673,
+          "resumed": 1.8163535197575886
+        },
+        {
+          "path": ".loss_mask_4",
+          "kind": "scalar",
+          "uninterrupted": 1.137465516726176,
+          "resumed": 1.1432042121887207
+        },
+        {
+          "path": ".loss_dice_4",
+          "kind": "scalar",
+          "uninterrupted": 0.7685367067654928,
+          "resumed": 0.768937885761261
+        },
+        {
+          "path": ".loss_class_5",
+          "kind": "scalar",
+          "uninterrupted": 1.6869916915893555,
+          "resumed": 1.6858800252278645
+        },
+        {
+          "path": ".loss_mask_5",
+          "kind": "scalar",
+          "uninterrupted": 1.9184044003486633,
+          "resumed": 1.9177711407343547
+        },
+        {
+          "path": ".loss_dice_5",
+          "kind": "scalar",
+          "uninterrupted": 0.9151224295298258,
+          "resumed": 0.9148587981859843
+        }
+      ]
+    },
+    "miou": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "optimizer_updates": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "global_update": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    },
+    "early_stopping": {
+      "equal": true,
+      "tensor_count": 0,
+      "different_tensor_count": 0,
+      "different_elements": 0,
+      "max_abs_diff": 0,
+      "max_rel_diff": 0,
+      "differences": []
+    }
+  },
+  "epoch2_hashes": {
+    "data_order_and_hflip_sha256": "71d036d1155eae116ab71af39494a24d7f5c83d8f365eef270c2ce5719202149",
+    "mask_sequence_sha256": "159913107446949b498bd4f2bb7d403c0669c039c7a6f04694352a68756489f5"
+  },
+  "training_source_sha256": {
+    "code/train.py": "94bb978631d61ea77357000787dcdb9767369b80ccaf63f12e209726bda7e0bd",
+    "code/vitseg/__init__.py": "39ac7bbf4636a3a7637a26da818ba5c447617185860319a6b1cdb3f883dd7e84",
+    "code/vitseg/adapter.py": "8b4fb40d17a5f64df23f7e38ddc8a8f9cff104dfeba82551d07a2bf430e62df7",
+    "code/vitseg/backbones.py": "f894b78ebbe564db5d648b5591122e94fe39e656998a31d98c91f0a9aa2c3dde",
+    "code/vitseg/data.py": "d6bf1ab5e74c88f860a917db155253ca7eefef5be0d47d82537a507018bf0d42",
+    "code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "code/vitseg/deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5",
+    "code/vitseg/diagnostics.py": "bce4cf627a5dabcbf9720695a5246f7515ff8c6911e6de8f0435e9416848ff7d",
+    "code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "code/vitseg/masking.py": "166c131cf93b81ae5f1cee7c6c7dd4f126e4b2ea5ac0da082667a5039a619913",
+    "code/vitseg/metrics.py": "582acd2cd0833b2cca0fd79d39744c0d88f827a4b5af5374c783f3ac0d3a196b",
+    "code/vitseg/model.py": "eacd7a9ee96c9ce86519e505e51bd40415edb0b9313392ff23147bf3e72d7722",
+    "code/vitseg/visualization.py": "01539be949ab7e3cf522cf1792ae5930b800109e6f64baee53a025d03995cd4a"
+  },
+  "notes": [
+    "An epoch1 snapshot was restored as last.pt; existing epoch2 history was archived as uncommitted before deterministic replay.",
+    "Serialized checkpoint file SHA need not match because metadata resume path and serialization differ; model/optimizer/RNG values are compared recursively."
+  ],
+  "interpretation": {
+    "restored_control_state_equal": true,
+    "validation_metrics_equal": true,
+    "model_and_optimizer_bitwise_equal": false,
+    "numerical_cause": "Not isolated by this read-only comparison; matching RNG/data/mask states alone do not establish bitwise GPU determinism."
+  }
+}

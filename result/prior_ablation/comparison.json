@@ -1,76 +1,655 @@
 {
-  "updated_at": "2026-11-12T05:52:38.559042+00:00",
+  "updated_at": "2026-11-12T10:01:01.982158+00:00",
   "complete": false,
   "validation_only_selection": true,
   "initialization": "original_pretrained_backbones_and_identical_random_main_head",
   "common_initial_tensor_sha256": "48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740",
+  "per_run_training_overrides": {
+    "context": {
+      "batch_size": 8,
+      "accumulation": 1,
+      "gradient_checkpointing": true
+    },
+    "detail": {
+      "batch_size": 8,
+      "accumulation": 1,
+      "gradient_checkpointing": true
+    }
+  },
   "runs": [
     {
       "name": "control",
       "control": null,
       "status": "running",
-      "completed_epochs": 1,
-      "best_epoch": 1,
-      "best_validation_miou": 0.9149259640740901,
+      "batch_size": 4,
+      "accumulation": 2,
+      "effective_batch": 8,
+      "gradient_checkpointing": false,
+      "explicit_training_overrides": {},
+      "execution_host": "Server70",
+      "completed_epochs": 28,
+      "best_epoch": 28,
+      "best_validation_miou": 0.9740957319855761,
       "class_iou": {
-        "regolith": 0.9899628614887442,
-        "rock": 0.8351479755834184,
-        "crater": 0.8068949279756851,
-        "mountain": 0.9469343241837767,
-        "sky": 0.9956897311388269
+        "regolith": 0.9969617216168816,
+        "rock": 0.9312318874866083,
+        "crater": 0.9696199938946933,
+        "mountain": 0.9751333544365076,
+        "sky": 0.9975317024931896
       },
       "class_precision": {
-        "regolith": 0.9972119188520085,
-        "rock": 0.8831411873635747,
-        "crater": 0.8342365747492205,
-        "mountain": 0.97547824012625,
-        "sky": 0.9979590837840502
+        "regolith": 0.9989689411111984,
+        "rock": 0.9535034871829722,
+        "crater": 0.9784442872110016,
+        "mountain": 0.9868534343075892,
+        "sky": 0.9988116315419642
       },
       "class_recall": {
-        "regolith": 0.9927104991891483,
-        "rock": 0.9389047061216406,
-        "crater": 0.9609674319328331,
-        "mountain": 0.9700250104323631,
-        "sky": 0.9977213663991508
+        "regolith": 0.9979886391435814,
+        "rock": 0.9755312120781825,
+        "crater": 0.9907844459328566,
+        "mountain": 0.9879674810910162,
+        "sky": 0.9987170254214635
       },
       "directions": {
         "2->0": {
-          "pixels": 845435,
-          "gt_conditional_rate": 0.03780864546050513
+          "pixels": 198586,
+          "gt_conditional_rate": 0.008880952015731395
         },
         "0->2": {
-          "pixels": 4211699,
-          "gt_conditional_rate": 0.003641899023589147
+          "pixels": 472093,
+          "gt_conditional_rate": 0.0004082236256065002
         },
         "2->3": {
-          "pixels": 500,
-          "gt_conditional_rate": 2.2360468551991063e-05
+          "pixels": 39,
+          "gt_conditional_rate": 1.744116547055303e-06
         },
         "3->1": {
-          "pixels": 757357,
-          "gt_conditional_rate": 0.012734343123977298
+          "pixels": 230180,
+          "gt_conditional_rate": 0.0038702898372591716
         },
         "1->3": {
-          "pixels": 290617,
-          "gt_conditional_rate": 0.008147468972532776
+          "pixels": 159097,
+          "gt_conditional_rate": 0.00446029609803641
         }
       },
-      "global_update": 1000,
+      "global_update": 28000,
       "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/best.pt",
-      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/validation_epoch_001.json",
+      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_control_8000_1024/validation_epoch_028.json",
       "scenes": {
-        "Moon_1": 0.9660469378110339,
-        "Moon_3": 0.9091907839602943,
-        "Moon_5": 0.9079828168976436,
-        "Moon_6": 0.9040952636051127,
-        "Moon_7": 0.9102953224862225,
-        "Moon_8": 0.9049768843142558
+        "Moon_1": 0.9898128443084306,
+        "Moon_3": 0.9721627401509967,
+        "Moon_5": 0.975225162419299,
+        "Moon_6": 0.9671487437419319,
+        "Moon_7": 0.968885026546155,
+        "Moon_8": 0.9622117057701016
       },
-      "training_seconds": 473.96894024001085,
+      "training_seconds": 14547.794125910033,
       "delta_vs_control_pp": null,
-      "comparison_budget_equal": false
+      "comparison_budget_equal": false,
+      "batch_layout_differs_from_control": false,
+      "comparison_caveats": []
+    },
+    {
+      "name": "affinity",
+      "control": "control",
+      "status": "running",
+      "batch_size": 4,
+      "accumulation": 2,
+      "effective_batch": 8,
+      "gradient_checkpointing": false,
+      "explicit_training_overrides": {},
+      "execution_host": "Server70",
+      "completed_epochs": 17,
+      "best_epoch": 17,
+      "best_validation_miou": 0.9721881174913938,
+      "class_iou": {
+        "regolith": 0.9967413092340826,
+        "rock": 0.9257308441398645,
+        "crater": 0.9665268272819721,
+        "mountain": 0.9744550144839587,
+        "sky": 0.9974865923170907
+      },
+      "class_precision": {
+        "regolith": 0.9989114422853751,
+        "rock": 0.9482366910072684,
+        "crater": 0.9765093467801514,
+        "mountain": 0.9871331296270988,
+        "sky": 0.998789726081519
+      },
+      "class_recall": {
+        "regolith": 0.9978251397417057,
+        "rock": 0.9750023304154896,
+        "crater": 0.9895340038104922,
+        "mountain": 0.9869914006524779,
+        "sky": 0.9986937082675686
+      },
+      "directions": {
+        "2->0": {
+          "pixels": 224943,
+          "gt_conditional_rate": 0.010059661754981051
+        },
+        "0->2": {
+          "pixels": 518537,
+          "gt_conditional_rate": 0.00044838422546218177
+        },
+        "2->3": {
+          "pixels": 27,
+          "gt_conditional_rate": 1.2074653018075175e-06
+        },
+        "3->1": {
+          "pixels": 268061,
+          "gt_conditional_rate": 0.004507228100032717
+        },
+        "1->3": {
+          "pixels": 152355,
+          "gt_conditional_rate": 0.004271283632100776
+        }
+      },
+      "global_update": 17000,
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_affinity_8000_1024/best.pt",
+      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_affinity_8000_1024/validation_epoch_017.json",
+      "scenes": {
+        "Moon_1": 0.9888364242983761,
+        "Moon_3": 0.9705995145810029,
+        "Moon_5": 0.9730718094108297,
+        "Moon_6": 0.9646985810963595,
+        "Moon_7": 0.9670174538427754,
+        "Moon_8": 0.9596897654974498
+      },
+      "training_seconds": 14896.837732166023,
+      "delta_vs_control_pp": -0.1907614494182308,
+      "comparison_budget_equal": false,
+      "batch_layout_differs_from_control": false,
+      "comparison_caveats": [],
+      "matched_budget": {
+        "through_epoch": 17,
+        "optimizer_updates": 17000,
+        "best_miou": 0.9721881174913938,
+        "control_best_miou": 0.9722999010453643,
+        "delta_pp": -0.011178355397056805
+      },
+      "training_stream_audit": {
+        "through_epoch": 17,
+        "sample_order_equal": true,
+        "horizontal_flip_mismatch_epochs": [],
+        "sample_and_horizontal_flip_mismatch_epochs": [],
+        "per_epoch": [
+          {
+            "epoch": 1,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 2,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 3,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 4,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 5,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 6,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 7,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 8,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 9,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 10,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 11,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 12,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 13,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 14,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 15,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 16,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          },
+          {
+            "epoch": 17,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": true,
+            "sample_and_horizontal_flip_sha256": true
+          }
+        ],
+        "batch_layout_differs": false,
+        "horizontal_flip_equal": true,
+        "sample_and_horizontal_flip_equal": true
+      }
+    },
+    {
+      "name": "context",
+      "control": "control",
+      "status": "running",
+      "batch_size": 8,
+      "accumulation": 1,
+      "effective_batch": 8,
+      "gradient_checkpointing": true,
+      "explicit_training_overrides": {
+        "batch_size": 8,
+        "accumulation": 1,
+        "gradient_checkpointing": true
+      },
+      "execution_host": "Server103",
+      "completed_epochs": 11,
+      "best_epoch": 11,
+      "best_validation_miou": 0.980570892049809,
+      "class_iou": {
+        "regolith": 0.997837820782308,
+        "rock": 0.9421573975530632,
+        "crater": 0.9755690855102805,
+        "mountain": 0.9880372914622179,
+        "sky": 0.9992528649411753
+      },
+      "class_precision": {
+        "regolith": 0.9989959997903787,
+        "rock": 0.9674454806994444,
+        "crater": 0.9893336825199703,
+        "mountain": 0.99425118475798,
+        "sky": 0.9995213269240886
+      },
+      "class_recall": {
+        "regolith": 0.9988394932130756,
+        "rock": 0.973005139810211,
+        "crater": 0.9859391112813886,
+        "mountain": 0.993714267958503,
+        "sky": 0.9997312808559512
+      },
+      "directions": {
+        "2->0": {
+          "pixels": 306912,
+          "gt_conditional_rate": 0.013725392248457362
+        },
+        "0->2": {
+          "pixels": 229414,
+          "gt_conditional_rate": 0.0001983766224978757
+        },
+        "2->3": {
+          "pixels": 26,
+          "gt_conditional_rate": 1.1627443647035353e-06
+        },
+        "3->1": {
+          "pixels": 159749,
+          "gt_conditional_rate": 0.002686049748945675
+        },
+        "1->3": {
+          "pixels": 186038,
+          "gt_conditional_rate": 0.005215589014792847
+        }
+      },
+      "global_update": 11000,
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_context_8000_1024/best.pt",
+      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_context_8000_1024/validation_epoch_011.json",
+      "scenes": {
+        "Moon_1": 0.9925203760926681,
+        "Moon_3": 0.9809009448791046,
+        "Moon_5": 0.9783092217154298,
+        "Moon_6": 0.9761237269395965,
+        "Moon_7": 0.977550968779299,
+        "Moon_8": 0.9716116815203248
+      },
+      "training_seconds": 9299.141414492999,
+      "delta_vs_control_pp": 0.6475160064232877,
+      "comparison_budget_equal": false,
+      "batch_layout_differs_from_control": true,
+      "comparison_caveats": [
+        "Different actual microbatch and accumulation: MobileNet BatchNorm statistics and update counts, worker-assigned horizontal flips, random point sampling and numerical training trajectories may differ. The score difference does not isolate the module effect."
+      ],
+      "matched_budget": {
+        "through_epoch": 11,
+        "optimizer_updates": 11000,
+        "best_miou": 0.980570892049809,
+        "control_best_miou": 0.9694921079988005,
+        "delta_pp": 1.1078784051008483
+      },
+      "training_stream_audit": {
+        "through_epoch": 11,
+        "sample_order_equal": true,
+        "horizontal_flip_mismatch_epochs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "sample_and_horizontal_flip_mismatch_epochs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "per_epoch": [
+          {
+            "epoch": 1,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 2,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 3,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 4,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 5,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 6,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 7,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 8,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 9,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 10,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 11,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          }
+        ],
+        "batch_layout_differs": true,
+        "horizontal_flip_equal": false,
+        "sample_and_horizontal_flip_equal": false
+      }
+    },
+    {
+      "name": "detail",
+      "control": "control",
+      "status": "running",
+      "batch_size": 8,
+      "accumulation": 1,
+      "effective_batch": 8,
+      "gradient_checkpointing": true,
+      "explicit_training_overrides": {
+        "batch_size": 8,
+        "accumulation": 1,
+        "gradient_checkpointing": true
+      },
+      "execution_host": "Server103",
+      "completed_epochs": 10,
+      "best_epoch": 10,
+      "best_validation_miou": 0.9813939849252774,
+      "class_iou": {
+        "regolith": 0.9979664229638628,
+        "rock": 0.946745774484708,
+        "crater": 0.9744400539134338,
+        "mountain": 0.9885283242115042,
+        "sky": 0.9992893490528785
+      },
+      "class_precision": {
+        "regolith": 0.9989256224056103,
+        "rock": 0.9734785228609645,
+        "crater": 0.9891967625950335,
+        "mountain": 0.9945639170769327,
+        "sky": 0.9995623942132419
+      },
+      "class_recall": {
+        "regolith": 0.9990387371398896,
+        "rock": 0.9718118829743139,
+        "crater": 0.9849216652413358,
+        "mountain": 0.9938984505759213,
+        "sky": 0.9997267157430793
+      },
+      "directions": {
+        "2->0": {
+          "pixels": 330187,
+          "gt_conditional_rate": 0.014766272059552546
+        },
+        "0->2": {
+          "pixels": 233815,
+          "gt_conditional_rate": 0.00020218221202429149
+        },
+        "2->3": {
+          "pixels": 37,
+          "gt_conditional_rate": 1.6546746728473388e-06
+        },
+        "3->1": {
+          "pixels": 151757,
+          "gt_conditional_rate": 0.002551670756942133
+        },
+        "1->3": {
+          "pixels": 179234,
+          "gt_conditional_rate": 0.005024838374296547
+        }
+      },
+      "global_update": 10000,
+      "checkpoint": "/home/lzc/workspace/fenge/result/dual_region_priors_detail_8000_1024/best.pt",
+      "best_record": "/home/lzc/workspace/fenge/result/dual_region_priors_detail_8000_1024/validation_epoch_010.json",
+      "scenes": {
+        "Moon_1": 0.9929105232365524,
+        "Moon_3": 0.9814227882360944,
+        "Moon_5": 0.9788740802988606,
+        "Moon_6": 0.9772260625795998,
+        "Moon_7": 0.9790631152311082,
+        "Moon_8": 0.9732654254728867
+      },
+      "training_seconds": 9007.355135768003,
+      "delta_vs_control_pp": 0.7298252939701322,
+      "comparison_budget_equal": false,
+      "batch_layout_differs_from_control": true,
+      "comparison_caveats": [
+        "Different actual microbatch and accumulation: MobileNet BatchNorm statistics and update counts, worker-assigned horizontal flips, random point sampling and numerical training trajectories may differ. The score difference does not isolate the module effect."
+      ],
+      "matched_budget": {
+        "through_epoch": 10,
+        "optimizer_updates": 10000,
+        "best_miou": 0.9813939849252774,
+        "control_best_miou": 0.968482908317341,
+        "delta_pp": 1.2911076607936445
+      },
+      "training_stream_audit": {
+        "through_epoch": 10,
+        "sample_order_equal": true,
+        "horizontal_flip_mismatch_epochs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "sample_and_horizontal_flip_mismatch_epochs": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "per_epoch": [
+          {
+            "epoch": 1,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 2,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 3,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 4,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 5,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 6,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 7,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 8,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 9,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          },
+          {
+            "epoch": 10,
+            "sample_order_sha256": true,
+            "horizontal_flip_sha256": false,
+            "sample_and_horizontal_flip_sha256": false
+          }
+        ],
+        "batch_layout_differs": true,
+        "horizontal_flip_equal": false,
+        "sample_and_horizontal_flip_equal": false
+      }
     }
   ],
   "selected_run": null,
-  "interpretation": "Independent single-seed ablations. Shared maximum update budget and patience policy; actual early-stop epochs may differ. Paired geometry must be compared to geometry_control. No combined model has been tested."
+  "interpretation": "Independent single-seed experiments. Shared effective batch 8, maximum update budget and patience policy; actual early-stop epochs may differ. Explicitly overridden microbatches can change MobileNet BatchNorm, worker horizontal flips, random point sampling and numerical trajectories; their differences do not isolate a module effect. Paired geometry must be compared to geometry_control. No combined model has been tested."
 }

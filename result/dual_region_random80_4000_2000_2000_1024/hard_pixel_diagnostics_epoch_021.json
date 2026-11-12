@@ -1,0 +1,163 @@
+{
+  "schema": "lusnar_hard_pixel_diagnostics_v1",
+  "epoch": 21,
+  "enabled": false,
+  "hard_pixel_weight": 0.0,
+  "hard_pixel_quota": 256,
+  "training_data_identity": {
+    "manifest": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_pool_20261112.json",
+    "manifest_sha256": "dfcb4d28eaeb5ecce6d60a2fd8ede7768d813e6aaec8c43f2c319e79b2a14dd5",
+    "split": "train",
+    "train_source": "embedded_custom_manifest",
+    "protocol": "random_original_source_family_4_to_1",
+    "custom_split": true,
+    "selection_metric": "validation_all_scenes_miou",
+    "selection_scope": "custom_val_originals",
+    "split_seed": 42,
+    "split_counts": {
+      "original_pool": 8002,
+      "train_original": 6401,
+      "val_original": 1601,
+      "train_augmented": 4000,
+      "train_total": 10401,
+      "val_total": 1601
+    },
+    "augmentation_counts": {
+      "crater": 2000,
+      "mountain_rock": 2000
+    },
+    "source_manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "source_manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+    "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_random80_supplement_747_20261112/merged_manifest.json",
+    "augmented_manifest_sha256": "b7bd301864cb6a972d5be11e167c19d60937ab6d9231d579a3ed1062e435cbdb",
+    "original_split_sha256": "e442513b7c6d6357db4c59df4377c7a39a046feca4119251fe0476c2f7ef65e4",
+    "splits_sha256": "27d138033e47bced2663a6d08052d072e29a9a40b9c4f77faeb5a5c0577d6ddc",
+    "literal_ordered_samples_sha256": "87bcd61862609ae2c4b90adfea68ae506b88a274cd1be3e88687c54f522649a2",
+    "train_original_source_ids_sha256": "fec94ec964934d4c4840973267bd1427a285557f723b992da0e0ff73fea0e198",
+    "val_original_source_ids_sha256": "23a64d503db0d08d08fdcd4dd05921a4aa458e70f835edba2a827ee510d4267a",
+    "validation_scenes": [
+      "Moon_1",
+      "Moon_3",
+      "Moon_5",
+      "Moon_6",
+      "Moon_7",
+      "Moon_8"
+    ],
+    "validation_image_count": 1601,
+    "independent_test_scenes": [
+      "Moon_2",
+      "Moon_4",
+      "Moon_9"
+    ],
+    "selection_manifest": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_seed42_20261112.json",
+    "selection_manifest_sha256": "f6948e94ede914a53fd957d5a457284d34a18319c151511e2448e34a98f1ef6c",
+    "selection_seed": 42,
+    "selection_counts": {
+      "original": 4000,
+      "crater": 2000,
+      "mountain_rock": 2000
+    },
+    "candidate_image_count": 10401,
+    "candidate_ordered_samples_sha256": "87bcd61862609ae2c4b90adfea68ae506b88a274cd1be3e88687c54f522649a2",
+    "selection_ordered_samples_sha256": "bc1100a0308d259e8198073e9bba36cdfb57eb272f19523d10ea2c230d55fc0c",
+    "image_count": 8000,
+    "complete_image_count": 8000,
+    "partial": false,
+    "unique_source_count": 4894,
+    "ordered_samples_sha256": "bc1100a0308d259e8198073e9bba36cdfb57eb272f19523d10ea2c230d55fc0c"
+  },
+  "training_source_counts": {
+    "original": 4000,
+    "augmented/crater": 2000,
+    "augmented/mountain_rock": 2000
+  },
+  "training_batches": 1000,
+  "direction_definition": "GT class ID -> current predicted class ID; training data only",
+  "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
+  "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
+  "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
+  "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
+  "training_loss": {
+    "loss_semantic_ce": 0.00762140230089426,
+    "loss_semantic_dice": 0.022099747114814817,
+    "loss_region_class": 2.235708887496912e-05,
+    "loss_region_mask": 0.0030882812938652932,
+    "loss_region_dice": 0.010712088365573436,
+    "loss_auxiliary": 0.07023273378610612,
+    "loss_total": 0.09103572539240122,
+    "loss_hard_pixels": 0.0,
+    "loss_hard_pixels_weighted": 0.0,
+    "loss_base": 0.09103572539240122,
+    "hard_to_base_ratio": 0.0
+  },
+  "directions": {
+    "0->3": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "3->0": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "2->0": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "0->2": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "3->1": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    },
+    "1->3": {
+      "candidate_count": 0,
+      "selected_count": 0,
+      "selected_ce_sum": 0,
+      "candidate_boundary_count": 0,
+      "selected_boundary_count": 0,
+      "candidate_boundary_fraction": null,
+      "selected_boundary_fraction": null,
+      "selected_mean_ce": null,
+      "highest_ce_examples": []
+    }
+  },
+  "partial_epoch": false,
+  "images_seen": 8000
+}

@@ -1,0 +1,198 @@
+{
+  "schema": "fenge_vit_model_cpu_verification_v1",
+  "status": "passed",
+  "recorded_at": "2026-11-12T07:45:09.981632+00:00",
+  "environment": {
+    "torch": "2.1.1+cu121",
+    "device": "cpu"
+  },
+  "shared_initial_tensor_sha256": "53eb7f532fb45ceb07eb1b0d4c86ba07dd211e6bd103fb7204e91a464256b2e2",
+  "checks": [
+    {
+      "name": "deformable_two_scale_hand_bilinear_forward_value_gradient_offsets_and_padding_mask",
+      "passed": true,
+      "forward_values": [
+        6.25,
+        5.5
+      ],
+      "value_gradients": [
+        0.625,
+        0.125,
+        0.125,
+        0.125,
+        1.0
+      ]
+    },
+    {
+      "name": "deformable_four_coordinate_reference_box_geometry",
+      "passed": true,
+      "normalized_sample_location": [
+        0.75,
+        0.5
+      ]
+    },
+    {
+      "name": "deformable_chunk_equivalence_and_bfloat16_autograd",
+      "passed": true,
+      "chunk_sizes": [
+        2,
+        64
+      ],
+      "bf16_query_gradient": true,
+      "bf16_value_gradient": true
+    },
+    {
+      "name": "actual_local_pretrained_strict_sha_and_identical_shared_A_B_initialization",
+      "passed": true,
+      "pretrained_report": {
+        "vit": {
+          "loaded": true,
+          "path": "/home/lzc/workspace/fenge_vit/model/dinov3_vit_small/model.safetensors",
+          "sha256": "2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040",
+          "config_sha256": "8eb1eeb3a94a3faddfcdd9ae693607a9cd9c8b91c34381578f7f0a48ce454eef",
+          "architecture": "vit_small_patch16_dinov3",
+          "tensor_count": 162,
+          "strict": true,
+          "format": "timm_safetensors"
+        },
+        "convnext": {
+          "loaded": true,
+          "path": "/home/lzc/workspace/fenge_vit/model/dinov3_convnext_tiny/model.safetensors",
+          "sha256": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f",
+          "config_sha256": "ca74f08faca70799f011184069ced874174e99cd9a83da966fbc8f176c04498b",
+          "architecture": "convnext_tiny",
+          "tensor_count": 180,
+          "strict": true,
+          "format": "timm_safetensors"
+        }
+      },
+      "common_tensor_sha256": "53eb7f532fb45ceb07eb1b0d4c86ba07dd211e6bd103fb7204e91a464256b2e2",
+      "post_constructor_torch_rng_equal": true
+    },
+    {
+      "name": "native_timm_ViT_prefix_RoPE_and_ConvNeXt_spatial_features_bitwise_preserved",
+      "passed": true,
+      "ViT_tokens_shape": [
+        1,
+        21,
+        384
+      ],
+      "CNN_shapes": [
+        [
+          1,
+          96,
+          16,
+          16
+        ],
+        [
+          1,
+          192,
+          8,
+          8
+        ],
+        [
+          1,
+          384,
+          4,
+          4
+        ],
+        [
+          1,
+          768,
+          2,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "four_patch_only_inject_3blocks_extract_stages_same_full_image_CNN_once_and_semantic_formula",
+      "passed": true,
+      "event_trace": [
+        "I0",
+        "B0",
+        "B1",
+        "B2",
+        "E0",
+        "I1",
+        "B3",
+        "B4",
+        "B5",
+        "E1",
+        "I2",
+        "B6",
+        "B7",
+        "B8",
+        "E2",
+        "I3",
+        "B9",
+        "B10",
+        "B11",
+        "E3"
+      ],
+      "inputs": [
+        {
+          "backbone": "cnn",
+          "shape": [
+            1,
+            3,
+            64,
+            64
+          ]
+        },
+        {
+          "backbone": "vit",
+          "shape": [
+            1,
+            3,
+            64,
+            64
+          ]
+        }
+      ],
+      "aux_predictions": 6
+    },
+    {
+      "name": "checkpoint_off_on_forward_all_gradients_RNG_and_frozen_backbone_adapter_path",
+      "passed": true,
+      "cases": [
+        {
+          "backbones_frozen": true,
+          "output_bitwise_equal": true,
+          "gradient_max_abs_difference": 0.0,
+          "torch_rng_equal": true,
+          "all4_inject_extract_gradients_nonzero": true
+        },
+        {
+          "backbones_frozen": false,
+          "output_bitwise_equal": true,
+          "gradient_max_abs_difference": 0.0,
+          "torch_rng_equal": true,
+          "all4_inject_extract_gradients_nonzero": true
+        }
+      ],
+      "input_requires_grad": false
+    },
+    {
+      "name": "actual_model_bfloat16_frozen_adapter_checkpoint_backward",
+      "passed": true,
+      "semantic_dtype": "torch.float32",
+      "loss": 3.256563901901245,
+      "cpu_mkldnn_disabled_for_BF16": true
+    },
+    {
+      "name": "fusion_and_adapter_variable_eval_64x96_and_fixed_training_size_guard",
+      "passed": true
+    },
+    {
+      "name": "strict_checkpoint_roundtrip_parameter_group_coverage_missing_and_tampered_pretrained_rejected",
+      "passed": true
+    }
+  ],
+  "source_sha256": {
+    "code/vitseg/backbones.py": "f894b78ebbe564db5d648b5591122e94fe39e656998a31d98c91f0a9aa2c3dde",
+    "code/vitseg/deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5",
+    "code/vitseg/adapter.py": "8b4fb40d17a5f64df23f7e38ddc8a8f9cff104dfeba82551d07a2bf430e62df7",
+    "code/vitseg/model.py": "eacd7a9ee96c9ce86519e505e51bd40415edb0b9313392ff23147bf3e72d7722"
+  },
+  "limitations": "Real1024GPU memory, fused attention and optimizer update are verified by the parent separately; this report uses64square/64x96CPU tensors and actual original pretrained weights. PyTorch2.1.1 oneDNN CPU BF16 backward with2threads aborted in the allocator with checkpointing both off and on; independent single-thread and oneDNN-disabled2thread runs passed. The BF16 whole-model check disables oneDNN locally in the test only. Production CUDA source is unchanged."
+}

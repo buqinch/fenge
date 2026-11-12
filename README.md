@@ -2,9 +2,30 @@
 
 两条 CNN 同时接收同一张 **1024×1024 RGB 图像**。提供像素解码和区域解码两套可训练模型，原始训练集、验证集与评估口径保持一致。编码器没有 ViT；区域解码器含注意力。
 
-## 当前最佳完整测试（2026-11-12）
+## 最新已完成测试与正在运行的实验（2026-11-12）
 
-当前已完成测试中，最高加权 S 来自 **`dual_region_random80_1024` 第 29 轮最佳检查点 + 1024／768 双尺度等权水平翻转 TTA（4 视图）**。该检查点由 1601 张自定义验证图选出，随后在完整 Moon_2/4/9 的 **5004 张**图像上评估。下列方式使用同一模型检查点，均未调整任何类别分数。
+ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/tree/main/fenge_vit)，包含 DINOv3 ViT-S/16＋ConvNeXt-Tiny、四阶段双向Adapter、Mask2Former及A/B/C训练配置。当前服务器的实际工作目录仍分别为 `/home/lzc/workspace/fenge` 和 `/home/lzc/workspace/fenge_vit`；GitHub中的子目录保存后者的独立版本，两套网络源码不混用。数据配置继续引用本仓库中已经固定的来源清单。
+
+最新已完成的8000张训练实验 `dual_region_random80_4000_2000_2000_1024` 在第27轮早停，验证选出的best是第24轮；其1024／768等权水平翻转完整测试 **S=89.82321883%**，高于下文第29轮旧基线的89.73656103%，差值为 **0.0867个百分点**。当前先验CNN和ViT仍在训练，不能用其验证分数替代测试S。
+
+|指标|固定验证1601张|Moon_2（1597张）|Moon_4（1320张）|Moon_9（2087张）|
+|---|---:|---:|---:|---:|
+|月壤 IoU|99.7199%|99.3469%|99.1776%|98.0422%|
+|岩石 IoU|93.2987%|88.6395%|88.8657%|84.2538%|
+|撞击坑 IoU|96.8304%|84.9746%|81.1993%|58.8158%|
+|山体 IoU|98.0359%|95.8778%|98.0165%|89.6426%|
+|天空 IoU|99.8249%|99.7996%|99.7634%|99.6474%|
+|mIoU|97.5420%|93.7277%|93.4045%|86.0804%|
+
+比赛分数使用 `weighted_score=(Moon_2+Moon_4+2×Moon_9)/4`。本次完整精度为 `0.898232188286191`；若先将各场景mIoU四舍五入到8位再计算，则为 `0.8982321875`。`miou=0.8971735272492559` 是合并像素混淆矩阵后的指标，二者的统计口径不同。
+
+[最新完整测试指标](result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json) · [对应验证记录](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_024.json) · [当前七组实验的阶段分析](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/report_zh.md)
+
+当前保留CNN的control／affinity以及103上的context／detail；两组几何实验已按用户要求停止并清理，依据保存在 [清理记录](result/prior_ablation/pruned_runs_20261112.json)。ViT A在103卡2，B／C在本机卡2／4，均batch8、累积1；每3轮由验证best触发完整Moon_2/4/9测试，使用两台主机各自的空闲卡3。
+
+## 上一阶段第29轮基线的完整测试与TTA对照（2026-11-12）
+
+上一阶段在同一检查点上比较的TTA方案中，最高加权 S 来自 **`dual_region_random80_1024` 第 29 轮最佳检查点 + 1024／768 双尺度等权水平翻转 TTA（4 视图）**。该检查点由 1601 张自定义验证图选出，随后在完整 Moon_2/4/9 的 **5004 张**图像上评估。下列方式使用同一模型检查点，均未调整任何类别分数。
 
 | 指标 | 1024 单视图 | 1024 翻转（2 视图） | 1024＋768 等权翻转（4 视图） | 1024＋768＋512 等权翻转（6 视图） | 1024／768 加权 0.75／0.25（4 视图） |
 |---|---:|---:|---:|---:|---:|
@@ -28,7 +49,7 @@ python code/evaluate.py --checkpoint result/dual_region_random80_1024/best.pt \
   --split test --tta multiscale_hflip --tta-sizes 1024 768 --device cuda:3
 ```
 
-## 当前最高测试 S 方案的逐类别结果
+## 上一阶段第29轮方案的逐类别结果
 
 下表固定使用 **第 29 轮最佳检查点＋1024／768 等权翻转 TTA（4 视图）**，山体与撞击坑类别系数均为 1。验证集为完整自定义 **1601 张**，该方案验证 mIoU 为 **97.6754%**；**97.5166%** 属于 1024 翻转方案，验证最佳 **97.7806%** 属于 0.75／0.25 加权方案，均不用于下表。
 
@@ -388,7 +409,7 @@ cd /home/lzc/workspace/fenge
 bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python code/evaluate.py   --checkpoint result/dual_region_priors_context_8000_1024/best.pt --split val
 ```
 
-任务已经启动，不要重复启动训练。103 队列只管理 `context detail`；本机队列只管理 `control affinity geometry_control geometry`，不会操作另一台机器的 PID。两边都使用完整验证 JSON 的五轮／0.05 个百分点早停规则，六组对照仍汇总于 [prior_ablation/report_zh.md](result/prior_ablation/report_zh.md)。
+任务已经启动，不要重复启动训练。103 队列只管理 `context detail`；本机队列当前只管理 `control affinity`，不会操作另一台机器的 PID。两边都使用完整验证 JSON 的五轮／0.05 个百分点早停规则，保留的四组仍汇总于 [prior_ablation/report_zh.md](result/prior_ablation/report_zh.md)。
 
 - **图片结果**：后续 `evaluate.py --save-images --image-output-mode comparison` 默认保存到 NAS `/media/nas/lzc/fenge_result/<实验名>/<评估模式>/<场景>/<样本>/`。每张保存三联图与 IoU；已有历史图库路径保持其原记录。
 - **文字结果**：103 的两组 `result/dual_region_priors_*_8000_1024/` 日志、配置、JSON、JSONL、CSV、Markdown 每 60 秒同步到当前服务器同名目录；先核验逐轮记录，再原子发布 summary。同步不包含权重和图片。
@@ -573,7 +594,7 @@ python code/verify.py --calibration-only
 
 `evaluate.py` 默认不保存图片，需要逐图查看时开启 `--save-images`。常规两视角测试使用默认关闭选项；按后续要求，已额外完成一次无 TTA 组第 5 轮最佳权重的完整单视图图片导出。
 
-当前最高测试 S 的等权四视图方案使用下面的配置，**每张仅保存三联图与 IoU JSON**：
+已完成可视化的第29轮旧基线使用下面的等权四视图配置，**每张仅保存三联图与 IoU JSON**：
 
 ```bash
 CUDA_VISIBLE_DEVICES=3 python code/evaluate.py --config config/evaluate_random80_multiscale_save_images.json

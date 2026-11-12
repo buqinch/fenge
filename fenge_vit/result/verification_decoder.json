@@ -1,0 +1,157 @@
+{
+  "schema": "fenge_vit_decoder_cpu_verification_v1",
+  "status": "passed",
+  "device": "cpu",
+  "torch_version": "2.1.1+cu121",
+  "checks": [
+    {
+      "name": "production_width_six_pixel_layers_six_query_blocks_seven_supervisions",
+      "passed": true,
+      "seconds": 0.7817933089972939,
+      "details": {
+        "width": 256,
+        "actual_pixel_layer_calls": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "actual_query_block_calls": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "pred_logits_shape": [
+          1,
+          32,
+          6
+        ],
+        "pred_masks_shape": [
+          1,
+          32,
+          16,
+          24
+        ],
+        "original_GT_shape": [
+          1,
+          64,
+          96
+        ],
+        "aux_count": 6,
+        "all_seven_predictions_class_mask_gradient": true,
+        "all_twelve_layers_and_four_input_features_gradient": true,
+        "one_pixel_rock_sampled_each_stage": true
+      }
+    },
+    {
+      "name": "mask_derived_attention_and_empty_region_fallback",
+      "passed": true,
+      "seconds": 0.002206643985118717,
+      "details": {
+        "mask_detached_bool": true,
+        "all_blocked_fallback": true,
+        "blocked_key_value_perturbation_no_effect": true
+      }
+    },
+    {
+      "name": "checkpoint_recompute_matches_outputs_and_gradients",
+      "passed": true,
+      "seconds": 0.1568570960080251,
+      "details": {
+        "outputs_exact": true,
+        "all_parameter_and_feature_gradients_close": true,
+        "dropout": 0
+      }
+    },
+    {
+      "name": "independent_analytic_set_losses_and_full_auxiliary_weighting",
+      "passed": true,
+      "seconds": 0.01225204099318944,
+      "details": {
+        "class_CE_expected": 1.791759469228055,
+        "mask_BCE_expected": 0.6931471805599453,
+        "Dice_expected": 0.326530612244898,
+        "seven_stage_weighted_total_expected": 60.77335531736228,
+        "actual_total": 60.773353576660156
+      }
+    },
+    {
+      "name": "original_GT_tiny_rocks_matching_permutation_ignore_and_empty",
+      "passed": true,
+      "seconds": 0.010997975012287498,
+      "details": {
+        "tiny_rock_original_grid_preserved": true,
+        "ignore255_not_sampled": true,
+        "analytic_pixel_centers": true,
+        "Hungarian_permuted_query_labels": [
+          3,
+          0,
+          4,
+          1,
+          2
+        ],
+        "ignored_image_and_pixel_gradients_zero": true,
+        "empty_graph_connected_zero": true
+      }
+    },
+    {
+      "name": "invalid_parameters_rejected",
+      "passed": true,
+      "seconds": 0.07151218198123388,
+      "details": {
+        "rejected_cases": 7
+      }
+    },
+    {
+      "name": "torch21_CPU_BF16_masked_attention_and_production_width_checkpoint_backward",
+      "passed": true,
+      "details": {
+        "float32_query_inputs_under_BF16_autocast": true,
+        "bool_mask_preserved": true,
+        "full_head_width": 256,
+        "pixel_encoder_layers": 6,
+        "query_blocks": 6,
+        "checkpointing": true,
+        "all_four_input_feature_gradients_finite_nonzero": true,
+        "loss_total": 86.96697998046875
+      }
+    }
+  ],
+  "architecture": {
+    "pixel_encoder_channels": 256,
+    "pixel_encoder_layers": 6,
+    "pixel_encoder_scales": [
+      8,
+      16,
+      32
+    ],
+    "query_decoder_blocks": 6,
+    "queries": 32,
+    "attention_heads": 8,
+    "total_predictions": 7,
+    "auxiliary_predictions": 6,
+    "mask_size_for_1024": [
+      256,
+      256
+    ]
+  },
+  "source_sha256": {
+    "decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5"
+  },
+  "references": [
+    "https://github.com/facebookresearch/Mask2Former/blob/main/mask2former/modeling/pixel_decoder/msdeformattn.py",
+    "https://github.com/facebookresearch/Mask2Former/blob/main/mask2former/modeling/transformer_decoder/mask2former_transformer_decoder.py",
+    "https://github.com/facebookresearch/Mask2Former/blob/main/mask2former/modeling/criterion.py"
+  ],
+  "limitations": [
+    "Production width256 CPU forward/backward used64x96-equivalent feature grids. Full1024 GPU memory/backward verification is assigned to root.",
+    "Original-grid per-class and positive/negative guarantee points augment uncertainty sampling to retain tiny visible classes."
+  ]
+}

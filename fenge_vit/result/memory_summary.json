@@ -1,0 +1,234 @@
+{
+  "created_at": "2026-11-12T08:10:54.522183+00:00",
+  "status": "complete",
+  "formal_training_started": false,
+  "input_size": 1024,
+  "amp": "bf16",
+  "gradient_checkpointing": true,
+  "stage": "all backbones unfrozen",
+  "accumulated_microbatches_per_update": 2,
+  "warmup_optimizer_updates": 1,
+  "measured_optimizer_updates": 2,
+  "optimizer": "AdamW with states initialized for ViT, ConvNeXt and head",
+  "C_masking": "Every benchmark update executes full-view backward then masked-view backward, lambda=0.5 rho=0.2. Formal C default samples 25 percent of joint updates.",
+  "peak_scope": "Maximum over warmup and measured updates; PyTorch allocator allocated and reserved bytes. CUDA context/driver memory is outside these counters.",
+  "limitation": "Short execution benchmark on actual samples, not an accuracy result or a guarantee for every possible input/backend. No batch above8 tested.",
+  "experiments": [
+    {
+      "name": "A",
+      "host": "Server103",
+      "gpu": "RTX3090",
+      "source": "/home/lzc/workspace/fenge_vit/result/memory_A_103.json",
+      "source_sha256": "225f12a86c8aeac0940843470bfa610da5ff6d034125a4333472cc5b371c0572",
+      "cases": [
+        {
+          "batch_size": 1,
+          "status": "ok",
+          "peak_allocated_bytes": 2290723840,
+          "peak_reserved_bytes": 2654994432,
+          "peak_allocated_gib": 2.1334028244018555,
+          "peak_reserved_gib": 2.47265625,
+          "median_optimizer_step_seconds": 2.465223328999855,
+          "gt_class_ids": [
+            0,
+            1,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 2,
+          "status": "ok",
+          "peak_allocated_bytes": 3375769600,
+          "peak_reserved_bytes": 3919577088,
+          "peak_allocated_gib": 3.143930435180664,
+          "peak_reserved_gib": 3.650390625,
+          "median_optimizer_step_seconds": 2.934695335500237,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 4,
+          "status": "ok",
+          "peak_allocated_bytes": 5624945152,
+          "peak_reserved_bytes": 6362759168,
+          "peak_allocated_gib": 5.238638401031494,
+          "peak_reserved_gib": 5.92578125,
+          "median_optimizer_step_seconds": 3.9597018680001383,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 8,
+          "status": "ok",
+          "peak_allocated_bytes": 10148086784,
+          "peak_reserved_bytes": 11295260672,
+          "peak_allocated_gib": 9.451142311096191,
+          "peak_reserved_gib": 10.51953125,
+          "median_optimizer_step_seconds": 6.437111160499626,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B",
+      "host": "Server70",
+      "gpu": "RTX4090",
+      "source": "/home/lzc/workspace/fenge_vit/result/memory_B_local4090.json",
+      "source_sha256": "e761690e83444dc80ac5d29929c1927b7508ca5959ddb058674a2efedc1bcc2c",
+      "cases": [
+        {
+          "batch_size": 1,
+          "status": "ok",
+          "peak_allocated_bytes": 2467899904,
+          "peak_reserved_bytes": 2805989376,
+          "peak_allocated_gib": 2.2984108924865723,
+          "peak_reserved_gib": 2.61328125,
+          "median_optimizer_step_seconds": 3.6859570404922124,
+          "gt_class_ids": [
+            0,
+            1,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 2,
+          "status": "ok",
+          "peak_allocated_bytes": 3719650304,
+          "peak_reserved_bytes": 4137680896,
+          "peak_allocated_gib": 3.4641942977905273,
+          "peak_reserved_gib": 3.853515625,
+          "median_optimizer_step_seconds": 3.4876922465045936,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 4,
+          "status": "ok",
+          "peak_allocated_bytes": 6225445376,
+          "peak_reserved_bytes": 7050625024,
+          "peak_allocated_gib": 5.797897815704346,
+          "peak_reserved_gib": 6.56640625,
+          "median_optimizer_step_seconds": 4.366209304498625,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 8,
+          "status": "ok",
+          "peak_allocated_bytes": 11327936512,
+          "peak_reserved_bytes": 12817793024,
+          "peak_allocated_gib": 10.549962997436523,
+          "peak_reserved_gib": 11.9375,
+          "median_optimizer_step_seconds": 6.953917981998529,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "name": "C",
+      "host": "Server70",
+      "gpu": "RTX4090",
+      "source": "/home/lzc/workspace/fenge_vit/result/memory_C_local4090.json",
+      "source_sha256": "1cb61340c040ebc351ea652cdc38b087b50b11b3c9c6fa9a3ccd18da0c0d89d1",
+      "cases": [
+        {
+          "batch_size": 1,
+          "status": "ok",
+          "peak_allocated_bytes": 2470606336,
+          "peak_reserved_bytes": 2877292544,
+          "peak_allocated_gib": 2.300931453704834,
+          "peak_reserved_gib": 2.6796875,
+          "median_optimizer_step_seconds": 6.203374229502515,
+          "gt_class_ids": [
+            0,
+            1,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 2,
+          "status": "ok",
+          "peak_allocated_bytes": 3716261376,
+          "peak_reserved_bytes": 4240441344,
+          "peak_allocated_gib": 3.461038112640381,
+          "peak_reserved_gib": 3.94921875,
+          "median_optimizer_step_seconds": 7.337508427503053,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 4,
+          "status": "ok",
+          "peak_allocated_bytes": 6225332736,
+          "peak_reserved_bytes": 7174356992,
+          "peak_allocated_gib": 5.797792911529541,
+          "peak_reserved_gib": 6.681640625,
+          "median_optimizer_step_seconds": 8.152662990993122,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "batch_size": 8,
+          "status": "ok",
+          "peak_allocated_bytes": 11326857216,
+          "peak_reserved_bytes": 12878610432,
+          "peak_allocated_gib": 10.548957824707031,
+          "peak_reserved_gib": 11.994140625,
+          "median_optimizer_step_seconds": 13.22925476799719,
+          "gt_class_ids": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    }
+  ]
+}

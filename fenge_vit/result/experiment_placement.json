@@ -1,0 +1,130 @@
+{
+  "status": "running",
+  "training_started": true,
+  "initialization": "original_DINOv3_pretrained_backbones",
+  "train_samples": 8000,
+  "validation_samples": 1601,
+  "experiments": [
+    {
+      "name": "A",
+      "config": "config/a_fusion.json",
+      "host": "Server103",
+      "ssh": "fenge103",
+      "device": "cuda:2",
+      "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "working_directory": "/home/lzc/workspace/fenge_vit",
+      "trainer_pid": 127393,
+      "launcher_pid": 127389,
+      "process_group": 127389,
+      "log": "result/a_fusion/train.log",
+      "batch_size": 8,
+      "accumulation": 1
+    },
+    {
+      "name": "B",
+      "config": "config/b_adapter.json",
+      "host": "Server70",
+      "device": "cuda:2",
+      "python": "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+      "working_directory": "/home/lzc/workspace/fenge_vit",
+      "trainer_pid": 1608374,
+      "launcher_pid": 1608374,
+      "process_group": 1608374,
+      "log": "result/b_adapter/train.log",
+      "batch_size": 8,
+      "accumulation": 1
+    },
+    {
+      "name": "C",
+      "config": "config/c_adapter_masking.json",
+      "host": "Server70",
+      "device": "cuda:4",
+      "python": "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+      "working_directory": "/home/lzc/workspace/fenge_vit",
+      "trainer_pid": 1608375,
+      "launcher_pid": 1608375,
+      "process_group": 1608375,
+      "log": "result/c_adapter_masking/train.log",
+      "batch_size": 8,
+      "accumulation": 1
+    }
+  ],
+  "batch_note": "User explicitly chose all three actual batch8 accumulation1.",
+  "storage": {
+    "images": "/media/nas/lzc/fenge_result",
+    "text": "result on training host and current server",
+    "source": "separate fenge_vit project"
+  },
+  "memory_benchmark": "result/memory_summary.json",
+  "memory_benchmark_completed": true,
+  "recommended_actual_batch_size": 8,
+  "recommended_accumulation": 1,
+  "recommendation_not_yet_applied": false,
+  "batch_size": 8,
+  "accumulation": 1,
+  "effective_batch": 8,
+  "batch_selected_at": "2026-11-12T08:13:45.507851+00:00",
+  "formal_training_started": true,
+  "verified_at": "2026-11-12T08:15:46.029654+00:00",
+  "shared_initial_sha256": "a8e39f7f969956acb58efd5df6ef49c69741da039903f82b07718292cdc6c072",
+  "body_initial_sha256": "13f93475ab7ccb1d0ceaddb1ea5dbed8d6b3c514a5b38e5a0750c4a2d7b7bdf2",
+  "data_identity_equal": true,
+  "source_sha256_equal": true,
+  "remote_text_sync": {
+    "pid": 1615262,
+    "interval_seconds": 60,
+    "state": "result/remote103/sync_state.json",
+    "local_mirror": "result/a_fusion"
+  },
+  "launch_verified": "All three have completed at least50 optimizer updates in epoch1, finite logged losses, no OOM.",
+  "periodic_test": {
+    "enabled": true,
+    "deployed_at": "2026-11-12T09:08:00.458282+00:00",
+    "every_completed_epochs": 3,
+    "checkpoint_selection": "First strict maximum of full fixed validation through the triggering epoch",
+    "tta": "multiscale_hflip",
+    "tta_sizes": [
+      1024,
+      768
+    ],
+    "tta_weights": [
+      0.5,
+      0.5
+    ],
+    "test_batch_size": 4,
+    "test_images": 5004,
+    "scene_counts": {
+      "Moon_2": 1597,
+      "Moon_4": 1320,
+      "Moon_9": 2087
+    },
+    "score_weights": {
+      "Moon_2": 1,
+      "Moon_4": 1,
+      "Moon_9": 2
+    },
+    "final_nonmultiple_of_three": true,
+    "training_selection_uses_test": false,
+    "local": {
+      "runs": [
+        "b_adapter",
+        "c_adapter_masking"
+      ],
+      "physical_gpu": 3,
+      "monitor_pid": 1691199,
+      "state": "result/periodic_eval_local/state.json"
+    },
+    "remote103": {
+      "runs": [
+        "a_fusion"
+      ],
+      "physical_gpu": 3,
+      "monitor_pid": 201784,
+      "launcher_pid": 201781,
+      "state": "result/periodic_eval_103/state.json"
+    },
+    "result_pattern": "result/<run>/periodic_test/epoch_003/test_metrics.json",
+    "source_sha256": "6f333448aee30b24d204b2a943db15eb0eea7ad2e98587cf8f7d3046eaf9e275",
+    "runtime_startup_errors": []
+  }
+}

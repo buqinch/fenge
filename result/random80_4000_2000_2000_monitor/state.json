@@ -29,10 +29,10 @@
         "cwd": "/home/lzc/workspace/fenge",
         "pgid": 1139824
       },
-      "completed_epochs": 16,
-      "phase": "training",
-      "best_epoch": 16,
-      "best_validation_miou": 0.9735624530039921,
+      "completed_epochs": 27,
+      "phase": "evaluated",
+      "best_epoch": 24,
+      "best_validation_miou": 0.9754196219285909,
       "early_stopping": {
         "schema": "lusnar_patience_tracker_v1",
         "policy": {
@@ -42,14 +42,14 @@
           "metric": "custom_validation_miou",
           "threshold_comparison": "score >= anchor + min_delta"
         },
-        "anchor_score": 0.9735624530039921,
-        "anchor_epoch": 16,
-        "bad_epochs": 0,
-        "last_epoch": 16,
-        "stopped": false,
-        "stop_epoch": null,
-        "stop_reason": null,
-        "last_event": "significant_improvement",
+        "anchor_score": 0.9750852896545361,
+        "anchor_epoch": 22,
+        "bad_epochs": 5,
+        "last_epoch": 27,
+        "stopped": true,
+        "stop_epoch": 27,
+        "stop_reason": "custom validation mIoU failed to improve by at least 0.0005 above anchor 0.975085289655 for 5 consecutive eligible epochs; stop at completed epoch 27",
+        "last_event": "no_significant_improvement",
         "observations": [
           {
             "epoch": 1,
@@ -114,8 +114,117 @@
           {
             "epoch": 16,
             "miou": 0.9735624530039921
+          },
+          {
+            "epoch": 17,
+            "miou": 0.9729536839924338
+          },
+          {
+            "epoch": 18,
+            "miou": 0.9739702736258208
+          },
+          {
+            "epoch": 19,
+            "miou": 0.9743179444118777
+          },
+          {
+            "epoch": 20,
+            "miou": 0.974040329388974
+          },
+          {
+            "epoch": 21,
+            "miou": 0.9742969367692815
+          },
+          {
+            "epoch": 22,
+            "miou": 0.9750852896545361
+          },
+          {
+            "epoch": 23,
+            "miou": 0.9750045651761345
+          },
+          {
+            "epoch": 24,
+            "miou": 0.9754196219285909
+          },
+          {
+            "epoch": 25,
+            "miou": 0.9752036888468026
+          },
+          {
+            "epoch": 26,
+            "miou": 0.9753963410097816
+          },
+          {
+            "epoch": 27,
+            "miou": 0.9752280818151338
           }
         ]
+      },
+      "best_checkpoint_sha256": "56d8605f7da5672be3104bc569654882fc64c1666d9fa4847be554483547e195",
+      "stopped_at": "2026-11-12T07:25:23.169373+00:00",
+      "best_checkpoint_epoch": 24,
+      "best_checkpoint_fingerprint": [
+        2065,
+        235748845,
+        395345690,
+        1794466751869111932,
+        1794466754010096449
+      ],
+      "evaluations": {
+        "multiscale_hflip_1024_768": {
+          "launch_id": "88efd4697e9e46f69bf27043a0d22431",
+          "tta": "multiscale_hflip",
+          "output": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json",
+          "log": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768.log",
+          "started_at": "2026-11-12T07:25:23.795453+00:00",
+          "checkpoint_sha256": "56d8605f7da5672be3104bc569654882fc64c1666d9fa4847be554483547e195",
+          "checkpoint_epoch": 24,
+          "command": [
+            "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+            "-B",
+            "-u",
+            "/home/lzc/workspace/fenge/code/evaluate.py",
+            "--checkpoint",
+            "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/best.pt",
+            "--split",
+            "test",
+            "--batch-size",
+            "2",
+            "--workers",
+            "4",
+            "--device",
+            "cuda:0",
+            "--amp",
+            "bf16",
+            "--tta",
+            "multiscale_hflip",
+            "--output",
+            "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json",
+            "--tta-sizes",
+            "1024",
+            "768"
+          ],
+          "gpu_uuid": "GPU-cec388db-7f12-8485-3cad-4b7be9e60231",
+          "registration": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/evaluation_multiscale_hflip_1024_768_launch.json",
+          "tta_sizes": [
+            1024,
+            768
+          ],
+          "pid": 1521444,
+          "starttime_ticks": 14112149,
+          "worker_command": [
+            "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+            "-B",
+            "/home/lzc/workspace/fenge/code/monitor_experiments.py",
+            "--evaluation-worker",
+            "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/evaluation_multiscale_hflip_1024_768_intent.json"
+          ],
+          "cwd": "/home/lzc/workspace/fenge",
+          "registered_at": "2026-11-12T07:25:25.907038+00:00",
+          "completed_at": "2026-11-12T07:30:29.857983+00:00",
+          "weighted_score": 0.898232188286191
+        }
       }
     }
   },
@@ -127,6 +236,12 @@
     "metric": "custom_validation_miou"
   },
   "config_sha256": "bb73e12bbcfae55c8ac3ebc9a28d79b46f4932616525c970709ccc382a858aff",
-  "status": "monitoring",
-  "updated_at": "2026-11-12T05:52:42.628378+00:00"
+  "status": "evaluated",
+  "updated_at": "2026-11-12T07:30:29.859969+00:00",
+  "analysis_status": "skipped",
+  "analysis_output": null,
+  "test_result_files": [
+    "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json"
+  ],
+  "completed_at": "2026-11-12T07:30:29.861376+00:00"
 }

@@ -1,0 +1,115 @@
+{
+  "passed": true,
+  "scope": "execution checks only; no trained segmentation score",
+  "device": "cuda:2",
+  "cases": [
+    {
+      "variant": "fusion",
+      "passed": true,
+      "input_size": 1024,
+      "microbatch": 1,
+      "pretrained_backbones": "DINOv3 ViT-S/16 and ConvNeXt-Tiny",
+      "common_initial_sha256": "dea622926233ff00f4eb65ef5ad1b871955932b437a88574fbbbb703e26c1d9c",
+      "frozen_backbones_unchanged": true,
+      "frozen_adapter_gradients": {
+        "decoder": 4893595.6126194
+      },
+      "joint_gradients": {
+        "vit": 4852871.071491584,
+        "convnext": 2725011.853265524,
+        "decoder": 2592305.6502010524
+      },
+      "full_set_loss": 174.59173583984375,
+      "masking": null,
+      "strict_reload_equal": true,
+      "multiscale_hflip_checked": true,
+      "peak_allocated_bytes": 1641179648,
+      "seconds": 7.0948530119999305
+    },
+    {
+      "variant": "adapter",
+      "passed": true,
+      "input_size": 1024,
+      "microbatch": 1,
+      "pretrained_backbones": "DINOv3 ViT-S/16 and ConvNeXt-Tiny",
+      "common_initial_sha256": "dea622926233ff00f4eb65ef5ad1b871955932b437a88574fbbbb703e26c1d9c",
+      "frozen_backbones_unchanged": true,
+      "frozen_adapter_gradients": {
+        "decoder": 4918659.90634346,
+        "inject_0": 0.04069349536439404,
+        "extract_0": 17.496731942053884,
+        "inject_1": 0.0023501077675973647,
+        "extract_1": 15.835764274932444,
+        "inject_2": 0.0021460458239062064,
+        "extract_2": 17.023805687902495,
+        "inject_3": 0.0006764214840018212,
+        "extract_3": 23.534320096485317
+      },
+      "joint_gradients": {
+        "vit": 765.2981714511407,
+        "convnext": 4031477.6887044907,
+        "decoder": 3532771.350015104,
+        "adapter": 791.1869501360346
+      },
+      "full_set_loss": 214.53759765625,
+      "masking": null,
+      "strict_reload_equal": true,
+      "multiscale_hflip_checked": true,
+      "peak_allocated_bytes": 1804363264,
+      "seconds": 6.66000663099976
+    },
+    {
+      "variant": "masked",
+      "passed": true,
+      "input_size": 1024,
+      "microbatch": 1,
+      "pretrained_backbones": "DINOv3 ViT-S/16 and ConvNeXt-Tiny",
+      "common_initial_sha256": "dea622926233ff00f4eb65ef5ad1b871955932b437a88574fbbbb703e26c1d9c",
+      "frozen_backbones_unchanged": true,
+      "frozen_adapter_gradients": {
+        "decoder": 4918904.896619797,
+        "inject_0": 0.040441077391733415,
+        "extract_0": 17.498244014102966,
+        "inject_1": 0.0023508526164732757,
+        "extract_1": 15.837042371742427,
+        "inject_2": 0.0021468157262916066,
+        "extract_2": 17.025790033396333,
+        "inject_3": 0.0006764251484696615,
+        "extract_3": 23.536393149755895
+      },
+      "joint_gradients": {
+        "vit": 740.6609913656866,
+        "convnext": 4055921.3848204613,
+        "decoder": 3553460.3560608327,
+        "adapter": 794.7642190603608
+      },
+      "full_set_loss": 216.10357666015625,
+      "masking": {
+        "visible_valid_pixels": 944128,
+        "eligible_hidden_pixels": 104448,
+        "denominator_pixels": 1048576,
+        "masked_pixels": 104448,
+        "total_pixels": 1048576,
+        "ignored_component_counts": {
+          "1": 0,
+          "2": 0,
+          "3": 0
+        },
+        "ignored_component_pixels": {
+          "1": 0,
+          "2": 0,
+          "3": 0
+        },
+        "denominator_definition": "visible_valid + eligible_hidden, without rho weighting",
+        "component_definition": "8-connected GT regions for classes 1,2,3; not physical instances",
+        "mask_sha256": "c866ce88228ede1767f789fa62ac55cd38f9bb6e2414632142c86b80d9d07cf9",
+        "hidden_weight": 0.2,
+        "auxiliary_loss": 1.0757262706756592
+      },
+      "strict_reload_equal": true,
+      "multiscale_hflip_checked": true,
+      "peak_allocated_bytes": 2057890816,
+      "seconds": 8.502938662999895
+    }
+  ]
+}

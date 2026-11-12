@@ -1,6 +1,6 @@
 {
   "schema": "lusnar_hard_pixel_diagnostics_v1",
-  "epoch": 2,
+  "epoch": 30,
   "enabled": false,
   "hard_pixel_weight": 0.0,
   "hard_pixel_quota": 256,
@@ -71,23 +71,23 @@
     "augmented/crater": 2000,
     "augmented/mountain_rock": 2000
   },
-  "training_batches": 500,
+  "training_batches": 1125,
   "direction_definition": "GT class ID -> current predicted class ID; training data only",
   "hard_objective_normalization": "Mean selected CE per image and direction, empty directions zero, then mean across batch x 6; selected_mean_ce below is pooled for diagnosis",
   "boundary_definition": "Chebyshev radius-3 neighborhood contains another GT class; ignore out-of-image pixels; not excluded from mining",
   "coordinate_definition": "training_x/y after optional horizontal flip; source_x/y undo flip and inverse-resize pixel centers",
   "example_selection": "Highest selected-pixel CE, at most 8 samples per direction and 4 points per sample; not evidence of label error",
   "training_loss": {
-    "loss_semantic_ce": 0.027596881810575725,
-    "loss_semantic_dice": 0.06427242960780859,
-    "loss_region_class": 0.0047222626569564455,
-    "loss_region_mask": 0.014663834478706122,
-    "loss_region_dice": 0.044150421902537346,
-    "loss_auxiliary": 0.3827743056714535,
-    "loss_total": 0.4101705847978592,
+    "loss_semantic_ce": 0.007200036878387133,
+    "loss_semantic_dice": 0.025618210588892302,
+    "loss_region_class": 2.2932578936345434e-05,
+    "loss_region_mask": 0.002880970258679655,
+    "loss_region_dice": 0.00992993640444345,
+    "loss_auxiliary": 0.06354215486513244,
+    "loss_total": 0.08896997783912552,
     "loss_hard_pixels": 0.0,
     "loss_hard_pixels_weighted": 0.0,
-    "loss_base": 0.4101705847978592,
+    "loss_base": 0.08896997783912552,
     "loss_affinity": 0.0,
     "loss_affinity_weighted": 0.0,
     "loss_consistency": 0.0,
@@ -166,5 +166,5 @@
     }
   },
   "partial_epoch": true,
-  "images_seen": 2000
+  "images_seen": 4500
 }
