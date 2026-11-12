@@ -169,6 +169,8 @@ def completed_tracker(output, policy):
         elif (record["epoch"] != epoch or record.get("partial") or validation.get("partial")
               or validation["image_count"] != 1599 or set(validation["scenes"]) != {"Moon_5"}):
             raise ValueError(f"Early stopping requires complete Moon_5 validation: {output}, epoch {epoch}")
+        if summary.get("val_tta") == "multiscale_hflip":
+            validate_tta_metadata(validation, "multiscale_hflip", summary.get("val_tta_sizes"))
         records.append(record)
     tracker_policy = dict(policy)
     if custom:
@@ -182,6 +184,9 @@ def completed_tracker(output, policy):
 
 def analysis_command(config):
     """Build the final analysis command without launching it."""
+    if (config.get("skip_analysis") is True or config.get("comparison", "tta") is None
+            or ("analysis_output" in config and config["analysis_output"] is None)):
+        return None
     comparison = config.get("comparison", "tta")
     runs = config["runs"]
     if comparison == "random-split":
@@ -212,7 +217,85 @@ def checkpoint_digest(path):
     return cached[1], fingerprint
 
 
-def validate_test(path, checkpoint_sha, epoch, tta):
+def evaluation_spec(tta, tta_sizes=None):
+    """Describe an exact inference protocol without importing the GPU stack."""
+    if tta not in ("none", "hflip", "multiscale_hflip"):
+        raise ValueError("Evaluation TTA must be none, hflip, or multiscale_hflip")
+    if tta == "multiscale_hflip":
+        if (not isinstance(tta_sizes, (list, tuple)) or len(tta_sizes) < 2
+                or any(type(size) is not int or size < 32 for size in tta_sizes)
+                or len(set(tta_sizes)) != len(tta_sizes) or 1024 not in tta_sizes):
+            raise ValueError("Multiscale monitoring needs explicit unique integer sizes >=32 including 1024")
+        tta_sizes = list(tta_sizes)
+    elif tta_sizes is not None:
+        raise ValueError("Evaluation sizes are only valid with multiscale_hflip")
+    return {"tta": tta, "tta_sizes": tta_sizes}
+
+
+def evaluation_specs(run):
+    primary = evaluation_spec(run["primary_tta"], run.get("primary_tta_sizes"))
+    alternate = run.get("evaluate_alternate_tta", primary["tta"] != "multiscale_hflip")
+    if type(alternate) is not bool:
+        raise ValueError("evaluate_alternate_tta must be a boolean")
+    specs = [primary]
+    if alternate:
+        specs.append(evaluation_spec("hflip" if primary["tta"] == "none" else "none"))
+    return specs
+
+
+def evaluation_key(tta, tta_sizes=None):
+    spec = evaluation_spec(tta, tta_sizes)
+    return tta + ("_" + "_".join(map(str, spec["tta_sizes"])) if spec["tta_sizes"] is not None else "")
+
+
+def evaluation_target(output, tta, tta_sizes=None):
+    key = evaluation_key(tta, tta_sizes)
+    return output / ("test_metrics.json" if tta == "none" else f"test_{key}_metrics.json")
+
+
+def evaluation_command(output, tta, tta_sizes=None):
+    spec = evaluation_spec(tta, tta_sizes)
+    command = [sys.executable, "-B", "-u", str(PROJECT / "code/evaluate.py"),
+               "--checkpoint", str(output / "best.pt"), "--split", "test",
+               "--batch-size", "2", "--workers", "4", "--device", "cuda:0",
+               "--amp", "bf16", "--tta", tta, "--output", str(evaluation_target(output, tta, tta_sizes))]
+    if spec["tta_sizes"] is not None:
+        command.extend(["--tta-sizes", *map(str, spec["tta_sizes"])])
+    return command
+
+
+def validate_tta_metadata(result, tta, tta_sizes=None):
+    spec = evaluation_spec(tta, tta_sizes)
+    if result.get("tta_mode") != tta:
+        raise ValueError("Saved result has a different TTA mode")
+    if tta != "multiscale_hflip":
+        return
+    sizes = spec["tta_sizes"]
+    views = [{"input_size": size, "transform": transform} for size in sizes
+             for transform in ("original", "horizontal_flip")]
+    expected = {"test_time_augmentation": True, "tta_input_sizes": sizes,
+                "tta_padded_sizes": [((size + 31) // 32) * 32 for size in sizes],
+                "tta_views": views, "tta_view_count": len(views),
+                "tta_view_weights": [1.0 / len(views)] * len(views),
+                "tta_forward_calls_per_batch": len(views), "tta_score_domain": "probability",
+                "tta_aggregation": "equal_weight_float32_probability_mean",
+                "tta_input_resize": "bilinear_align_corners_false", "tta_input_antialias": True,
+                "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+                "tta_output_coordinates": "original_input_image",
+                "tta_padding": {"multiple": 32, "mode": "replicate", "sides": "right_bottom",
+                                "semantic_logits_cropped_to_unpadded_size_before_softmax": True},
+                "continuous_scores_resized_before_argmax": True}
+    if any(result.get(key) != value for key, value in expected.items()):
+        raise ValueError("Saved result does not implement the configured equal-weight multiscale views")
+    if (result.get("mountain_alpha", 1.0) != 1.0 or result.get("crater_gamma", 1.0) != 1.0
+            or result.get("tta_scale_weights") is not None
+            or "mountain_score_sweep" in result or "crater_score_sweep" in result
+            or "scale_weight_sweep" in result):
+        raise ValueError("Equal-weight multiscale monitoring does not allow score calibration or weight sweeps")
+
+
+def validate_test(path, checkpoint_sha, epoch, tta, tta_sizes=None):
+    evaluation_spec(tta, tta_sizes)
     result = read_json(path)
     expected = {"Moon_2": 1597, "Moon_4": 1320, "Moon_9": 2087}
     if (result.get("partial") or result.get("checkpoint_partial_training")
@@ -222,11 +305,19 @@ def validate_test(path, checkpoint_sha, epoch, tta):
         raise ValueError(f"Invalid or stale complete test result: {path}")
     if {scene: row["image_count"] for scene, row in result["scenes"].items()} != expected:
         raise ValueError(f"Incomplete test scene counts: {path}")
+    validate_tta_metadata(result, tta, tta_sizes)
+    if tta == "multiscale_hflip":
+        batch_size = result.get("batch_size")
+        view_count = 2 * len(evaluation_spec(tta, tta_sizes)["tta_sizes"])
+        if (type(batch_size) is not int or batch_size < 1
+                or result.get("model_forward_calls") != ((5004 + batch_size - 1) // batch_size) * view_count):
+            raise ValueError(f"Full multiscale test has inconsistent model forward count: {path}")
     return result
 
 
-def evaluation_paths(output, tta):
-    return output / f"evaluation_{tta}_intent.json", output / f"evaluation_{tta}_launch.json"
+def evaluation_paths(output, tta, tta_sizes=None):
+    key = evaluation_key(tta, tta_sizes)
+    return output / f"evaluation_{key}_intent.json", output / f"evaluation_{key}_launch.json"
 
 
 def evaluation_worker(intent_path):
@@ -245,15 +336,21 @@ def evaluation_worker(intent_path):
     os.execvpe(intent["command"][0], intent["command"], os.environ.copy())
 
 
-def recovered_evaluation(output, tta, checkpoint_sha, epoch):
-    intent_path, registration_path = evaluation_paths(output, tta)
+def recovered_evaluation(output, tta, checkpoint_sha, epoch, tta_sizes=None):
+    spec = evaluation_spec(tta, tta_sizes)
+    intent_path, registration_path = evaluation_paths(output, tta, tta_sizes)
     if not registration_path.exists():
         return None
     registration = read_json(registration_path)
     if (registration["checkpoint_sha256"] != checkpoint_sha or registration["checkpoint_epoch"] != epoch
-            or registration["tta"] != tta or registration["output"] != str(output / ("test_hflip_metrics.json" if tta == "hflip" else "test_metrics.json"))):
+            or registration["tta"] != tta or registration.get("tta_sizes") != spec["tta_sizes"]
+            or registration["output"] != str(evaluation_target(output, tta, tta_sizes))
+            or registration["command"] != evaluation_command(output, tta, tta_sizes)):
         raise RuntimeError("Evaluation registration belongs to another checkpoint or run")
-    if not intent_path.exists() or read_json(intent_path)["launch_id"] != registration["launch_id"]:
+    intent = read_json(intent_path) if intent_path.exists() else None
+    if (intent is None or any(intent.get(key) != registration.get(key)
+                              for key in ("launch_id", "tta", "tta_sizes", "output", "command",
+                                          "gpu_uuid", "checkpoint_sha256", "checkpoint_epoch"))):
         raise RuntimeError("Evaluation registration/intent identity mismatch")
     current = process_identity(registration["pid"])
     if current and current["starttime_ticks"] == registration["starttime_ticks"]:
@@ -262,27 +359,29 @@ def recovered_evaluation(output, tta, checkpoint_sha, epoch):
     return registration
 
 
-def launch_evaluation(output, launch, tta, checkpoint_sha, epoch):
-    target = output / ("test_hflip_metrics.json" if tta == "hflip" else "test_metrics.json")
-    log_path = output / ("test_hflip.log" if tta == "hflip" else "test.log")
-    command = [sys.executable, "-B", "-u", str(PROJECT / "code/evaluate.py"),
-               "--checkpoint", str(output / "best.pt"), "--split", "test",
-               "--batch-size", "2", "--workers", "4", "--device", "cuda:0",
-               "--amp", "bf16", "--tta", tta, "--output", str(target)]
-    intent_path, registration_path = evaluation_paths(output, tta)
+def launch_evaluation(output, launch, tta, checkpoint_sha, epoch, tta_sizes=None):
+    spec = evaluation_spec(tta, tta_sizes)
+    target = evaluation_target(output, tta, tta_sizes)
+    key = evaluation_key(tta, tta_sizes)
+    log_path = output / ("test.log" if tta == "none" else f"test_{key}.log")
+    command = evaluation_command(output, tta, tta_sizes)
+    intent_path, registration_path = evaluation_paths(output, tta, tta_sizes)
     # Persist the intent before any child can exist. A restarted monitor can
     # recover a self-registered child even if its own state write never happened.
     if intent_path.exists():
         intent = read_json(intent_path)
         if (intent["checkpoint_sha256"] != checkpoint_sha or intent["checkpoint_epoch"] != epoch
-                or intent["command"] != command or intent["gpu_uuid"] != launch["gpu_uuid"]):
+                or intent["command"] != command or intent["gpu_uuid"] != launch["gpu_uuid"]
+                or intent.get("tta_sizes") != spec["tta_sizes"]):
             raise RuntimeError("Existing evaluation intent differs from this run/checkpoint")
     else:
         intent = {"launch_id": uuid.uuid4().hex, "tta": tta, "output": str(target), "log": str(log_path),
                   "started_at": now(), "checkpoint_sha256": checkpoint_sha, "checkpoint_epoch": epoch,
                   "command": command, "gpu_uuid": launch["gpu_uuid"], "registration": str(registration_path)}
+        if spec["tta_sizes"] is not None:
+            intent["tta_sizes"] = spec["tta_sizes"]
         write_json(intent_path, intent)
-    recovered = recovered_evaluation(output, tta, checkpoint_sha, epoch)
+    recovered = recovered_evaluation(output, tta, checkpoint_sha, epoch, tta_sizes)
     if recovered:
         return recovered
     environment = os.environ.copy()
@@ -299,11 +398,14 @@ def launch_evaluation(output, launch, tta, checkpoint_sha, epoch):
 
 
 def advance_run(run, policy, previous):
+    specs = evaluation_specs(run)
     output = resolve(run["output"])
     launch = read_json(output / "launch.json")
     launch_sha = digest(output / "launch.json")
     binding = {"name": run["name"], "output": str(output), "launch_sha256": launch_sha,
                "primary_tta": run["primary_tta"]}
+    if run["primary_tta"] == "multiscale_hflip" or "evaluate_alternate_tta" in run:
+        binding["evaluation_specs"] = specs
     if previous and any(previous.get(key) != value for key, value in binding.items()):
         raise RuntimeError("Monitor state belongs to another config/output/training launch")
     training_identity = capture_training_identity(launch, previous.get("training_process_identity"))
@@ -315,6 +417,10 @@ def advance_run(run, policy, previous):
         write_json(output / "early_stopping_monitor.json", state)
         return state
     summary, tracker = completed_tracker(output, policy)
+    if run["primary_tta"] == "multiscale_hflip" and (
+            summary.get("val_tta") != "multiscale_hflip"
+            or summary.get("val_tta_sizes") != specs[0]["tta_sizes"]):
+        raise ValueError("Configured multiscale test differs from the run's validation TTA protocol")
     state = {**previous, **binding, "training_process_identity": training_identity,
              "completed_epochs": summary["completed_epochs"], "best_epoch": summary["best_epoch"],
              "best_validation_miou": summary["best_validation_miou"], "early_stopping": tracker.state_dict()}
@@ -358,7 +464,11 @@ def advance_run(run, policy, previous):
         evaluations = state.setdefault("evaluations", {})
         active = state.get("active_evaluation")
         if active:
-            active = recovered_evaluation(output, active["tta"], checkpoint_sha, summary["best_epoch"]) or active
+            active_spec = evaluation_spec(active["tta"], active.get("tta_sizes"))
+            if active_spec not in specs:
+                raise RuntimeError("Active evaluation differs from the configured inference views")
+            active = recovered_evaluation(output, active["tta"], checkpoint_sha, summary["best_epoch"],
+                                          active.get("tta_sizes")) or active
         if active:
             if process_alive(active["pid"]):
                 current = process_identity(active["pid"])
@@ -371,22 +481,26 @@ def advance_run(run, policy, previous):
             if active.get("registration_pending") and time.time() - active.get("spawned_at", 0) < 15:
                 state["phase"] = "waiting_for_evaluation_registration"
                 return state
-            result = validate_test(Path(active["output"]), checkpoint_sha, summary["best_epoch"], active["tta"])
-            evaluations[active["tta"]] = {**active, "completed_at": now(),
-                                          "weighted_score": result["weighted_score"]}
+            result = validate_test(Path(active["output"]), checkpoint_sha, summary["best_epoch"],
+                                   active["tta"], active.get("tta_sizes"))
+            active_key = evaluation_key(active["tta"], active.get("tta_sizes"))
+            evaluations[active_key] = {**active, "completed_at": now(),
+                                       "weighted_score": result["weighted_score"]}
             state.pop("active_evaluation")
             print(f"{run['name']}: full test {active['tta']} S={result['weighted_score']:.6%}", flush=True)
-        modes = [run["primary_tta"], "hflip" if run["primary_tta"] == "none" else "none"]
-        for tta in modes:
-            if tta in evaluations:
-                validate_test(Path(evaluations[tta]["output"]), checkpoint_sha, summary["best_epoch"], tta)
+        for spec in specs:
+            tta, sizes = spec["tta"], spec["tta_sizes"]
+            key = evaluation_key(tta, sizes)
+            if key in evaluations:
+                validate_test(Path(evaluations[key]["output"]), checkpoint_sha, summary["best_epoch"], tta, sizes)
                 continue
-            target = output / ("test_hflip_metrics.json" if tta == "hflip" else "test_metrics.json")
+            target = evaluation_target(output, tta, sizes)
             if target.is_file():
-                result = validate_test(target, checkpoint_sha, summary["best_epoch"], tta)
-                evaluations[tta] = {"output": str(target), "weighted_score": result["weighted_score"], "reused": True}
+                result = validate_test(target, checkpoint_sha, summary["best_epoch"], tta, sizes)
+                evaluations[key] = {"output": str(target), "weighted_score": result["weighted_score"], "reused": True}
                 continue
-            state["active_evaluation"] = launch_evaluation(output, launch, tta, checkpoint_sha, summary["best_epoch"])
+            state["active_evaluation"] = launch_evaluation(output, launch, tta, checkpoint_sha,
+                                                         summary["best_epoch"], sizes)
             state["phase"] = "evaluating_" + tta
             print(f"{run['name']}: evaluating best epoch {summary['best_epoch']} on complete Moon_2/4/9 ({tta})", flush=True)
             break
@@ -408,6 +522,8 @@ def main():
         evaluation_worker(args.evaluation_worker)
         return
     config = read_json(args.config)
+    for run in config["runs"]:
+        evaluation_specs(run)
     if args.inspect:
         for run in config["runs"]:
             run_output = resolve(run["output"])
@@ -445,10 +561,17 @@ def main():
                 state.update(status="monitoring", updated_at=now())
                 write_json(path, state)
             if all(run["phase"] == "evaluated" for run in state["runs"].values()):
-                subprocess.run(final_analysis_command, cwd=PROJECT, check=True)
-                state.update(status="ready_to_publish", analysis_output=str(resolve(config["analysis_output"])), completed_at=now())
+                if final_analysis_command is None:
+                    state.update(status="evaluated", analysis_status="skipped", analysis_output=None,
+                                 test_result_files=[entry["output"] for run in state["runs"].values()
+                                                    for entry in run["evaluations"].values()], completed_at=now())
+                else:
+                    subprocess.run(final_analysis_command, cwd=PROJECT, check=True)
+                    state.update(status="ready_to_publish", analysis_output=str(resolve(config["analysis_output"])), completed_at=now())
                 write_json(path, state)
-                print("Configured experiments evaluated; final analysis ready for Git publication.", flush=True)
+                print("Configured experiments evaluated; analysis skipped, complete test files retained."
+                      if final_analysis_command is None else
+                      "Configured experiments evaluated; final analysis ready for Git publication.", flush=True)
                 return
             time.sleep(config.get("poll_seconds", 5))
     except BaseException as error:

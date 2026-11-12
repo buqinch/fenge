@@ -92,10 +92,9 @@ class LunarDataset(Dataset):
         if source.get("schema") == "lusnar_random_split_v1":
             if split == "test":
                 raise ValueError("Use the independent Moon_2/4/9 test manifest for test evaluation")
-            if (augmented_manifest is not None or augmentation_groups or selection_manifest is not None
-                    or train_source != "original"):
+            if (augmented_manifest is not None or augmentation_groups or train_source != "original"):
                 raise ValueError("The custom split already embeds its complete training selection; "
-                                 "do not add augmentation manifests/groups, train_source overrides or a selection manifest")
+                                 "do not add augmentation manifests/groups or train_source overrides")
             self._load_random_split(source)
         elif split == "test":
             records = source.get("records")
@@ -378,6 +377,12 @@ class LunarDataset(Dataset):
         declared_counts = selection.get("counts")
         if not isinstance(rows, list) or not rows or not isinstance(declared_counts, dict):
             raise ValueError("Training selection must contain nonempty samples and counts")
+        if self.identity.get("custom_split"):
+            if (selection.get("split") != "train" or selection.get("validation_or_test_used") is not False
+                    or selection.get("class_names") != list(CLASS_NAMES)
+                    or selection.get("image_count") != len(rows)
+                    or selection.get("ordered_samples_sha256") != _canonical_sha256(rows)):
+                raise ValueError("Custom training selection metadata or ordered sample SHA256 mismatch")
         allowed_kinds = {"original", "crater", "mountain_rock", "mixed"}
         if (not declared_counts or not set(declared_counts).issubset(allowed_kinds)
                 or any(type(value) is not int or value < 0 for value in declared_counts.values())):
@@ -396,6 +401,8 @@ class LunarDataset(Dataset):
         for row in rows:
             if not isinstance(row, dict):
                 raise ValueError("Training selection sample must be an object")
+            if self.identity.get("custom_split") and row.get("split") != "train":
+                raise ValueError("Custom training selection can contain only train-assigned samples")
             kind = row.get("source_kind")
             if kind not in ("original", "augmented"):
                 raise ValueError("Training selection source_kind must be original or augmented")
@@ -428,6 +435,9 @@ class LunarDataset(Dataset):
         self.identity.update(selection_manifest=str(path), selection_manifest_sha256=sha256_file(path),
                              selection_seed=selection["seed"], selection_counts=declared_counts,
                              candidate_image_count=len(self.records))
+        if self.identity.get("custom_split"):
+            self.identity.update(candidate_ordered_samples_sha256=_canonical_sha256(self.records),
+                                 selection_ordered_samples_sha256=selection["ordered_samples_sha256"])
         self.records = selected
 
     @staticmethod

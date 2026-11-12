@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 
 from lunarseg.data import DEFAULT_MANIFEST, LunarDataset, sha256_file
 from lunarseg.losses import SegmentationCriterion
-from lunarseg.metrics import autocast_context, evaluate_loader
+from lunarseg.metrics import autocast_context, evaluate_loader, validate_tta_sizes
 from lunarseg.model import ModelConfig, build_model
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -65,8 +65,10 @@ def parse_args(argv=None):
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--amp", choices=("bf16", "fp16", "none"), default="bf16")
-    parser.add_argument("--val-tta", choices=("none", "hflip"), default="none",
-                        help="Validation only: none or original plus horizontal-flip score averaging")
+    parser.add_argument("--val-tta", choices=("none", "hflip", "multiscale_hflip"), default="none",
+                        help="Validation only: none, horizontal flip, or multiscale plus horizontal flip")
+    parser.add_argument("--val-tta-sizes", nargs="+", type=int, default=None,
+                        help="Explicit inference sizes for multiscale_hflip validation, e.g. 1024 768")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--horizontal-flip", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--resume", default=None)
@@ -99,6 +101,10 @@ def parse_args(argv=None):
         parser.error("hard_pixel_quota must be a nonnegative integer")
     if args.initial_checkpoint and (args.resume or args.convnext_checkpoint):
         parser.error("initial_checkpoint is mutually exclusive with resume and convnext_checkpoint")
+    try:
+        args.val_tta_sizes = validate_tta_sizes(args.val_tta, args.val_tta_sizes)
+    except ValueError as error:
+        parser.error(str(error))
     for key in ("manifest", "augmented_manifest", "selection_manifest", "weight_dir", "convnext_checkpoint",
                 "initial_checkpoint", "design_selection_reference", "output", "resume"):
         value = getattr(args, key)
@@ -222,9 +228,9 @@ def design_selection_reference(args, mode, previous=None):
         if not isinstance(document.get("selected_run"), str) or not document["selected_run"]:
             raise ValueError("Design-selection reference needs selected_run")
         if (type(document.get("selected_checkpoint_epoch")) is not int
-                or document["selected_checkpoint_epoch"] < 1
-                or document.get("selected_test_tta") not in ("none", "hflip")):
+                or document["selected_checkpoint_epoch"] < 1):
             raise ValueError("Invalid selected checkpoint epoch or test TTA in recipe reference")
+        validate_tta_sizes(document.get("selected_test_tta"), document.get("selected_test_tta_sizes"))
         score = document.get("selected_weighted_score")
         if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 1:
             raise ValueError("Selected weighted score must be a finite fraction between zero and one")
@@ -262,7 +268,7 @@ def design_selection_reference(args, mode, previous=None):
             raise ValueError("Recipe reference needs training_recipe and nonempty candidate_results")
         fields = ("decoder", "backbone", "input_size", "num_queries", "decoder_layers", "hard_pixel_weight",
                   "hard_pixel_quota", "batch_size", "accumulation", "head_lr", "backbone_lr",
-                  "freeze_epochs", "epochs", "val_tta", "seed")
+                  "freeze_epochs", "epochs", "val_tta", "val_tta_sizes", "seed")
         for field in fields:
             if field in recipe and recipe[field] != getattr(args, field):
                 raise ValueError(f"Recipe reference training setting {field} differs from the requested run")
@@ -417,6 +423,8 @@ def main(argv=None):
                 raise ValueError(f"Resume setting {field} differs; exact continuation requires the saved training schedule")
         if previous.get("val_tta", "none") != args.val_tta:
             raise ValueError("Resume setting val_tta differs; preserve the checkpoint selection protocol")
+        if previous.get("val_tta_sizes") != args.val_tta_sizes:
+            raise ValueError("Resume setting val_tta_sizes differs; preserve the checkpoint selection protocol")
         for field, default in (("hard_pixel_weight", 0.0), ("hard_pixel_quota", 256)):
             if previous.get(field, default) != getattr(args, field):
                 raise ValueError(f"Resume setting {field} differs; changing the objective requires a new run")
@@ -488,7 +496,8 @@ def main(argv=None):
     total_updates = math.ceil(len(train_loader) / args.accumulation) * args.epochs
     print(json.dumps({"device": str(device), "training_images": len(train_data), "validation_images": len(val_data),
                       "partial": partial, "decoder": args.decoder, "backbone": args.backbone,
-                      "val_tta": args.val_tta, "hard_pixel_weight": args.hard_pixel_weight,
+                      "val_tta": args.val_tta, "val_tta_sizes": args.val_tta_sizes,
+                      "hard_pixel_weight": args.hard_pixel_weight,
                       "hard_pixel_quota": args.hard_pixel_quota,
                       "initial_model_sha256": initial_model_sha256, "initialization_mode": mode,
                       "official_test_used_for_selection": test_selected_recipe,
@@ -553,7 +562,8 @@ def main(argv=None):
         final_diagnostics.update(partial_epoch=False, images_seen=seen)
         write_json(diagnostics_path, final_diagnostics)
         write_json(output / "hard_pixel_diagnostics_current.json", final_diagnostics)
-        metrics = evaluate_loader(model, val_loader, device, args.amp, tta=args.val_tta)
+        metrics = evaluate_loader(model, val_loader, device, args.amp,
+                                  tta=args.val_tta, tta_sizes=args.val_tta_sizes)
         # Custom validation pools all saved validation images across its scenes.
         score = metrics["miou"] if custom_validation else metrics["scenes"]["Moon_5"]["miou"]
         improved = score > best
@@ -583,6 +593,7 @@ def main(argv=None):
                                               "completed_epochs": epoch + 1, "best_epoch": best_epoch,
                                               "best_validation_miou": best, "partial": partial,
                                               "selection_scene": selection_scene, "val_tta": args.val_tta,
+                                              "val_tta_sizes": args.val_tta_sizes,
                                               "official_test_used_for_selection": test_selected_recipe,
                                               "checkpoint_selection_uses_test": False})
         print(f"epoch {epoch + 1} {selection_scene} mIoU={score:.6%}; best={best:.6%}", flush=True)

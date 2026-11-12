@@ -194,7 +194,38 @@ python code/publish_results.py --config config/early_stopping_random80.json
 
 ## 训练与断点续训
 
-以下保留上一轮固定 **8000 张训练图**的复现说明：5000 张原始图、1500 张 `mountain_rock` 山岩交界增强、1500 张 `crater` 大坑增强。其 Moon_5 完整 1599 张用于每轮评估与选轮。实际 **batch size 8、累积 1**，有效 batch 也是 8。当前随机 4:1 实验使用上节的 9401／1601 清单与独立配置。
+### 当前实验：4000 原图＋2000 坑增强＋2000 山岩增强
+
+配置为 [dual_region_random80_4000_2000_2000_1024.json](config/dual_region_random80_4000_2000_2000_1024.json)。已于 **2026-11-12 11:32（北京时间）**在物理 **GPU 3** 启动，从原始 **DINOv3 ConvNeXt-Tiny＋ImageNet MobileNetV3-Large** 预训练重新训练，融合层、FPN 和区域解码器重新初始化。首次启动不传旧分割检查点，也不续训第 29 轮模型；完整初始化张量 SHA256 与上一基线的原始预训练起点一致。
+
+| 用途 | 原图 | 坑增强 | 山岩增强 | 合计 |
+|---|---:|---:|---:|---:|
+| 本次固定训练集 | 4000 | 2000 | 2000 | **8000** |
+| 沿用的自定义验证集 | 1601 | 0 | 0 | **1601** |
+| Moon_2/4/9 测试 | 5004 | 0 | 0 | **5004** |
+
+保留原随机 4:1 划分的 6401 个训练来源和 1601 个验证来源，再以 seed 42 从训练候选中无放回抽取 4000 张原图。验证图像、标签及字面顺序均与上一基线相同。原增强排除验证来源后不足各 2000 张，因此按照原数据构造流程补生成 **372 张坑＋375 张山岩增强**，只取训练来源；原有 6000 张增强库保持原样。新增强位于 `/media/nas/lzc/lusnar_augmentation/lusnar_random80_supplement_747_20261112/`，其 `merged_manifest.json` 引用原增强和新增增强。
+
+最终 [8000 张固定抽样清单](result/selections/random80_4000_2000_2000_seed42_20261112.json) SHA256 为 `f6948e94ede914a53fd957d5a457284d34a18319c151511e2448e34a98f1ef6c`；[候选池清单](result/selections/random80_4000_2000_2000_pool_20261112.json) 保留完整来源划分，训练入口通过 `selection_manifest` 重放最终子集，标记为完整实验而非 partial。增强 [生成计划](result/data_preparation/random80_supplement_747/plan.json)、[导出核验](result/data_preparation/random80_supplement_747/verification.json) 和 [抽样／来源隔离核验](result/data_preparation/random80_supplement_747/selection_verification.json) 均已保存。训练／验证／测试的来源交集为 0，抽样逐条重演通过。
+
+网络和损失沿用原区域解码基线，困难像素权重为 0。训练输入 **1024×1024、batch 8、梯度累积 1、最多 30 轮**；前 3 轮冻结骨干，第 4 轮起联合微调，骨干／头部学习率为 `1e-5`／`1e-4`。每轮验证使用 **1024／768 等权水平翻转 TTA**：每个尺度平均原图与翻转还原后的连续分数，再等权融合两个尺度，四视图各占 0.25。训练前向仍是单张 1024 图像，不将 TTA 加入训练损失。
+
+```bash
+conda activate lzc_fenge
+cd /home/lzc/workspace/fenge
+CUDA_VISIBLE_DEVICES=3 python code/train.py \
+  --config config/dual_region_random80_4000_2000_2000_1024.json
+python code/monitor_experiments.py \
+  --config config/early_stopping_random80_4000_2000_2000.json
+```
+
+上述两个入口已作为独立后台进程运行，查看现有日志即可，无需重复启动。结果目录为 [dual_region_random80_4000_2000_2000_1024](result/dual_region_random80_4000_2000_2000_1024/)，启动检查见 [startup_check.json](result/random80_4000_2000_2000_monitor/startup_check.json)。[早停配置](config/early_stopping_random80_4000_2000_2000.json) 从第 4 轮建立参考值，连续 5 轮未累计提高 **0.05 个百分点**即停止，任意严格验证新高仍保存 `best.pt`。监控读取已完成轮次 JSON，结束后自动以最佳验证检查点和同一四视图 TTA 完整评估 Moon_2/4/9；最终 S 按 **1:1:2** 加权，保存在 `weighted_score`。本次不调用依赖旧 9401 张设置的分析脚本；新成绩以实际生成的测试 JSON 为准。
+
+本次配方参考已查看的测试成绩，记录于 [方案来源](result/selections/random80_4000_2000_2000_recipe_20261112.json)；新实验每轮检查点仍只按固定验证集 mIoU 选择。新训练尚未完成，不将旧模型的 89.7366% 记为本次成绩。
+
+### 历史实验：5000 原图＋1500 坑增强＋1500 山岩增强
+
+以下保留上一轮固定 **8000 张训练图**的复现说明：5000 张原始图、1500 张 `mountain_rock` 山岩交界增强、1500 张 `crater` 大坑增强。其 Moon_5 完整 1599 张用于每轮评估与选轮。实际 **batch size 8、累积 1**，有效 batch 也是 8。已完成的随机 4:1 基线使用上节的 9401／1601 清单与独立配置。
 
 先生成并保存抽样清单：
 

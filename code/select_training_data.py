@@ -174,6 +174,97 @@ def generate_random_split(manifest: Path, augmented_manifest: Path,
     }
 
 
+def generate_expanded_custom_split(manifest: Path, augmented_manifest: Path,
+                                   augmentation_counts: dict[str, int], seed: int | None = None) -> dict:
+    """Expand only the train candidates, preserving the existing val literals."""
+    manifest, augmented_manifest = Path(manifest).resolve(), Path(augmented_manifest).resolve()
+    parent_sha = sha256_file(manifest)
+    parent = json.loads(manifest.read_text())
+    if parent.get("schema") != "lusnar_random_split_v1":
+        raise ValueError("expand-custom requires an existing complete custom source-family split")
+    if seed is not None and (type(seed) is not int or seed != parent.get("seed")):
+        raise ValueError("Expansion must preserve the parent custom source-family split seed")
+    if (set(augmentation_counts) != set(RANDOM_SPLIT_GROUPS)
+            or any(type(n) is not int or n < 1 for n in augmentation_counts.values())):
+        raise ValueError("Supply positive counts for exactly crater and mountain_rock")
+    previous_train, previous_val = LunarDataset(manifest, "train"), LunarDataset(manifest, "val")
+    original_path = Path(previous_train.identity["source_manifest"])
+    original_sha, augmented_sha = sha256_file(original_path), sha256_file(augmented_manifest)
+    augmented = json.loads(augmented_manifest.read_text())
+    if (augmented.get("validation_or_test_used") is not False
+            or not isinstance(augmented.get("source_manifest"), str)
+            or Path(augmented["source_manifest"]).resolve() != original_path
+            or augmented.get("source_manifest_sha256") != original_sha):
+        raise ValueError("Expanded augmentation provenance differs from the original source manifest")
+    candidates = LunarDataset(original_path, "train", augmented_manifest=augmented_manifest,
+                              augmentation_groups=list(RANDOM_SPLIT_GROUPS), train_source="combined")
+    train_ids = set(parent["original_split"]["train_source_ids"])
+    val_ids = set(parent["original_split"]["val_source_ids"])
+    originals = [dict(row) for row in previous_train.records if row["source_kind"] == "original"]
+    pools = {group: [] for group in RANDOM_SPLIT_GROUPS}
+    before = Counter()
+    excluded_sources = set()
+    for row in candidates.records:
+        group = row.get("augmentation_group")
+        if group not in pools:
+            continue
+        before[group] += 1
+        if row["source_id"] in train_ids:
+            pools[group].append(normalized_record(row, "train", "augmented"))
+        elif row["source_id"] in val_ids:
+            excluded_sources.add(row["source_id"])
+        else:
+            raise ValueError("Expanded augmentation has an unknown source family")
+    train_rows = list(originals)
+    for group in RANDOM_SPLIT_GROUPS:
+        if len(pools[group]) != augmentation_counts[group]:
+            raise ValueError(f"Expanded {group} pool must contain exactly {augmentation_counts[group]} legal unique candidates; found {len(pools[group])}")
+        train_rows.extend(sorted(pools[group], key=lambda row: (row["scene"], row["sample_id"])))
+    keys = [(row["scene"], row["sample_id"]) for row in train_rows]
+    if len(keys) != len(set(keys)) or len({row["image"] for row in train_rows}) != len(train_rows) or len({row["mask"] for row in train_rows}) != len(train_rows):
+        raise ValueError("Expanded training candidates contain duplicate identities or image/mask paths")
+    random.Random(parent["seed"]).shuffle(train_rows)
+    splits = {"train": train_rows, "val": [dict(row) for row in previous_val.records]}
+    if (splits["val"] != parent["splits"]["val"]
+            or {row["source_id"] for row in originals} != train_ids
+            or any(row["source_id"] not in train_ids for row in train_rows)):
+        raise RuntimeError("Expanded candidate pool changed validation or leaked source families")
+    mask_validation = validate_id_masks(splits)
+    if (sha256_file(manifest) != parent_sha or sha256_file(original_path) != original_sha
+            or sha256_file(augmented_manifest) != augmented_sha):
+        raise RuntimeError("A source manifest changed during custom candidate expansion")
+    counts = {**parent["counts"], "train_augmented": sum(augmentation_counts.values()),
+              "train_total": len(train_rows)}
+    return {**parent, "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "generation_algorithm_version": "preserve_custom_families_expand_train_candidates_v1",
+            "sampling_algorithm": "Preserve parent original source-family lists and validation literals; include all train originals; include every legal requested-group augmentation; shuffle training candidates with parent seed",
+            "python_version": platform.python_version(), "selector_sha256": sha256_file(Path(__file__)),
+            "parent_manifest": str(manifest), "parent_manifest_sha256": parent_sha,
+            "preserved_validation_ordered_samples_sha256": parent["ordered_samples_sha256"]["val"],
+            "augmented_manifest": str(augmented_manifest), "augmented_manifest_sha256": augmented_sha,
+            "counts": counts, "augmentation_counts": dict(augmentation_counts),
+            "candidate_counts": {"original": parent["counts"]["original_pool"],
+                                 "augmented_before_family_filter": {g: before[g] for g in RANDOM_SPLIT_GROUPS},
+                                 "augmented_after_family_filter": {g: len(pools[g]) for g in RANDOM_SPLIT_GROUPS}},
+            "excluded_augmented_counts": {g: before[g] - len(pools[g]) for g in RANDOM_SPLIT_GROUPS},
+            "excluded_augmented_source_ids": sorted(excluded_sources),
+            "unselected_eligible_augmented_counts": dict.fromkeys(RANDOM_SPLIT_GROUPS, 0),
+            "split_statistics": {split: split_statistics(rows) for split, rows in splits.items()},
+            "mask_validation": mask_validation, "splits": splits, "splits_sha256": canonical_sha256(splits),
+            "ordered_samples_sha256": {split: canonical_sha256(rows) for split, rows in splits.items()}}
+
+
+def _selection_candidates(manifest, augmented_manifest, groups, selection_manifest=None):
+    if json.loads(Path(manifest).read_text()).get("schema") == "lusnar_random_split_v1":
+        candidates = LunarDataset(manifest, "train", selection_manifest=selection_manifest)
+        if (Path(candidates.identity["augmented_manifest"]) != Path(augmented_manifest).resolve()
+                or candidates.identity["augmented_manifest_sha256"] != sha256_file(augmented_manifest)):
+            raise ValueError("Custom candidates already embed a different augmented manifest path/SHA256")
+        return candidates
+    return LunarDataset(manifest, split="train", augmented_manifest=augmented_manifest,
+                        augmentation_groups=groups, train_source="combined", selection_manifest=selection_manifest)
+
+
 def generate_selection(manifest: Path, augmented_manifest: Path, counts: dict[str, int], seed: int) -> dict:
     if type(seed) is not int or seed < 0:
         raise ValueError("Selection seed must be a nonnegative integer")
@@ -184,12 +275,12 @@ def generate_selection(manifest: Path, augmented_manifest: Path, counts: dict[st
     groups = sorted(set(counts) - {"original"})
     if not groups:
         raise ValueError("Select at least one augmentation group")
-    candidates = LunarDataset(manifest, split="train", augmented_manifest=augmented_manifest,
-                              augmentation_groups=groups, train_source="combined")
+    candidates = _selection_candidates(manifest, augmented_manifest, groups)
     pools = {group: [] for group in counts}
     for candidate in candidates.records:
         group = candidate.get("augmentation_group", "original")
-        pools[group].append(candidate)
+        if group in pools:
+            pools[group].append(candidate)
     for pool in pools.values():
         pool.sort(key=lambda row: (row["scene"], str(row["sample_id"])))
     rng = random.Random(seed)
@@ -273,12 +364,12 @@ def main(argv=None) -> None:
     if not isinstance(defaults, dict):
         raise ValueError("Selection configuration must be a JSON object")
     parser = argparse.ArgumentParser(description=__doc__, parents=[preliminary])
-    parser.add_argument("--mode", choices=("selection", "random-split"), default="selection",
-                        help="selection preserves the scene protocol; random-split partitions all 8002 original source families 4:1")
+    parser.add_argument("--mode", choices=("selection", "random-split", "expand-custom"), default="selection",
+                        help="selection samples fixed train candidates; random-split creates the 4:1 split; expand-custom preserves its val and expands train candidates")
     parser.add_argument("--manifest", default=DEFAULT_MANIFEST)
     parser.add_argument("--augmented-manifest", default=DEFAULT_AUGMENTED)
     parser.add_argument("--original-count", type=int, default=5000,
-                        help="Used only in selection mode; random-split includes all new-training originals")
+                        help="Used only in selection mode; split/candidate modes include all new-training originals")
     parser.add_argument("--crater-count", type=int, default=1500)
     parser.add_argument("--mountain-rock-count", type=int, default=1500)
     parser.add_argument("--seed", type=int, default=42)
@@ -294,6 +385,17 @@ def main(argv=None) -> None:
         path = Path(value)
         return path.resolve() if path.is_absolute() else (PROJECT / path).resolve()
     manifest, augmented, output = resolve(args.manifest), resolve(args.augmented_manifest), resolve(args.output)
+    if args.mode == "expand-custom":
+        expanded = generate_expanded_custom_split(manifest, augmented,
+                                                  {"crater": args.crater_count, "mountain_rock": args.mountain_rock_count}, args.seed)
+        created = save_selection(output, expanded)
+        replay_train, replay_val = LunarDataset(output, "train"), LunarDataset(output, "val")
+        if replay_train.partial or replay_val.records != json.loads(manifest.read_text())["splits"]["val"]:
+            raise RuntimeError("Expanded pool failed complete-train/unchanged-validation replay")
+        print(json.dumps({"manifest": str(output), "created": created, "sha256": sha256_file(output),
+                          "counts": expanded["counts"], "augmentation_counts": expanded["augmentation_counts"],
+                          "ordered_samples_sha256": expanded["ordered_samples_sha256"]}, ensure_ascii=False), flush=True)
+        return
     if args.mode == "random-split":
         selection = generate_random_split(manifest, augmented,
                                           {"crater": args.crater_count, "mountain_rock": args.mountain_rock_count}, args.seed)
@@ -314,9 +416,7 @@ def main(argv=None) -> None:
     counts = {"original": args.original_count, "crater": args.crater_count, "mountain_rock": args.mountain_rock_count}
     selection = generate_selection(manifest, augmented, counts, args.seed)
     created = save_selection(output, selection)
-    replay = LunarDataset(manifest, split="train", augmented_manifest=augmented,
-                          augmentation_groups=["crater", "mountain_rock"], train_source="combined",
-                          selection_manifest=output)
+    replay = _selection_candidates(manifest, augmented, ["crater", "mountain_rock"], output)
     if len(replay) != sum(counts.values()) or replay.partial:
         raise RuntimeError("Saved selection did not replay as the complete intended training set")
     print(json.dumps({"selection": str(output), "created": created, "sha256": sha256_file(output),
