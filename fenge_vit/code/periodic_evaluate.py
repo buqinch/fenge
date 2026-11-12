@@ -141,6 +141,7 @@ def load_config(path):
         config.setdefault(key, default)
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError(key + ' must be a positive integer')
+    validate_retention_threshold(config.get('retain_above_score'))
     paths = []
     for value in config['runs']:
         run = (ROOT / value).resolve()
@@ -359,13 +360,58 @@ def set_status(job, status, **fields):
     return value
 
 
-def complete_job(job, trigger, reused_from=None):
+def validate_retention_threshold(value):
+    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                              or not math.isfinite(value) or not 0 <= value <= 1):
+        raise ValueError('retain_above_score must be null or a finite number in [0, 1]')
+    return value
+
+
+def finalize_checkpoint(job, trigger, verified, retain_above_score=None, reused_from=None):
+    """Protect an exact tested checkpoint before normal temporary-file cleanup."""
+    threshold = validate_retention_threshold(retain_above_score if retain_above_score is not None
+                                            else trigger.get('retain_above_score'))
+    checkpoint, marker = job / 'best.pt', job / 'score_milestone.json'
+    if marker.exists():
+        recorded = read_json(marker)
+        if (recorded.get('checkpoint_sha256') != trigger['checkpoint_sha256']
+                or recorded.get('metrics_sha256') != sha256(job / 'test_metrics.json')
+                or not checkpoint.exists() or sha256(checkpoint) != trigger['checkpoint_sha256']):
+            raise ValueError('Retained milestone checkpoint or metrics no longer match')
+        return recorded
+    if threshold is None or verified['weighted_score'] <= threshold:
+        checkpoint.unlink(missing_ok=True)
+        return None
+    if not checkpoint.exists():
+        run = Path(trigger['run'])
+        candidates = ([Path(reused_from) / 'best.pt'] if reused_from else [])
+        candidates += [run / 'best.pt', run / 'last.pt']
+        candidates += sorted((run / 'periodic_test').glob('*/best.pt'))
+        for source in candidates:
+            if source != checkpoint and source.exists() and sha256(source) == trigger['checkpoint_sha256']:
+                snapshot(source, checkpoint)
+                break
+    if not checkpoint.exists() or sha256(checkpoint) != trigger['checkpoint_sha256']:
+        raise ValueError('Threshold exceeded but the exact tested checkpoint could not be retained')
+    recorded = {'schema': 'vit_test_score_milestone_v1', 'recorded_at': now(),
+                'host': socket.gethostname(), 'metric': 'weighted_score', 'comparison': '>',
+                'threshold': threshold, **verified, 'trigger_epoch': trigger['trigger_epoch'],
+                'checkpoint_epoch': trigger['checkpoint_epoch'],
+                'checkpoint_sha256': trigger['checkpoint_sha256'],
+                'checkpoint': str(checkpoint), 'metrics': str(job / 'test_metrics.json'),
+                'metrics_sha256': sha256(job / 'test_metrics.json'),
+                'checkpoint_selection_uses_test': False, 'training_process_management': False}
+    write_json(marker, recorded)
+    return recorded
+
+
+def complete_job(job, trigger, reused_from=None, retain_above_score=None):
     verified = validate_metrics(read_json(job / 'test_metrics.json'), trigger)
+    milestone = finalize_checkpoint(job, trigger, verified, retain_above_score, reused_from)
     state = set_status(job, 'reused' if reused_from else 'complete', verified=verified,
                        completed_at=now(), reused_from=reused_from,
                        checkpoint_sha256=trigger['checkpoint_sha256'],
-                       checkpoint_epoch=trigger['checkpoint_epoch'])
-    (job / 'best.pt').unlink(missing_ok=True)
+                       checkpoint_epoch=trigger['checkpoint_epoch'], score_milestone=milestone)
     return state
 
 
@@ -389,6 +435,8 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
                'configuration_sha256': fingerprint(configuration),
                'validation_identity': summary['data_identity']['val'],
                'evaluation': config['evaluation'], 'checkpoint_selection_uses_test': False}
+    if config.get('retain_above_score') is not None:
+        trigger['retain_above_score'] = validate_retention_threshold(config['retain_above_score'])
     # A retained older snapshot can recover a boundary after best.pt advances.
     candidates = [run / 'best.pt', run / 'last.pt']
     for earlier in sorted((run / 'periodic_test').glob('*/trigger.json')):
@@ -483,7 +531,7 @@ def worker(job, probe=gpu_available):
             returncode = child.wait()
         if returncode:
             raise RuntimeError(f'Evaluator exited with status {returncode}; see test.log')
-        complete_job(job, trigger)
+        complete_job(job, trigger, retain_above_score=config.get('retain_above_score'))
         return 0
     except Exception as error:
         set_status(job, 'failed', reason=f'{type(error).__name__}: {error}', failed_at=now())
@@ -502,7 +550,13 @@ class Monitor:
         self.directory.mkdir(parents=True, exist_ok=True)
         saved = self.directory / 'configuration.json'
         if saved.exists() and read_json(saved) != config:
-            raise ValueError('Monitor configuration changed; use a different state directory')
+            previous = read_json(saved)
+            before = {k: v for k, v in previous.items() if k != 'retain_above_score'}
+            after = {k: v for k, v in config.items() if k != 'retain_above_score'}
+            if before != after:
+                raise ValueError('Monitor configuration changed; use a different state directory')
+            validate_retention_threshold(config.get('retain_above_score'))
+            write_json(self.directory / f'configuration_before_retention_{time.time_ns()}.json', previous)
         write_json(saved, config)
         self.children = []
 
@@ -527,6 +581,7 @@ class Monitor:
                 errors[run.name] = f'{type(error).__name__}: {error}'
         pending, active, all_status = [], [], {}
         for run_path in self.config['runs']:
+            milestones = []
             for path in sorted((Path(run_path) / 'periodic_test').glob('*/status.json')):
                 job, state = path.parent, read_json(path)
                 if state['status'] in ('launching', 'running'):
@@ -535,15 +590,32 @@ class Monitor:
                         active.append(job)
                     else:
                         try:
-                            complete_job(job, read_json(job / 'trigger.json'))
+                            complete_job(job, read_json(job / 'trigger.json'),
+                                         retain_above_score=self.config.get('retain_above_score'))
                         except Exception as error:
                             set_status(job, 'failed', reason='Worker/evaluator disappeared: ' + str(error))
                         state = read_json(path)
                 if state['status'] == 'queued':
                     pending.append(job)
                 if state['status'] in ('complete', 'reused'):
-                    (job / 'best.pt').unlink(missing_ok=True)
+                    try:
+                        trigger = read_json(job / 'trigger.json')
+                        verified = validate_metrics(read_json(job / 'test_metrics.json'), trigger)
+                        milestone = finalize_checkpoint(job, trigger, verified,
+                            self.config.get('retain_above_score'), state.get('reused_from'))
+                        if milestone:
+                            milestones.append(milestone)
+                            if state.get('score_milestone') != milestone:
+                                state = set_status(job, state['status'], score_milestone=milestone)
+                    except Exception as error:
+                        errors[str(job)] = f'Checkpoint retention: {type(error).__name__}: {error}'
                 all_status[str(job)] = state
+            if self.config.get('retain_above_score') is not None or milestones:
+                write_json(Path(run_path) / 'score_milestones.json', {
+                    'schema': 'vit_test_score_milestones_v1', 'updated_at': now(),
+                    'metric': 'weighted_score', 'comparison': '>',
+                    'threshold': self.config.get('retain_above_score'),
+                    'count': len(milestones), 'records': milestones})
         waiting = None
         if pending and not active:
             try:

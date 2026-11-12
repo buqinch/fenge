@@ -354,6 +354,8 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 
 ### 当前保留的先验与原图细节实验（原始预训练起点）
 
+已根据四组最终验证best的完整测试整理 [CNN先验结果与ViT迁移设计](result/prior_ablation/transfer_to_vit_zh.md)。细节注入是优先候选；文档同时记录Moon_9退步、其余先验的无增益结果，以及ViT细化分支必须配套的监督接口。
+
 本轮按用户更正，**所有组都从原始 DINOv3 ConvNeXt-Tiny 和 ImageNet MobileNetV3-Large 权重开始**，不加载第 29 轮或其他已训练的分割检查点。融合层、FPN、区域解码器以 seed 42 重新初始化；这些共同参数的初始 SHA256 均为 `48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`。新增模块使用隔离随机数，不改变共同主体或数据顺序。
 
 | 实验 | 配置 | 比较对象 | 模型变化 |

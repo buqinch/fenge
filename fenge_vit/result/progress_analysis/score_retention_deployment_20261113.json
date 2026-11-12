@@ -1,0 +1,666 @@
+{
+  "schema": "vit_score_retention_deployment_v1",
+  "recorded_at": "2026-11-13T01:01:10.944288+08:00",
+  "status": "complete",
+  "metric": "weighted_score",
+  "formula": "(Moon_2 + Moon_4 + 2*Moon_9)/4",
+  "comparison": ">",
+  "threshold": 0.92,
+  "every_epochs": 5,
+  "source_sha256": "f03e6c14aa4ee3a9a2674ff27865202991d57ef906bd7c5818d7faf41b66d281",
+  "cpu_fixture_verification": {
+    "path": "/home/lzc/workspace/fenge_vit/result/verification_periodic_evaluate.json",
+    "tests_run": 22,
+    "success": true,
+    "scope": "Synthetic CPU control-flow fixtures only; no real model or test evaluation"
+  },
+  "local": {
+    "host": "Server70",
+    "remote": false,
+    "at": "2026-11-12T16:59:14.464367+00:00",
+    "trainer_before": {
+      "1608374": {
+        "identity": {
+          "pid": 1608374,
+          "start_ticks": "14404361",
+          "boot_id": "84c70a00-ca14-43d7-83f1-7405f4973c42"
+        },
+        "command": [
+          "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+          "-B",
+          "-u",
+          "code/train.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/b_adapter.json"
+        ]
+      },
+      "1608375": {
+        "identity": {
+          "pid": 1608375,
+          "start_ticks": "14404361",
+          "boot_id": "84c70a00-ca14-43d7-83f1-7405f4973c42"
+        },
+        "command": [
+          "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+          "-B",
+          "-u",
+          "code/train.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/c_adapter_masking.json"
+        ]
+      }
+    },
+    "monitors": [
+      {
+        "config": "/home/lzc/workspace/fenge_vit/config/periodic_eval_local.json",
+        "before": {
+          "pid": 1967321,
+          "start_ticks": "15748887",
+          "boot_id": "84c70a00-ca14-43d7-83f1-7405f4973c42"
+        },
+        "old_command": [
+          "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+          "-B",
+          "-u",
+          "/home/lzc/workspace/fenge_vit/code/periodic_evaluate.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/periodic_eval_local.json"
+        ],
+        "launcher_pid": 2555608,
+        "after": {
+          "pid": 2555608,
+          "start_ticks": "17555236",
+          "boot_id": "84c70a00-ca14-43d7-83f1-7405f4973c42"
+        },
+        "state_directory": "/home/lzc/workspace/fenge_vit/result/periodic_eval_local_every5",
+        "errors": {},
+        "active_jobs": [],
+        "milestones": {
+          "result/b_adapter": {
+            "schema": "vit_test_score_milestones_v1",
+            "updated_at": "2026-11-12T16:59:14.736339+00:00",
+            "metric": "weighted_score",
+            "comparison": ">",
+            "threshold": 0.92,
+            "count": 0,
+            "records": []
+          },
+          "result/c_adapter_masking": {
+            "schema": "vit_test_score_milestones_v1",
+            "updated_at": "2026-11-12T16:59:14.739854+00:00",
+            "metric": "weighted_score",
+            "comparison": ">",
+            "threshold": 0.92,
+            "count": 0,
+            "records": []
+          }
+        }
+      }
+    ],
+    "trainer_after": {
+      "1608374": {
+        "identity": {
+          "pid": 1608374,
+          "start_ticks": "14404361",
+          "boot_id": "84c70a00-ca14-43d7-83f1-7405f4973c42"
+        },
+        "command": [
+          "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+          "-B",
+          "-u",
+          "code/train.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/b_adapter.json"
+        ]
+      },
+      "1608375": {
+        "identity": {
+          "pid": 1608375,
+          "start_ticks": "14404361",
+          "boot_id": "84c70a00-ca14-43d7-83f1-7405f4973c42"
+        },
+        "command": [
+          "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+          "-B",
+          "-u",
+          "code/train.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/c_adapter_masking.json"
+        ]
+      }
+    },
+    "existing_trainers_unchanged": true,
+    "status": "complete",
+    "source_sha256": "f03e6c14aa4ee3a9a2674ff27865202991d57ef906bd7c5818d7faf41b66d281"
+  },
+  "remote_103": {
+    "host": "Server103",
+    "remote": true,
+    "at": "2026-11-12T16:59:22.678160+00:00",
+    "trainer_before": {
+      "127393": {
+        "identity": {
+          "pid": 127393,
+          "start_ticks": "588922",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-B",
+          "-u",
+          "code/train.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/a_fusion.json"
+        ]
+      },
+      "355750": {
+        "identity": {
+          "pid": 355750,
+          "start_ticks": "1519082",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "-m",
+          "torch.distributed.run",
+          "--standalone",
+          "--nnodes=1",
+          "--nproc_per_node=4",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355756": {
+        "identity": {
+          "pid": 355756,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355757": {
+        "identity": {
+          "pid": 355757,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355758": {
+        "identity": {
+          "pid": 355758,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355759": {
+        "identity": {
+          "pid": 355759,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "703738": {
+        "identity": {
+          "pid": 703738,
+          "start_ticks": "2842623",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "-m",
+          "torch.distributed.run",
+          "--standalone",
+          "--nnodes=1",
+          "--nproc_per_node=4",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703976": {
+        "identity": {
+          "pid": 703976,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703977": {
+        "identity": {
+          "pid": 703977,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703978": {
+        "identity": {
+          "pid": 703978,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703979": {
+        "identity": {
+          "pid": 703979,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      }
+    },
+    "monitors": [
+      {
+        "config": "/home/lzc/workspace/fenge_vit/config/periodic_eval_103.json",
+        "before": {
+          "pid": 469435,
+          "start_ticks": "1935775",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "old_command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-B",
+          "-u",
+          "/home/lzc/workspace/fenge_vit/code/periodic_evaluate.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/periodic_eval_103.json"
+        ],
+        "launcher_pid": 927829,
+        "after": {
+          "pid": 927832,
+          "start_ticks": "3738876",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "state_directory": "/home/lzc/workspace/fenge_vit/result/periodic_eval_103_every5",
+        "errors": {},
+        "active_jobs": [],
+        "milestones": {
+          "result/a_fusion": {
+            "schema": "vit_test_score_milestones_v1",
+            "updated_at": "2026-11-12T16:59:22.873153+00:00",
+            "metric": "weighted_score",
+            "comparison": ">",
+            "threshold": 0.92,
+            "count": 0,
+            "records": []
+          }
+        }
+      },
+      {
+        "config": "/home/lzc/workspace/fenge_vit/config/periodic_eval_c_103_4gpu.json",
+        "before": {
+          "pid": 469436,
+          "start_ticks": "1935813",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "old_command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-B",
+          "-u",
+          "/home/lzc/workspace/fenge_vit/code/periodic_evaluate.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/periodic_eval_c_103_4gpu.json"
+        ],
+        "launcher_pid": 927834,
+        "after": {
+          "pid": 927837,
+          "start_ticks": "3738907",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "state_directory": "/home/lzc/workspace/fenge_vit/result/periodic_eval_c_103_4gpu_every5",
+        "errors": {},
+        "active_jobs": [],
+        "milestones": {
+          "result/c_adapter_masking_103_4gpu": {
+            "schema": "vit_test_score_milestones_v1",
+            "updated_at": "2026-11-12T16:59:23.187477+00:00",
+            "metric": "weighted_score",
+            "comparison": ">",
+            "threshold": 0.92,
+            "count": 0,
+            "records": []
+          }
+        }
+      },
+      {
+        "config": "/home/lzc/workspace/fenge_vit/config/periodic_eval_c_6000_103_4gpu.json",
+        "before": {
+          "pid": 703783,
+          "start_ticks": "2842652",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "old_command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/periodic_evaluate.py",
+          "--config",
+          "config/periodic_eval_c_6000_103_4gpu.json"
+        ],
+        "launcher_pid": 927840,
+        "after": {
+          "pid": 927843,
+          "start_ticks": "3738943",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "state_directory": "/home/lzc/workspace/fenge_vit/result/periodic_eval_c_6000_103_4gpu_every5",
+        "errors": {},
+        "active_jobs": [],
+        "milestones": {
+          "result/c_adapter_masking_4000_1000_1000_103_4gpu": {
+            "schema": "vit_test_score_milestones_v1",
+            "updated_at": "2026-11-12T16:59:23.543909+00:00",
+            "metric": "weighted_score",
+            "comparison": ">",
+            "threshold": 0.92,
+            "count": 0,
+            "records": []
+          }
+        }
+      }
+    ],
+    "trainer_after": {
+      "127393": {
+        "identity": {
+          "pid": 127393,
+          "start_ticks": "588922",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-B",
+          "-u",
+          "code/train.py",
+          "--config",
+          "/home/lzc/workspace/fenge_vit/config/a_fusion.json"
+        ]
+      },
+      "355750": {
+        "identity": {
+          "pid": 355750,
+          "start_ticks": "1519082",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "-m",
+          "torch.distributed.run",
+          "--standalone",
+          "--nnodes=1",
+          "--nproc_per_node=4",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355756": {
+        "identity": {
+          "pid": 355756,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355757": {
+        "identity": {
+          "pid": 355757,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355758": {
+        "identity": {
+          "pid": 355758,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "355759": {
+        "identity": {
+          "pid": 355759,
+          "start_ticks": "1519211",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_103_4gpu.json"
+        ]
+      },
+      "703738": {
+        "identity": {
+          "pid": 703738,
+          "start_ticks": "2842623",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "-m",
+          "torch.distributed.run",
+          "--standalone",
+          "--nnodes=1",
+          "--nproc_per_node=4",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703976": {
+        "identity": {
+          "pid": 703976,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703977": {
+        "identity": {
+          "pid": 703977,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703978": {
+        "identity": {
+          "pid": 703978,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      },
+      "703979": {
+        "identity": {
+          "pid": 703979,
+          "start_ticks": "2842766",
+          "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+        },
+        "command": [
+          "/home/lzc/miniconda3/envs/lusnar/bin/python",
+          "-u",
+          "code/train_distributed.py",
+          "--config",
+          "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+        ]
+      }
+    },
+    "existing_trainers_unchanged": true,
+    "status": "complete",
+    "source_sha256": "f03e6c14aa4ee3a9a2674ff27865202991d57ef906bd7c5818d7faf41b66d281"
+  },
+  "local_indices": {
+    "a_fusion": {
+      "path": "/home/lzc/workspace/fenge_vit/result/a_fusion/score_milestones.json",
+      "count": 0,
+      "updated_at": "2026-11-12T17:00:32.919084+00:00",
+      "sha256": "89c84b961c96f15825799e10ef05ee7baadd5ce7dcdc3bb23847b3cd93ddbcef"
+    },
+    "b_adapter": {
+      "path": "/home/lzc/workspace/fenge_vit/result/b_adapter/score_milestones.json",
+      "count": 0,
+      "updated_at": "2026-11-12T17:01:04.919559+00:00",
+      "sha256": "e95e0c62039a4250e7217156ea02c37761c09f0f35a18f3e26ab3e399e78c6a8"
+    },
+    "c_adapter_masking": {
+      "path": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking/score_milestones.json",
+      "count": 0,
+      "updated_at": "2026-11-12T17:01:04.924439+00:00",
+      "sha256": "f1e4d8f5567ca511d2a5131f90e2bb0a2ba41a60c27b5571e440360c36680e4a"
+    },
+    "c_adapter_masking_103_4gpu": {
+      "path": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking_103_4gpu/score_milestones.json",
+      "count": 0,
+      "updated_at": "2026-11-12T17:00:53.228138+00:00",
+      "sha256": "db6e2f10f000d59f3160d29900bd25e13060ea2b5a7770ec21e9f07f5974109e"
+    },
+    "c_adapter_masking_4000_1000_1000_103_4gpu": {
+      "path": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking_4000_1000_1000_103_4gpu/score_milestones.json",
+      "count": 0,
+      "updated_at": "2026-11-12T17:00:23.560524+00:00",
+      "sha256": "9103a17c5b52d88bb0cc1585a28407a517e3619ec87fc7653038a62fa382220b"
+    }
+  },
+  "existing_complete_tests": [
+    {
+      "run": "a_fusion",
+      "path": "/home/lzc/workspace/fenge_vit/result/a_fusion/periodic_test/epoch_003/test_metrics.json",
+      "checkpoint_epoch": 3,
+      "weighted_score": 0.8820742124600247
+    },
+    {
+      "run": "a_fusion",
+      "path": "/home/lzc/workspace/fenge_vit/result/a_fusion/periodic_test/epoch_005/test_metrics.json",
+      "checkpoint_epoch": 5,
+      "weighted_score": 0.8917694054449221
+    },
+    {
+      "run": "b_adapter",
+      "path": "/home/lzc/workspace/fenge_vit/result/b_adapter/periodic_test/epoch_003/test_metrics.json",
+      "checkpoint_epoch": 3,
+      "weighted_score": 0.879503415857348
+    },
+    {
+      "run": "b_adapter",
+      "path": "/home/lzc/workspace/fenge_vit/result/b_adapter/periodic_test/epoch_005/test_metrics.json",
+      "checkpoint_epoch": 5,
+      "weighted_score": 0.8889467950337373
+    },
+    {
+      "run": "c_adapter_masking",
+      "path": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking/periodic_test/epoch_003/test_metrics.json",
+      "checkpoint_epoch": 3,
+      "weighted_score": 0.8761821959300041
+    },
+    {
+      "run": "c_adapter_masking",
+      "path": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking/periodic_test/epoch_005/test_metrics.json",
+      "checkpoint_epoch": 5,
+      "weighted_score": 0.8958179511581977
+    },
+    {
+      "run": "c_adapter_masking_103_4gpu",
+      "path": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking_103_4gpu/periodic_test/epoch_005/test_metrics.json",
+      "checkpoint_epoch": 5,
+      "weighted_score": 0.891208427798704
+    }
+  ],
+  "existing_qualifying_count": 0,
+  "checkpoint_retention": "Keep exact SHA-verified periodic_test/<boundary>/best.pt and score_milestone.json; aggregate run/score_milestones.json. Remote text records mirror locally; model snapshots remain on training host.",
+  "training_interrupted": false
+}

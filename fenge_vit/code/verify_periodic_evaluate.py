@@ -151,6 +151,129 @@ class PeriodicFixtures(unittest.TestCase):
         self.assertEqual(m.read_json(later / 'status.json')['reused_from'], str(job))
         self.assertFalse((later / 'best.pt').exists())
 
+    def test_score_retention_requires_strictly_greater_than_threshold(self):
+        # The fixture score is exactly 1.0, so equality cannot be obscured by
+        # floating-point rounding in an invented 0.92 confusion matrix.
+        for threshold, retain in ((0.92, True), (1.0, False)):
+            with self.subTest(threshold=threshold):
+                self.config['retain_above_score'] = threshold
+                job = self.prepare(self.publish(name=f'threshold_{threshold}'))
+                trigger = m.read_json(job / 'trigger.json')
+                original = m.sha256(job / 'best.pt')
+                m.write_json(job / 'test_metrics.json', self.metrics(trigger))
+                state = m.complete_job(job, trigger)
+                self.assertEqual(state['status'], 'complete')
+                self.assertEqual((job / 'best.pt').exists(), retain)
+                self.assertEqual((job / 'score_milestone.json').exists(), retain)
+                if retain:
+                    self.assertEqual(m.sha256(job / 'best.pt'), original)
+
+    def test_score_retention_rejects_unverified_metrics(self):
+        self.config['retain_above_score'] = 0.92
+        for field, value in (('image_count', 5003), ('checkpoint_sha256', 'wrong'),
+                             ('weighted_score', 0.99), ('partial', True)):
+            with self.subTest(field=field):
+                job = self.prepare(self.publish(name=f'invalid_{field}'))
+                trigger = m.read_json(job / 'trigger.json')
+                invalid = self.metrics(trigger)
+                invalid[field] = value
+                m.write_json(job / 'test_metrics.json', invalid)
+                with self.assertRaises(ValueError):
+                    m.complete_job(job, trigger)
+                self.assertFalse((job / 'score_milestone.json').exists())
+                self.assertTrue((job / 'best.pt').exists())
+                self.assertEqual(m.read_json(job / 'status.json')['status'], 'queued')
+
+    def test_score_retention_rejects_wrong_checkpoint_bytes(self):
+        self.config['retain_above_score'] = 0.92
+        job = self.prepare(self.publish())
+        trigger = m.read_json(job / 'trigger.json')
+        m.write_json(job / 'test_metrics.json', self.metrics(trigger))
+        # Atomic replacement leaves the trainer's original hardlink untouched.
+        replacement = job / 'wrong.tmp'
+        replacement.write_bytes(b'wrong-checkpoint-fixture')
+        replacement.replace(job / 'best.pt')
+        with self.assertRaises(ValueError):
+            m.complete_job(job, trigger)
+        self.assertFalse((job / 'score_milestone.json').exists())
+
+    def test_reused_score_retains_matching_checkpoint_in_each_job(self):
+        self.config['retain_above_score'] = 0.92
+        run = self.publish()
+        first = self.prepare(run)
+        trigger = m.read_json(first / 'trigger.json')
+        original = m.sha256(first / 'best.pt')
+        m.write_json(first / 'test_metrics.json', self.metrics(trigger))
+        m.complete_job(first, trigger)
+        self.publish(scores=(0.5, 0.6, 0.7, 0.69, 0.68, 0.67))
+        later = self.prepare(run, 6)
+        self.assertEqual(m.read_json(later / 'status.json')['status'], 'reused')
+        self.assertEqual(m.read_json(later / 'status.json')['reused_from'], str(first))
+        for job in (first, later):
+            self.assertTrue((job / 'score_milestone.json').exists())
+            self.assertEqual(m.sha256(job / 'best.pt'), original)
+
+    def test_reused_score_restores_previously_cleaned_snapshot(self):
+        run = self.publish()
+        first = self.prepare(run)
+        trigger = m.read_json(first / 'trigger.json')
+        original = m.sha256(first / 'best.pt')
+        m.write_json(first / 'test_metrics.json', self.metrics(trigger))
+        m.complete_job(first, trigger)
+        self.assertFalse((first / 'best.pt').exists())
+        # Previously completed jobs may predate the retention option. Reuse
+        # must recover exact bytes from the still-identical run best, not a
+        # checkpoint selected at a later epoch.
+        self.publish(scores=(0.5, 0.6, 0.7, 0.69, 0.68, 0.67))
+        self.assertEqual(m.sha256(run / 'best.pt'), original)
+        self.config['retain_above_score'] = 0.92
+        later = self.prepare(run, 6)
+        self.assertEqual(m.read_json(later / 'status.json')['status'], 'reused')
+        self.assertEqual(m.sha256(later / 'best.pt'), original)
+        self.assertTrue((later / 'score_milestone.json').exists())
+
+    def test_restart_preserves_retained_snapshot_even_when_option_disabled(self):
+        self.config['retain_above_score'] = 0.92
+        run = self.publish()
+        job = self.prepare(run)
+        trigger = m.read_json(job / 'trigger.json')
+        original = m.sha256(job / 'best.pt')
+        m.write_json(job / 'test_metrics.json', self.metrics(trigger))
+        m.complete_job(job, trigger)
+        m.Monitor(self.config).tick()
+        self.assertTrue((run / 'score_milestones.json').exists())
+        restarted_config = {**self.config, 'retain_above_score': None}
+        m.Monitor(restarted_config).tick()
+        m.Monitor(restarted_config).tick()
+        self.assertEqual(m.sha256(job / 'best.pt'), original)
+        self.assertTrue((job / 'score_milestone.json').exists())
+        self.assertEqual(m.read_json(job / 'status.json')['status'], 'complete')
+
+    def test_disappeared_worker_recovery_retains_verified_milestone(self):
+        self.config['retain_above_score'] = 0.92
+        job = self.prepare(self.publish())
+        trigger = m.read_json(job / 'trigger.json')
+        original = m.sha256(job / 'best.pt')
+        m.write_json(job / 'test_metrics.json', self.metrics(trigger))
+        m.set_status(job, 'running', worker_identity={'pid': 99999999, 'start_ticks': '0', 'boot_id': 'none'})
+        m.Monitor(self.config).tick()
+        self.assertEqual(m.read_json(job / 'status.json')['status'], 'complete')
+        self.assertEqual(m.sha256(job / 'best.pt'), original)
+        self.assertTrue((job / 'score_milestone.json').exists())
+
+    def test_retention_config_threshold_validation(self):
+        path = self.root / 'retention_config.json'
+        for value in (None, 0.0, 0.92, 1.0):
+            m.write_json(path, {**self.config, 'retain_above_score': value})
+            self.assertEqual(m.load_config(path)['retain_above_score'], value)
+        for invalid in (-0.01, 1.01, True, '0.92', float('nan'), float('inf')):
+            with self.subTest(invalid=invalid):
+                # Bypass the production writer so malformed external JSON
+                # reaches the configuration reader's own validation.
+                path.write_text(json.dumps({**self.config, 'retain_above_score': invalid}))
+                with self.assertRaises(ValueError):
+                    m.load_config(path)
+
     def test_snapshots_other_run_while_first_active_and_restart(self):
         first = self.prepare(self.publish())
         second = self.publish('c')
