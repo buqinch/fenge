@@ -29,11 +29,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = Path("/media/nas/lzc/fenge/baseline_segformer_20261026/manifest.json")
 
 
-def check_multiscale_tta() -> dict:
-    """Check continuous multiscale fusion and the real variable-size adapter."""
-    from lunarseg.metrics import predict_semantic_scores, tta_metadata, validate_tta_sizes
-    from lunarseg.model import LunarSegmentationModel
-
+def _recording_tta_fixture():
+    """Shared asymmetric input and recording model for real TTA integration."""
     class RecordingModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -66,6 +63,15 @@ def check_multiscale_tta() -> dict:
     texture = ((3 * row + 5 * column).remainder(11).float() / 11) * .25
     images = torch.stack((x + .3 * y + .2 * x * y + texture,
                           .4 * x - y - texture, x.square() + .6 * y + .5 * texture)).unsqueeze(0)
+    return RecordingModel, images
+
+
+def check_multiscale_tta() -> dict:
+    """Check continuous multiscale fusion and the real variable-size adapter."""
+    from lunarseg.metrics import predict_semantic_scores, tta_metadata, validate_tta_sizes
+    from lunarseg.model import LunarSegmentationModel
+
+    RecordingModel, images = _recording_tta_fixture()
     unchanged = images.clone()
     legacy = RecordingModel().eval()
     none = predict_semantic_scores(legacy, images, tta="none")
@@ -240,6 +246,249 @@ def check_multiscale_tta() -> dict:
             "nonmultiple_786_metadata_keeps_exact_input_and_reports_800_padding": edge_metadata,
             "training_mode_and_invalid_adapter_inputs_rejected": rejected_adapter_inputs,
             "size_786_is_only_a_padding_edge_case_not_an_experiment_scale": True}
+
+
+def check_weighted_tta() -> dict:
+    """Audit weighted inference against the shared recording-model fixture."""
+    from lunarseg.metrics import predict_semantic_scores, tta_metadata, validate_tta_weights
+
+    RecordingModel, images = _recording_tta_fixture()
+    original = images.clone()
+    sizes = [1024, 768]
+    baseline = predict_semantic_scores(RecordingModel().eval(), images, tta="hflip")
+    equal = predict_semantic_scores(RecordingModel().eval(), images, tta="multiscale_hflip", tta_sizes=sizes)
+    assert validate_tta_weights("multiscale_hflip", sizes, None) is None
+    cases = []
+    for weights in ([1, 0], [.75, .25], [.5, .5], [0, 1]):
+        saved_weights = list(weights)
+        model = RecordingModel().eval()
+        actual = predict_semantic_scores(model, images, tta="multiscale_hflip", tta_sizes=sizes,
+                                         tta_weights=weights)
+        assert weights == saved_weights and torch.equal(images, original)
+        active = [size for size, weight in zip(sizes, weights) if weight > 0]
+        assert len(model.calls) == 2 * len(active)
+        assert [call["input"].shape[-1] for call in model.calls] == [size for size in active for _ in range(2)]
+        if weights == [1, 0]:
+            assert torch.equal(actual, baseline)
+            maximum_error = 0.0
+        else:
+            expected, not_unflipped, mean_logits = [], [], []
+            for index, size in enumerate(active):
+                scale_weight = weights[sizes.index(size)]
+                resized = F.interpolate(images, (size, size), mode="bilinear", align_corners=False, antialias=True)
+                ordinary, mirrored = model.calls[index * 2:index * 2 + 2]
+                assert torch.equal(ordinary["input"], resized)
+                assert torch.equal(mirrored["input"], resized.flip(-1))
+                for call, reverse in ((ordinary, False), (mirrored, True)):
+                    probability = call["logits"].float().softmax(1)
+                    aligned = probability.flip(-1) if reverse else probability
+                    expected.append(F.interpolate(aligned, images.shape[-2:], mode="bilinear", align_corners=False).double() * (scale_weight / 2))
+                    not_unflipped.append(F.interpolate(probability, images.shape[-2:], mode="bilinear", align_corners=False).double() * (scale_weight / 2))
+                    logits = call["logits"].float().flip(-1) if reverse else call["logits"].float()
+                    mean_logits.append(F.interpolate(logits, images.shape[-2:], mode="bilinear", align_corners=False).double() * (scale_weight / 2))
+            oracle = torch.stack(expected).sum(0).float()
+            torch.testing.assert_close(actual, oracle, rtol=2e-6, atol=2e-7)
+            maximum_error = float((actual - oracle).abs().max())
+            if weights == [.5, .5]:
+                assert torch.equal(actual, equal)
+            if weights == [.75, .25]:
+                assert (actual - torch.stack(not_unflipped).sum(0).float()).abs().max() > 1e-4
+                assert (actual - torch.stack(mean_logits).sum(0).float().softmax(1)).abs().max() > 1e-4
+        metadata = tta_metadata("multiscale_hflip", tta_sizes=sizes, tta_weights=weights)
+        assert metadata["tta_scale_weights"] == weights and metadata["tta_active_input_sizes"] == active
+        assert metadata["tta_requested_view_count"] == 4
+        assert metadata["tta_requested_view_weights"] == [weight / 2 for weight in weights for _ in range(2)]
+        assert metadata["tta_view_count"] == metadata["tta_forward_calls_per_batch"] == len(model.calls)
+        assert metadata["tta_view_weights"] == [weight / 2 for weight in weights if weight > 0 for _ in range(2)]
+        assert metadata["tta_views"] == [{"input_size": size, "transform": transform} for size in active
+                                          for transform in ("original", "horizontal_flip")]
+        assert metadata["tta_score_domain"] == "probability"
+        cases.append({"scale_weights": weights, "active_sizes": active, "model_forward_calls": len(model.calls),
+                      "maximum_error_against_independent_weighted_probability_oracle": maximum_error,
+                      "metadata": metadata})
+    invalid = [("none", None, [1]), ("hflip", None, [1]),
+               ("multiscale_hflip", sizes, [1]), ("multiscale_hflip", sizes, [0, 0]),
+               ("multiscale_hflip", sizes, [.75, .2]), ("multiscale_hflip", sizes, [1.1, -.1]),
+               ("multiscale_hflip", sizes, [True, 0]), ("multiscale_hflip", sizes, [float("nan"), 1]),
+               ("multiscale_hflip", sizes, [float("inf"), 0]), ("multiscale_hflip", sizes, [".75", .25]),
+               ("multiscale_hflip", sizes, ".75,.25")]
+    for mode, input_sizes, weights in invalid:
+        model = RecordingModel().eval()
+        for call in (lambda: validate_tta_weights(mode, input_sizes, weights),
+                     lambda: predict_semantic_scores(model, images, tta=mode, tta_sizes=input_sizes, tta_weights=weights)):
+            try:
+                call()
+            except (ValueError, TypeError):
+                pass
+            else:
+                raise AssertionError(f"Invalid TTA weights accepted: {mode}/{input_sizes}/{weights}")
+        assert not model.calls
+
+    from unittest.mock import patch
+    # Eight probability cases give a known optimum without reproducing the
+    # sweep implementation: weight 1 misses case 0, weight .5 mislabels case 1,
+    # and weight .75 gets both right. All five GT classes are represented.
+    p1024 = torch.tensor([[.46, .01, .42, .10, .01], [.60, .02, .30, .06, .02],
+                          [.05, .75, .05, .10, .05], [.10, .05, .10, .70, .05],
+                          [.03, .02, .05, .10, .80], [.80, .05, .05, .08, .02],
+                          [.10, .03, .80, .05, .02], [.10, .60, .10, .15, .05]])
+    p768 = torch.tensor([[.10, .02, .80, .06, .02], [.10, .02, .80, .06, .02],
+                         [.10, .55, .10, .20, .05], [.10, .10, .15, .60, .05],
+                         [.10, .05, .10, .05, .70], [.65, .10, .10, .10, .05],
+                         [.20, .05, .60, .10, .05], [.05, .80, .05, .05, .05]])
+    truths = [2, 0, 1, 3, 4, 0, 2, 1]
+    class_names = ("regolith", "rock", "crater", "mountain", "sky")
+
+    class SweepDataset(torch.utils.data.Dataset):
+        input_size = 32
+
+        def __init__(self, count=1601, partial=False, split="val"):
+            self.count, self.partial, self.split, self.reads = count, partial, split, 0
+            self.identity = {"custom_split": True, "split": split, "selection_scope": "custom_val_originals",
+                             "image_count": count, "complete_image_count": 1601,
+                             "validation_image_count": 1601, "partial": partial}
+            scenes = ("Moon_1", "Moon_3", "Moon_5", "Moon_6", "Moon_7", "Moon_8") if split == "val" else ("Moon_2",)
+            self.records = [{"scene": scenes[index % len(scenes)], "sample_id": str(index),
+                             "source_id": f"{scenes[index % len(scenes)]}/{index}"} for index in range(count)]
+
+        def __len__(self):
+            return self.count
+
+        def __getitem__(self, index):
+            self.reads += 1
+            ids = (torch.arange(1024).reshape(32, 32) + index).remainder(8)
+            return {"image": torch.stack((ids.float(), torch.zeros(32, 32), torch.full((32, 32), float(index)))),
+                    "mask": torch.tensor(truths)[ids], **self.records[index]}
+
+    class SweepModel(torch.nn.Module):
+        def __init__(self, tie=False):
+            super().__init__()
+            self.tie, self.scale, self.calls, self.scale_trace = tie, 1024, 0, []
+
+        def forward(self, tensor):
+            self.calls += 1
+            self.scale_trace.append(self.scale)
+            table = p1024 if self.tie or self.scale == 1024 else p768
+            return table[tensor[:, 0].long()].permute(0, 3, 1, 2)
+
+    def controlled_view_collection(model, tensor, requested_sizes, weights=None):
+        # Mock only spatial view collection; its real 1024 implementation and
+        # float32 fusion were checked above. The actual sweep, per-batch cache,
+        # candidate metrics, and selection logic run unchanged on these views.
+        assert requested_sizes == [1024, 768]
+        assert weights is None or weights == [.75, .25]
+        model.scale = 1024
+        a, b = model(tensor), model(tensor.flip(-1)).flip(-1)
+        model.scale = 768
+        c, d = model(tensor), model(tensor.flip(-1)).flip(-1)
+        return [a, b, c, d], (a + b) * .5
+
+    def expected_sweep_matrix(count, weight, tie=False):
+        matrix = [[0] * 5 for _ in range(5)]
+        for index, truth in enumerate(truths):
+            left, right = p1024[index].tolist(), (p1024 if tie else p768)[index].tolist()
+            winner = max(range(5), key=lambda cls: weight * left[cls] + (1 - weight) * right[cls])
+            matrix[truth][winner] += count * 128  # 32x32 contains exactly 128 of each case.
+        return matrix
+
+    def matrix_ious(matrix):
+        return [matrix[cls][cls] / (sum(matrix[cls]) + sum(row[cls] for row in matrix) - matrix[cls][cls])
+                for cls in range(5)]
+
+    sweep_reports = []
+    for tie in (False, True):
+        dataset = SweepDataset()
+        loader = torch.utils.data.DataLoader(dataset, batch_size=800, num_workers=0)
+        model = SweepModel(tie=tie)
+        with patch("lunarseg.metrics._collect_weighted_tta_views", side_effect=controlled_view_collection) as collect:
+            result = evaluate_loader(model, loader, torch.device("cpu"), amp="none", tta="multiscale_hflip",
+                                     tta_sizes=sizes, tta_1024_weights=[1, .75, .5])
+        sweep = result["scale_weight_sweep"]
+        assert model.calls == result["model_forward_calls"] == sweep["model_forward_calls"] == len(loader) * 4
+        assert collect.call_count == len(loader) and dataset.reads == len(dataset) and model.training
+        assert model.scale_trace == [1024, 1024, 768, 768] * len(loader)
+        assert sweep["selection_valid"] is True and sweep["selection_uses_test"] is False
+        assert sweep["selection_scene"] == "custom_validation" and sweep["validation_unique_source_count"] == 1601
+        assert sweep["global_scale_weights_for_all_images"] is True and sweep["loader_passes"] == 1
+        assert sweep["shared_views_per_batch"] == 4 and sweep["mountain_alpha"] == sweep["crater_gamma"] == 1
+        assert sweep["recommended_weight_1024"] == (1 if tie else .75)
+        baseline_ious = matrix_ious(expected_sweep_matrix(len(dataset), 1, tie))
+        scene_counts = Counter(row["scene"] for row in dataset.records)
+        for candidate in sweep["candidates"]:
+            weight, metrics = candidate["weight_1024"], candidate["metrics"]
+            matrix = expected_sweep_matrix(len(dataset), weight, tie)
+            ious = matrix_ious(matrix)
+            assert metrics["confusion_matrix_gt_rows_pred_cols"] == matrix
+            assert math.isclose(metrics["miou"], sum(ious) / 5, rel_tol=1e-12)
+            assert math.isclose(candidate["delta_miou"], (sum(ious) - sum(baseline_ious)) / 5, abs_tol=1e-12)
+            for cls, name in enumerate(class_names):
+                assert math.isclose(metrics["class_iou"][name], ious[cls], rel_tol=1e-12)
+                assert math.isclose(candidate["delta_class_iou"][name], ious[cls] - baseline_ious[cls], abs_tol=1e-12)
+            assert candidate["scale_weights"] == [weight, 1 - weight]
+            assert candidate["reused_shared_views"] is True and candidate["additional_model_forward_calls"] == 0
+            assert candidate["standalone_model_forward_calls"] == len(loader) * (2 if weight == 1 else 4)
+            for scene, count in scene_counts.items():
+                assert metrics["scenes"][scene]["image_count"] == count
+                assert metrics["scenes"][scene]["confusion_matrix_gt_rows_pred_cols"] == expected_sweep_matrix(count, weight, tie)
+        sweep_reports.append({"image_count": len(dataset), "batch_count": len(loader),
+                              "actual_fixture_forward_calls": model.calls, "shared_collections": collect.call_count,
+                              "recommended_weight_1024": sweep["recommended_weight_1024"], "all_candidates_tied": tie,
+                              "aggregate_and_scene_confusion_iou_and_deltas_match_independent_cases": True})
+    for partial, drop_last in ((True, False), (False, True)):
+        dataset = SweepDataset(count=35 if partial else 1601, partial=partial)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=800, num_workers=0, drop_last=drop_last)
+        with patch("lunarseg.metrics._collect_weighted_tta_views", side_effect=controlled_view_collection):
+            result = evaluate_loader(SweepModel(), loader, torch.device("cpu"), amp="none", tta="multiscale_hflip",
+                                     tta_sizes=sizes, tta_1024_weights=[1, .75, .5])
+        assert result["scale_weight_sweep"]["selection_valid"] is False
+        assert result["scale_weight_sweep"]["recommended_weight_1024"] is None
+        assert result["image_count"] == (35 if partial else 1600)
+    invalid_sweeps = [{"tta": "hflip", "tta_sizes": None}, {"tta_sizes": [1024, 512]},
+                      {"tta_sizes": [768, 1024]}, {"tta_weights": [.75, .25]}, {"mountain_alpha": .9},
+                      {"crater_gamma": 1.2}, {"mountain_alphas": [1, .9]}, {"crater_gammas": [1, 1.2]},
+                      {"image_exporter": lambda *_: None}, {"tta_1024_weights": []},
+                      {"tta_1024_weights": [1, 1]}, {"tta_1024_weights": [.75, .5]},
+                      {"tta_1024_weights": [1, True]}, {"tta_1024_weights": [1, float("nan")]},
+                      {"tta_1024_weights": [1, 1.1]}, {"tta_1024_weights": [1, -.1]},
+                      {"tta_1024_weights": "1,.75,.5"}]
+    dataset = SweepDataset(count=1, partial=True)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=1, num_workers=0)
+    for overrides in invalid_sweeps:
+        model = SweepModel()
+        options = {"tta": "multiscale_hflip", "tta_sizes": sizes, "tta_1024_weights": [1, .75, .5], **overrides}
+        try:
+            evaluate_loader(model, loader, torch.device("cpu"), amp="none", **options)
+        except (ValueError, TypeError):
+            pass
+        else:
+            raise AssertionError(f"Invalid weight sweep accepted: {overrides}")
+        assert model.calls == 0 and dataset.reads == 0
+    dataset = SweepDataset(count=1, split="test")
+    loader = torch.utils.data.DataLoader(dataset, batch_size=1, num_workers=0)
+    model = SweepModel()
+    try:
+        evaluate_loader(model, loader, torch.device("cpu"), amp="none", tta="multiscale_hflip",
+                        tta_sizes=sizes, tta_1024_weights=[1, .75, .5])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Scale weight selected from test data")
+    assert model.calls == 0 and dataset.reads == 0
+    with patch("lunarseg.metrics._collect_weighted_tta_views", side_effect=controlled_view_collection):
+        evaluate_loader(model, loader, torch.device("cpu"), amp="none", tta="multiscale_hflip", tta_sizes=sizes,
+                        tta_weights=[.75, .25])
+    assert model.calls == 4  # Applying a previously selected fixed weight remains legal.
+    return {"weighted_prediction_cases": cases, "input_and_requested_weights_unchanged": True,
+            "weight_one_zero_is_bitwise_original_hflip": True,
+            "weight_half_half_is_bitwise_original_equal_four_view": True,
+            "weighted_oracle_uses_inverse_flipped_resized_probabilities": True,
+            "invalid_weight_cases_rejected_before_forward": len(invalid),
+            "sweep_tests_use_controlled_32_pixel_view_collection_after_real_1024_integration": True,
+            "validation_sweep_cases": sweep_reports,
+            "partial_and_drop_last_loaders_cannot_recommend": True,
+            "equal_miou_ties_prefer_larger_1024_weight": True,
+            "test_sweep_rejected_before_forward_but_fixed_weight_allowed": True,
+            "invalid_sweep_cases_rejected_before_forward": len(invalid_sweeps)}
 
 
 def check_crater_calibration() -> dict:
@@ -1431,9 +1680,12 @@ def main() -> None:
                             help="Check multiscale score fusion and variable-size inference on CPU; no weights or dataset are loaded")
     cpu_checks.add_argument("--crater-calibration-only", action="store_true",
                             help="Check crater probability scaling and validation-only sweeps on CPU")
+    cpu_checks.add_argument("--weighted-tta-only", action="store_true",
+                            help="Check weighted TTA probabilities and validation-only weight selection on CPU")
     args = parser.parse_args()
     if args.output is None:
-        filename = ("crater_calibration_verification.json" if args.crater_calibration_only else
+        filename = ("weighted_tta_verification.json" if args.weighted_tta_only else
+                    "crater_calibration_verification.json" if args.crater_calibration_only else
                     "multiscale_tta_verification.json" if args.multiscale_tta_only else
                     "split_verification.json" if args.split_only else
                     "hard_pixel_verification.json" if args.hard_pixel_only else
@@ -1448,6 +1700,13 @@ def main() -> None:
     torch.set_num_threads(4)
     if args.split_manifest is not None and not args.split_only:
         parser.error("--split-manifest requires --split-only")
+    if args.weighted_tta_only:
+        report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
+                  "weighted_tta_only": True, "weighted_tta_checks": check_weighted_tta(), "status": "passed"}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        print(f"CPU weighted TTA checks passed. Verification report: {args.output}", flush=True)
+        return
     if args.crater_calibration_only:
         report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
                   "crater_calibration_only": True, "crater_calibration_checks": check_crater_calibration(), "status": "passed"}

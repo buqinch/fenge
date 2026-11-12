@@ -9,7 +9,8 @@ import torch
 from PIL import Image, ImageDraw, ImageFont
 
 from .data import CLASS_NAMES
-from .metrics import validate_mountain_alpha, tta_metadata, validate_tta_sizes, validate_crater_gamma
+from .metrics import (validate_mountain_alpha, tta_metadata, validate_tta_sizes,
+                      validate_crater_gamma, validate_tta_weights)
 
 
 PALETTE = np.asarray([[187, 70, 156], [232, 250, 80], [120, 0, 200],
@@ -66,10 +67,12 @@ class EvaluationImageExporter:
     the confusion matrix, including test labels originally stored in a ZIP.
     """
 
-    def __init__(self, output_root, experiment_name, split, tta, mountain_alpha=1.0, tta_sizes=None, crater_gamma=1.0):
+    def __init__(self, output_root, experiment_name, split, tta, mountain_alpha=1.0, tta_sizes=None,
+                 crater_gamma=1.0, tta_weights=None):
         if split not in ("val", "test"):
             raise ValueError("Image exports support val/test")
         self.tta_sizes = validate_tta_sizes(tta, tta_sizes)
+        self.tta_weights = validate_tta_weights(tta, self.tta_sizes, tta_weights)
         self.output_root = Path(output_root).resolve()
         self.experiment_name = component(experiment_name, "experiment")
         self.split, self.tta = split, tta
@@ -81,6 +84,8 @@ class EvaluationImageExporter:
         if self.crater_gamma != 1:
             suffix += f"_crater_{str(self.crater_gamma).replace('.', 'p')}"
         scale_suffix = "_" + "_".join(map(str, self.tta_sizes)) if self.tta_sizes else ""
+        if self.tta_weights is not None:
+            scale_suffix += "_weights_" + "_".join(str(w).replace('.', 'p') for w in self.tta_weights)
         self.directory = self.output_root / self.experiment_name / f"{split}_{tta}{scale_suffix}{suffix}"
         self.index_path = self.directory / "index.json"
         self.records, self.seen = [], set()
@@ -91,7 +96,7 @@ class EvaluationImageExporter:
     def _index(self, state):
         return {"schema": "lusnar_evaluation_images_v1", "state": state,
                 "experiment": self.experiment_name, "split": self.split, "tta_mode": self.tta,
-                **tta_metadata(self.tta, self.tta_sizes),
+                **tta_metadata(self.tta, self.tta_sizes, self.tta_weights),
                 "mountain_alpha": self.mountain_alpha,
                 "crater_gamma": self.crater_gamma,
                 "image_count": len(self.records), "class_names": list(CLASS_NAMES),

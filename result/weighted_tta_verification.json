@@ -1,0 +1,397 @@
+{
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "device": "cpu",
+  "weighted_tta_only": true,
+  "weighted_tta_checks": {
+    "weighted_prediction_cases": [
+      {
+        "scale_weights": [
+          1,
+          0
+        ],
+        "active_sizes": [
+          1024
+        ],
+        "model_forward_calls": 2,
+        "maximum_error_against_independent_weighted_probability_oracle": 0.0,
+        "metadata": {
+          "test_time_augmentation": true,
+          "tta_mode": "multiscale_hflip",
+          "tta_input_sizes": [
+            1024,
+            768
+          ],
+          "tta_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_view_count": 2,
+          "tta_view_weights": [
+            0.5,
+            0.5
+          ],
+          "tta_forward_calls_per_batch": 2,
+          "tta_score_domain": "probability",
+          "tta_aggregation": "scale_weighted_float32_probability_mean",
+          "tta_input_resize": "bilinear_align_corners_false",
+          "tta_input_antialias": true,
+          "tta_padded_sizes": [
+            1024,
+            768
+          ],
+          "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+          "tta_output_coordinates": "original_input_image",
+          "tta_padding": {
+            "multiple": 32,
+            "mode": "replicate",
+            "sides": "right_bottom",
+            "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+          },
+          "tta_scale_weights": [
+            1.0,
+            0.0
+          ],
+          "tta_active_input_sizes": [
+            1024
+          ],
+          "tta_requested_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_requested_view_count": 4,
+          "tta_requested_view_weights": [
+            0.5,
+            0.5,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "scale_weights": [
+          0.75,
+          0.25
+        ],
+        "active_sizes": [
+          1024,
+          768
+        ],
+        "model_forward_calls": 4,
+        "maximum_error_against_independent_weighted_probability_oracle": 1.1920928955078125e-07,
+        "metadata": {
+          "test_time_augmentation": true,
+          "tta_mode": "multiscale_hflip",
+          "tta_input_sizes": [
+            1024,
+            768
+          ],
+          "tta_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_view_count": 4,
+          "tta_view_weights": [
+            0.375,
+            0.375,
+            0.125,
+            0.125
+          ],
+          "tta_forward_calls_per_batch": 4,
+          "tta_score_domain": "probability",
+          "tta_aggregation": "scale_weighted_float32_probability_mean",
+          "tta_input_resize": "bilinear_align_corners_false",
+          "tta_input_antialias": true,
+          "tta_padded_sizes": [
+            1024,
+            768
+          ],
+          "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+          "tta_output_coordinates": "original_input_image",
+          "tta_padding": {
+            "multiple": 32,
+            "mode": "replicate",
+            "sides": "right_bottom",
+            "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+          },
+          "tta_scale_weights": [
+            0.75,
+            0.25
+          ],
+          "tta_active_input_sizes": [
+            1024,
+            768
+          ],
+          "tta_requested_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_requested_view_count": 4,
+          "tta_requested_view_weights": [
+            0.375,
+            0.375,
+            0.125,
+            0.125
+          ]
+        }
+      },
+      {
+        "scale_weights": [
+          0.5,
+          0.5
+        ],
+        "active_sizes": [
+          1024,
+          768
+        ],
+        "model_forward_calls": 4,
+        "maximum_error_against_independent_weighted_probability_oracle": 5.960464477539063e-08,
+        "metadata": {
+          "test_time_augmentation": true,
+          "tta_mode": "multiscale_hflip",
+          "tta_input_sizes": [
+            1024,
+            768
+          ],
+          "tta_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_view_count": 4,
+          "tta_view_weights": [
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ],
+          "tta_forward_calls_per_batch": 4,
+          "tta_score_domain": "probability",
+          "tta_aggregation": "scale_weighted_float32_probability_mean",
+          "tta_input_resize": "bilinear_align_corners_false",
+          "tta_input_antialias": true,
+          "tta_padded_sizes": [
+            1024,
+            768
+          ],
+          "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+          "tta_output_coordinates": "original_input_image",
+          "tta_padding": {
+            "multiple": 32,
+            "mode": "replicate",
+            "sides": "right_bottom",
+            "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+          },
+          "tta_scale_weights": [
+            0.5,
+            0.5
+          ],
+          "tta_active_input_sizes": [
+            1024,
+            768
+          ],
+          "tta_requested_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_requested_view_count": 4,
+          "tta_requested_view_weights": [
+            0.25,
+            0.25,
+            0.25,
+            0.25
+          ]
+        }
+      },
+      {
+        "scale_weights": [
+          0,
+          1
+        ],
+        "active_sizes": [
+          768
+        ],
+        "model_forward_calls": 2,
+        "maximum_error_against_independent_weighted_probability_oracle": 0.0,
+        "metadata": {
+          "test_time_augmentation": true,
+          "tta_mode": "multiscale_hflip",
+          "tta_input_sizes": [
+            1024,
+            768
+          ],
+          "tta_views": [
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_view_count": 2,
+          "tta_view_weights": [
+            0.5,
+            0.5
+          ],
+          "tta_forward_calls_per_batch": 2,
+          "tta_score_domain": "probability",
+          "tta_aggregation": "scale_weighted_float32_probability_mean",
+          "tta_input_resize": "bilinear_align_corners_false",
+          "tta_input_antialias": true,
+          "tta_padded_sizes": [
+            1024,
+            768
+          ],
+          "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+          "tta_output_coordinates": "original_input_image",
+          "tta_padding": {
+            "multiple": 32,
+            "mode": "replicate",
+            "sides": "right_bottom",
+            "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+          },
+          "tta_scale_weights": [
+            0.0,
+            1.0
+          ],
+          "tta_active_input_sizes": [
+            768
+          ],
+          "tta_requested_views": [
+            {
+              "input_size": 1024,
+              "transform": "original"
+            },
+            {
+              "input_size": 1024,
+              "transform": "horizontal_flip"
+            },
+            {
+              "input_size": 768,
+              "transform": "original"
+            },
+            {
+              "input_size": 768,
+              "transform": "horizontal_flip"
+            }
+          ],
+          "tta_requested_view_count": 4,
+          "tta_requested_view_weights": [
+            0.0,
+            0.0,
+            0.5,
+            0.5
+          ]
+        }
+      }
+    ],
+    "input_and_requested_weights_unchanged": true,
+    "weight_one_zero_is_bitwise_original_hflip": true,
+    "weight_half_half_is_bitwise_original_equal_four_view": true,
+    "weighted_oracle_uses_inverse_flipped_resized_probabilities": true,
+    "invalid_weight_cases_rejected_before_forward": 11,
+    "sweep_tests_use_controlled_32_pixel_view_collection_after_real_1024_integration": true,
+    "validation_sweep_cases": [
+      {
+        "image_count": 1601,
+        "batch_count": 3,
+        "actual_fixture_forward_calls": 12,
+        "shared_collections": 3,
+        "recommended_weight_1024": 0.75,
+        "all_candidates_tied": false,
+        "aggregate_and_scene_confusion_iou_and_deltas_match_independent_cases": true
+      },
+      {
+        "image_count": 1601,
+        "batch_count": 3,
+        "actual_fixture_forward_calls": 12,
+        "shared_collections": 3,
+        "recommended_weight_1024": 1.0,
+        "all_candidates_tied": true,
+        "aggregate_and_scene_confusion_iou_and_deltas_match_independent_cases": true
+      }
+    ],
+    "partial_and_drop_last_loaders_cannot_recommend": true,
+    "equal_miou_ties_prefer_larger_1024_weight": true,
+    "test_sweep_rejected_before_forward_but_fixed_weight_allowed": true,
+    "invalid_sweep_cases_rejected_before_forward": 17
+  },
+  "status": "passed"
+}

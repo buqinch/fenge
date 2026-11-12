@@ -16,7 +16,7 @@ from torch.nn import functional as F
 
 from lunarseg.model import ModelConfig, build_model
 from lunarseg.metrics import (adjust_mountain_scores, predict_semantic_scores, tta_metadata, validate_tta_sizes,
-                              adjust_crater_scores, validate_crater_gamma)
+                              adjust_crater_scores, validate_crater_gamma, validate_tta_weights)
 
 
 PALETTE = np.asarray([[187, 70, 156], [232, 250, 80], [120, 0, 200], [173, 69, 31], [34, 201, 248]], dtype=np.uint8)
@@ -35,6 +35,8 @@ def main() -> None:
                         help="hflip averages original/undo-flipped class probabilities; none keeps single-view inference")
     parser.add_argument("--tta-sizes", type=int, nargs="+", default=None,
                         help="Square image sizes for multiscale_hflip, e.g. 1024 768 512")
+    parser.add_argument("--tta-weights", type=float, nargs="+", default=None,
+                        help="Per-scale probability weights summing to 1, e.g. .75 .25")
     parser.add_argument("--mountain-alpha", type=float, default=1.0,
                         help="Multiply final mountain class probability by this positive factor before argmax")
     parser.add_argument("--crater-gamma", type=float, default=1.0,
@@ -43,6 +45,7 @@ def main() -> None:
     args = parser.parse_args()
     try:
         args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
+        args.tta_weights = validate_tta_weights(args.tta, args.tta_sizes, args.tta_weights)
         args.crater_gamma = validate_crater_gamma(args.crater_gamma)
         if args.crater_gamma != 1 and args.mountain_alpha != 1:
             raise ValueError("Crater calibration requires mountain-alpha=1")
@@ -94,7 +97,8 @@ def main() -> None:
             image = (image - mean) / std
             context = torch.autocast("cuda", dtype=dtype) if args.amp != "none" else nullcontext()
             with context:
-                scores = predict_semantic_scores(model, image, tta=args.tta, tta_sizes=args.tta_sizes)
+                scores = predict_semantic_scores(model, image, tta=args.tta, tta_sizes=args.tta_sizes,
+                                                tta_weights=args.tta_weights)
             # Interpolate continuous class scores before assigning class IDs.
             scores = F.interpolate(scores.float(), size=(original_size[1], original_size[0]), mode="bilinear", align_corners=False)
             scores = adjust_mountain_scores(scores, mountain_alpha=args.mountain_alpha, tta=args.tta)
@@ -126,7 +130,7 @@ def main() -> None:
     summary = {
         "checkpoint": str(args.checkpoint.resolve()), "checkpoint_sha256": digest.hexdigest(),
         "model_config": config.to_dict(), "device": str(device), "amp": args.amp,
-        **tta_metadata(args.tta, args.tta_sizes), "continuous_scores_resized_before_argmax": True,
+        **tta_metadata(args.tta, args.tta_sizes, args.tta_weights), "continuous_scores_resized_before_argmax": True,
         "mountain_alpha": args.mountain_alpha,
         "crater_gamma": args.crater_gamma,
         "crater_score_adjustment": "Only final class-2 probability multiplied by gamma before argmax; one global factor",

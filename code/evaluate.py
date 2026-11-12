@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 import time
 
@@ -11,7 +12,8 @@ import torch
 from torch.utils.data import DataLoader
 
 from lunarseg.data import DEFAULT_MANIFEST, DEFAULT_TEST_MANIFEST, LunarDataset, sha256_file
-from lunarseg.metrics import evaluate_loader, validate_mountain_alpha, validate_tta_sizes, validate_crater_gamma
+from lunarseg.metrics import (evaluate_loader, validate_mountain_alpha, validate_tta_sizes,
+                              validate_crater_gamma, validate_tta_weights)
 from lunarseg.model import ModelConfig, build_model
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -35,6 +37,10 @@ def main(argv=None):
                         help="none or original plus horizontal-flip continuous-score averaging")
     parser.add_argument("--tta-sizes", type=int, nargs="+", default=None,
                         help="Square image sizes for multiscale_hflip, e.g. 1024 768 512")
+    parser.add_argument("--tta-weights", type=float, nargs="+", default=None,
+                        help="Nonnegative per-scale weights summing to 1, e.g. .75 .25 for 1024 768")
+    parser.add_argument("--tta-1024-weights", type=float, nargs="+", default=None,
+                        help="Validation-only sweep with sizes 1024 768, e.g. 1 .75 .5; shares four views")
     parser.add_argument("--progress-every", type=int, default=0,
                         help="Print progress after this many batches; 0 disables progress logging")
     parser.add_argument("--mountain-alpha", type=float, default=1.0,
@@ -61,6 +67,7 @@ def main(argv=None):
         parser.error("batch-size must be positive; workers and progress-every must be nonnegative")
     try:
         args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
+        args.tta_weights = validate_tta_weights(args.tta, args.tta_sizes, args.tta_weights)
         args.mountain_alpha = validate_mountain_alpha(args.mountain_alpha)
         args.crater_gamma = validate_crater_gamma(args.crater_gamma)
         if args.crater_gamma != 1 or args.crater_gammas is not None:
@@ -80,6 +87,15 @@ def main(argv=None):
                 raise ValueError("--mountain-alphas needs unique 0 < alphas <= 1 including 1")
             if args.mountain_alpha != 1 or args.split != "val" or args.save_images:
                 raise ValueError("Use the sweep only on val, without --save-images or a separate --mountain-alpha")
+        if args.tta_1024_weights is not None:
+            values = args.tta_1024_weights
+            if (len(values) < 2 or len(set(values)) != len(values) or 1.0 not in values
+                    or any(not math.isfinite(v) or not 0 <= v <= 1 for v in values)):
+                raise ValueError("--tta-1024-weights requires at least two unique weights in [0,1] including 1")
+            if (args.split != "val" or args.tta != "multiscale_hflip" or args.tta_sizes != [1024, 768]
+                    or args.tta_weights is not None or args.save_images or args.mountain_alpha != 1
+                    or args.crater_gamma != 1 or args.mountain_alphas is not None or args.crater_gammas is not None):
+                raise ValueError("Scale weight sweep requires val, sizes 1024 768, no scalar weights, images or class calibration")
     except (ValueError, TypeError) as exc:
         parser.error(str(exc))
     def path(value):
@@ -115,13 +131,18 @@ def main(argv=None):
         from lunarseg.visualization import EvaluationImageExporter
         image_exporter = EvaluationImageExporter(path(args.image_output_root), checkpoint_path.parent.name,
                                                  args.split, args.tta, mountain_alpha=args.mountain_alpha,
-                                                 tta_sizes=args.tta_sizes, crater_gamma=args.crater_gamma)
+                                                 tta_sizes=args.tta_sizes, crater_gamma=args.crater_gamma,
+                                                 tta_weights=args.tta_weights)
     evaluation_started = time.perf_counter()
     result = evaluate_loader(model, loader, device, args.amp, tta=args.tta, image_exporter=image_exporter,
                              mountain_alpha=args.mountain_alpha, mountain_alphas=args.mountain_alphas,
                              tta_sizes=args.tta_sizes, progress_every=args.progress_every,
-                             crater_gamma=args.crater_gamma, crater_gammas=args.crater_gammas)
-    view_protocol = (f"sizes {args.tta_sizes}, original + horizontal flip at each size, equal view probability averaging"
+                             crater_gamma=args.crater_gamma, crater_gammas=args.crater_gammas,
+                             tta_weights=args.tta_weights, tta_1024_weights=args.tta_1024_weights)
+    aggregation = (f"validation 1024-weight sweep {args.tta_1024_weights}" if args.tta_1024_weights is not None else
+                   f"scale probability weights {args.tta_weights}" if args.tta_weights is not None else
+                   "equal view probability averaging")
+    view_protocol = (f"sizes {args.tta_sizes}, original + horizontal flip at each size, {aggregation}"
                      if args.tta == "multiscale_hflip" else
                      f"{config.input_size} original + horizontal-flip score averaging" if args.tta == "hflip" else "single view")
     result.update(checkpoint=str(checkpoint_path.resolve()), checkpoint_sha256=sha256_file(checkpoint_path),
@@ -142,6 +163,7 @@ def main(argv=None):
             "checkpoint": result["checkpoint"], "checkpoint_sha256": result["checkpoint_sha256"],
             "checkpoint_epoch": result["checkpoint_epoch"], "input_size": config.input_size,
             "tta_input_sizes": args.tta_sizes,
+            "tta_scale_weights": args.tta_weights,
             "mountain_alpha": args.mountain_alpha,
             "crater_gamma": args.crater_gamma,
             "partial": result["partial"], "continuous_scores_resized_before_argmax": True})
@@ -151,6 +173,9 @@ def main(argv=None):
                            f"_crater_{str(args.crater_gamma).replace('.', 'p')}" if args.crater_gamma != 1 else "")
     tta_suffix = ("_multiscale_hflip_" + "_".join(map(str, args.tta_sizes)) if args.tta == "multiscale_hflip"
                   else "_hflip" if args.tta == "hflip" else "")
+    tta_suffix += ("_weight_sweep" if args.tta_1024_weights is not None else
+                   "_weights_" + "_".join(str(w).replace('.', 'p') for w in args.tta_weights)
+                   if args.tta_weights is not None else "")
     suffix = tta_suffix + calibration_suffix + ("_partial" if dataset.partial else "")
     output = path(args.output) if args.output else checkpoint_path.parent / f"{args.split}{suffix}_metrics.json"
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -159,6 +184,7 @@ def main(argv=None):
     temporary.replace(output)
     printed = {"output": str(output), "image_count": result["image_count"], "partial": result["partial"],
                       "tta_mode": args.tta, "tta_input_sizes": args.tta_sizes,
+                      "tta_scale_weights": args.tta_weights,
                       "miou": result["miou"], "scene_miou": {s: v["miou"] for s, v in result["scenes"].items()},
                       "weighted_score": result.get("weighted_score")}
     if "saved_images" in result:
@@ -181,6 +207,12 @@ def main(argv=None):
                             "crater_precision": c["metrics"]["class_precision"]["crater"],
                             "crater_recall": c["metrics"]["class_recall"]["crater"]}
                            for c in sweep["candidates"]]}
+    if "scale_weight_sweep" in result:
+        sweep = result["scale_weight_sweep"]
+        printed["scale_weight_sweep"] = {
+            "recommended_weight_1024": sweep["recommended_weight_1024"], "selection_valid": sweep["selection_valid"],
+            "candidates": [{"weight_1024": c["weight_1024"], "miou": c["metrics"]["miou"],
+                            "class_iou": c["metrics"]["class_iou"]} for c in sweep["candidates"]]}
     print(json.dumps(printed, ensure_ascii=False), flush=True)
 
 

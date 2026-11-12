@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 import math
+from numbers import Real
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -76,10 +77,27 @@ def validate_tta_sizes(tta="none", tta_sizes=None):
     return sizes
 
 
-def tta_metadata(tta="none", tta_sizes=None):
+def validate_tta_weights(tta="none", tta_sizes=None, tta_weights=None):
     sizes = validate_tta_sizes(tta, tta_sizes)
+    if tta_weights is None:
+        return None
+    if tta != "multiscale_hflip":
+        raise ValueError("tta_weights is only valid with multiscale_hflip")
+    if not isinstance(tta_weights, (list, tuple)) or len(tta_weights) != len(sizes):
+        raise ValueError("tta_weights must contain one weight per requested TTA size")
+    if any(isinstance(w, bool) or not isinstance(w, Real) for w in tta_weights):
+        raise ValueError("TTA weights must be finite nonnegative numbers")
+    weights = [float(w) for w in tta_weights]
+    if any(not math.isfinite(w) or w < 0 for w in weights) or abs(math.fsum(weights) - 1.0) > 1e-6:
+        raise ValueError("TTA weights must be finite, nonnegative, and sum to 1 within 1e-6")
+    return weights
+
+
+def tta_metadata(tta="none", tta_sizes=None, tta_weights=None):
+    sizes = validate_tta_sizes(tta, tta_sizes)
+    weights = validate_tta_weights(tta, sizes, tta_weights)
     if tta == "multiscale_hflip":
-        return {"test_time_augmentation": True, "tta_mode": tta,
+        result = {"test_time_augmentation": True, "tta_mode": tta,
                 "tta_input_sizes": sizes,
                 "tta_views": [{"input_size": size, "transform": transform}
                               for size in sizes for transform in ("original", "horizontal_flip")],
@@ -95,13 +113,25 @@ def tta_metadata(tta="none", tta_sizes=None):
                 "tta_output_coordinates": "original_input_image",
                 "tta_padding": {"multiple": 32, "mode": "replicate", "sides": "right_bottom",
                                 "semantic_logits_cropped_to_unpadded_size_before_softmax": True}}
+        if weights is not None:
+            active = [(size, weight) for size, weight in zip(sizes, weights) if weight > 0]
+            result.update(tta_scale_weights=weights, tta_active_input_sizes=[s for s, _ in active],
+                          tta_requested_views=result["tta_views"], tta_requested_view_count=2 * len(sizes),
+                          tta_requested_view_weights=[w / 2 for w in weights for _ in range(2)],
+                          tta_views=[{"input_size": s, "transform": transform} for s, _ in active
+                                     for transform in ("original", "horizontal_flip")],
+                          tta_view_count=2 * len(active),
+                          tta_view_weights=[w / 2 for _, w in active for _ in range(2)],
+                          tta_forward_calls_per_batch=2 * len(active),
+                          tta_aggregation="scale_weighted_float32_probability_mean")
+        return result
     # Keep legacy metadata and its original view names unchanged.
     return {"test_time_augmentation": tta != "none", "tta_mode": tta,
             "tta_views": ["original", "horizontal_flip"] if tta == "hflip" else ["original"]}
 
 
 @torch.inference_mode()
-def predict_semantic_scores(model, images, tta="none", tta_sizes=None):
+def predict_semantic_scores(model, images, tta="none", tta_sizes=None, tta_weights=None):
     """Return continuous class scores, without assigning any pixel IDs.
 
     ``none`` preserves the original logits and interpolation behavior exactly.
@@ -113,6 +143,17 @@ def predict_semantic_scores(model, images, tta="none", tta_sizes=None):
     This helper never assigns pixel IDs and is never used for training losses.
     """
     sizes = validate_tta_sizes(tta, tta_sizes)  # Validate before any model call.
+    weights = validate_tta_weights(tta, sizes, tta_weights)
+    if weights is not None:
+        active = [(size, weight) for size, weight in zip(sizes, weights) if weight > 0]
+        if len(active) == 1 and active[0] == (1024, 1.0) and tuple(images.shape[-2:]) == (1024, 1024):
+            # Preserve native hflip's exact addition/interpolation order.
+            return predict_semantic_scores(model, images, tta="hflip")
+        if all(w == 1.0 / len(sizes) for w in weights):
+            # Preserve the legacy sequential view sum, including roundoff.
+            return predict_semantic_scores(model, images, tta=tta, tta_sizes=sizes)
+        views, _ = _collect_weighted_tta_views(model, images, sizes, weights)
+        return _combine_scale_views(views, [w for _, w in active])
     if tta == "multiscale_hflip":
         if images.ndim != 4 or images.shape[1] != 3 or min(images.shape[-2:]) < 32:
             raise ValueError("Expected normalized Bx3xHxW RGB with H,W >= 32")
@@ -150,6 +191,54 @@ def predict_semantic_scores(model, images, tta="none", tta_sizes=None):
     original = original.float().softmax(dim=1)
     flipped = flipped.float().softmax(dim=1).flip(-1)
     return (original + flipped) * 0.5
+
+
+def _collect_weighted_tta_views(model, images, sizes, weights=None):
+    """Collect each active continuous view once for fixed weights or a sweep."""
+    if images.ndim != 4 or images.shape[1] != 3 or min(images.shape[-2:]) < 32:
+        raise ValueError("Expected normalized Bx3xHxW RGB with H,W >= 32")
+    original_size = images.shape[-2:]
+    forward = getattr(model, "forward_inference", model)
+    views, base_hflip = [], None
+    for index, size in enumerate(sizes):
+        if weights is not None and weights[index] == 0:
+            continue
+        scaled = (images if tuple(original_size) == (size, size) else
+                  F.interpolate(images, size=(size, size), mode="bilinear", align_corners=False,
+                                antialias=True))
+        native_pair = []
+        for horizontal_flip in (False, True):
+            view = scaled.flip(-1) if horizontal_flip else scaled
+            probabilities = forward(view)["semantic_logits"].float().softmax(dim=1)
+            if probabilities.ndim != 4 or probabilities.shape[:2] != (images.shape[0], 5):
+                raise ValueError("Expected Bx5xHxW semantic logits for every TTA view")
+            if horizontal_flip:
+                probabilities = probabilities.flip(-1)
+            native_pair.append(probabilities)
+            if probabilities.shape[-2:] != original_size:
+                probabilities = F.interpolate(probabilities, size=original_size, mode="bilinear",
+                                              align_corners=False)
+            views.append(probabilities)
+        if size == 1024:
+            base_hflip = (native_pair[0] + native_pair[1]) * 0.5
+    return views, base_hflip
+
+
+def _combine_scale_views(views, weights):
+    if len(views) != 2 * len(weights) or not views:
+        raise ValueError("Expected two cached views per active scale weight")
+    if all(w == 1.0 / len(weights) for w in weights):
+        # The legacy mean adds each view in order, rather than averaging pairs.
+        combined = views[0].clone()
+        for view in views[1:]:
+            combined.add_(view)
+        return combined.div_(len(views))
+    combined = None
+    for index, weight in enumerate(weights):
+        pair = (views[2 * index] + views[2 * index + 1]) * 0.5
+        weighted = pair * weight
+        combined = weighted if combined is None else combined + weighted
+    return combined
 
 
 def validate_mountain_alpha(value):
@@ -209,14 +298,14 @@ def adjust_crater_scores(scores, gamma=1.0, tta="none"):
     return adjusted
 
 
-def _evaluation_result(total, scenes, loader, count, tta, tta_sizes=None):
+def _evaluation_result(total, scenes, loader, count, tta, tta_sizes=None, tta_weights=None):
     result = total.compute()
     result.update(image_count=count, scenes={s: {**v["matrix"].compute(), "image_count": v["image_count"]}
                                           for s, v in sorted(scenes.items())},
                   input_size=loader.dataset.input_size,
                   partial=loader.dataset.partial,
                   data_identity=loader.dataset.identity,
-                  **tta_metadata(tta, tta_sizes), continuous_scores_resized_before_argmax=True,
+                  **tta_metadata(tta, tta_sizes, tta_weights), continuous_scores_resized_before_argmax=True,
                   official_platform_score=False)
     if all(s in scenes for s in ("Moon_2", "Moon_4", "Moon_9")):
         miou = {s: result["scenes"][s]["miou"] for s in scenes}
@@ -361,7 +450,7 @@ class _CraterMissDiagnostics:
 
 
 @torch.inference_mode()
-def _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progress_every):
+def _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progress_every, tta_weights=None):
     identity = loader.dataset.identity
     if identity.get("split") != "val" or getattr(loader.dataset, "split", "val") != "val":
         raise ValueError("Crater gamma sweeps are allowed only on validation data, never on test")
@@ -381,7 +470,7 @@ def _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progr
             images = batch["image"].to(device, non_blocking=True)
             target = batch["mask"].to(device, non_blocking=True)
             with autocast_context(device, amp):
-                scores = predict_semantic_scores(model, images, tta=tta, tta_sizes=sizes)
+                scores = predict_semantic_scores(model, images, tta=tta, tta_sizes=sizes, tta_weights=tta_weights)
             if scores.shape[-2:] != target.shape[-2:]:
                 scores = F.interpolate(scores.float(), target.shape[-2:], mode="bilinear", align_corners=False)
             baseline = scores.argmax(1)
@@ -417,7 +506,8 @@ def _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progr
                 print(f"Crater score sweep: {count}/{len(loader.dataset)} images, {len(gammas)} gammas", flush=True)
     finally:
         model.train(was_training)
-    metrics = {g: _evaluation_result(s["total"], s["scenes"], loader, count, tta, sizes) for g, s in states.items()}
+    metrics = {g: _evaluation_result(s["total"], s["scenes"], loader, count, tta, sizes, tta_weights)
+               for g, s in states.items()}
     base = metrics[1.0]
     base_cm = states[1.0]["total"].matrix
     baseline_tp, baseline_fp = int(base_cm[2, 2]), int(base_cm[:, 2].sum() - base_cm[2, 2])
@@ -448,7 +538,8 @@ def _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progr
     best_miou = max((c["metrics"]["miou"] for c in improving), default=base["miou"])
     recommended = min((c["gamma"] for c in improving if c["metrics"]["miou"] >= best_miou - 1e-12), default=1.0)
     result = dict(base)
-    forward_calls = batches * (2 * len(sizes) if sizes else 2 if tta == "hflip" else 1)
+    forward_calls = batches * tta_metadata(tta, sizes, tta_weights).get(
+        "tta_forward_calls_per_batch", 2 if tta == "hflip" else 1)
     result["crater_score_sweep"] = {
         "gammas": gammas, "class_id": 2, "candidates": candidates,
         "baseline_missed_crater_diagnostics": missed_diagnostics.compute(),
@@ -468,14 +559,102 @@ def _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progr
 
 
 @torch.inference_mode()
+def _evaluate_scale_weight_sweep(model, loader, device, amp, sizes, weights_1024, progress_every):
+    identity = loader.dataset.identity
+    if identity.get("split") != "val" or getattr(loader.dataset, "split", "val") != "val":
+        raise ValueError("Scale weight sweeps are allowed only on validation data, never on test")
+    states = {w: {"total": ConfusionMatrix(), "scenes": {}} for w in weights_1024}
+    count, batches, seen_sources = 0, 0, set()
+    was_training = model.training
+    model.eval()
+    try:
+        for batch in loader:
+            images = batch["image"].to(device, non_blocking=True)
+            targets = batch["mask"].to(device, non_blocking=True)
+            with autocast_context(device, amp):
+                views, base_hflip = _collect_weighted_tta_views(model, images, sizes)
+            for w, state in states.items():
+                scale_weights = [w, 1.0 - w]
+                if w == 1.0:
+                    # Match native hflip before any final target-grid resize.
+                    scores = base_hflip if base_hflip is not None else (views[0] + views[1]) * 0.5
+                else:
+                    active_views = [view for i, weight in enumerate(scale_weights) if weight > 0
+                                    for view in views[2 * i:2 * i + 2]]
+                    scores = _combine_scale_views(active_views, [weight for weight in scale_weights if weight > 0])
+                if scores.shape[-2:] != targets.shape[-2:]:
+                    scores = F.interpolate(scores.float(), targets.shape[-2:], mode="bilinear", align_corners=False)
+                prediction = scores.argmax(1)
+                state["total"].update(targets, prediction)
+                for i, scene in enumerate(batch["scene"]):
+                    entry = state["scenes"].setdefault(scene, {"matrix": ConfusionMatrix(), "image_count": 0})
+                    entry["matrix"].update(targets[i], prediction[i])
+                    entry["image_count"] += 1
+            seen_sources.update(batch.get("source_id", []))
+            count += images.shape[0]
+            batches += 1
+            if (progress_every and batches % progress_every == 0) or (not progress_every and batches % 100 == 0):
+                print(f"Scale weight sweep: {count}/{len(loader.dataset)} images, {len(weights_1024)} weights", flush=True)
+    finally:
+        model.train(was_training)
+    metrics = {w: _evaluation_result(s["total"], s["scenes"], loader, count, "multiscale_hflip", sizes,
+                                      [w, 1.0 - w]) for w, s in states.items()}
+    base = metrics[1.0]
+    candidates = []
+    for w in weights_1024:
+        standalone_calls = batches * (2 if w in (0.0, 1.0) else 4)
+        candidates.append({"weight_1024": w, "scale_weights": [w, 1.0 - w], "metrics": metrics[w],
+                           "delta_miou": metrics[w]["miou"] - base["miou"],
+                           "delta_class_iou": {name: (value - base["class_iou"][name]) if value is not None else None
+                                               for name, value in metrics[w]["class_iou"].items()},
+                           "standalone_model_forward_calls": standalone_calls,
+                           "additional_model_forward_calls": 0, "reused_shared_views": True})
+    valid_selection = (identity.get("custom_split") is True and identity.get("selection_scope") == "custom_val_originals"
+                       and not base["partial"] and not identity.get("partial", False)
+                       and count == len(loader.dataset) == len(seen_sources) == 1601
+                       and all(identity.get(k) == count for k in ("image_count", "complete_image_count", "validation_image_count"))
+                       and not set(base["scenes"]) & {"Moon_2", "Moon_4", "Moon_9"})
+    best_miou = max(m["miou"] for m in metrics.values())
+    recommended = max(w for w, m in metrics.items() if m["miou"] >= best_miou - 1e-12)
+    result = dict(base)
+    result["model_forward_calls"] = 4 * batches
+    result["scale_weight_sweep"] = {
+        "input_sizes": sizes, "weights_1024": weights_1024, "candidates": candidates,
+        "formula": "P = w * mean(P1024_original, inverse_flip(P1024_flip)) + (1-w) * mean(P768_original, inverse_flip(P768_flip)); continuous probabilities resized before combination",
+        "endpoint_equivalence": {"1": "1024 hflip, original pair sum then /2", "0.5": "Legacy equal four-view sequential sum then /4"},
+        "mountain_alpha": 1.0, "crater_gamma": 1.0, "global_scale_weights_for_all_images": True,
+        "loader_passes": 1, "model_forward_calls": 4 * batches, "shared_views_per_batch": 4,
+        "selection_valid": valid_selection, "selection_scene": "custom_validation", "selection_uses_test": False,
+        "validation_unique_source_count": len(seen_sources),
+        "selection_rule": "Maximize aggregate validation mIoU across all candidate weights; ties within 1e-12 prefer larger 1024 weight",
+        "recommended_weight_1024": recommended if valid_selection else None, "automatically_applied": False}
+    return result
+
+
+@torch.inference_mode()
 def evaluate_loader(model, loader, device, amp="bf16", tta="none", image_exporter=None,
                     mountain_alpha=1.0, mountain_alphas=None, tta_sizes=None, progress_every=0,
-                    crater_gamma=1.0, crater_gammas=None):
+                    crater_gamma=1.0, crater_gammas=None, tta_weights=None, tta_1024_weights=None):
     sizes = validate_tta_sizes(tta, tta_sizes)
+    weights = validate_tta_weights(tta, sizes, tta_weights)
     if isinstance(progress_every, bool) or not isinstance(progress_every, int) or progress_every < 0:
         raise ValueError("progress_every must be a nonnegative integer")
     alpha = validate_mountain_alpha(mountain_alpha)
     gamma = validate_crater_gamma(crater_gamma)
+    if tta_1024_weights is not None:
+        if (tta != "multiscale_hflip" or sizes != [1024, 768] or weights is not None
+                or alpha != 1.0 or gamma != 1.0 or mountain_alphas is not None
+                or crater_gammas is not None or image_exporter is not None):
+            raise ValueError("Scale weight sweep needs multiscale_hflip [1024,768], no fixed weights, no class calibration, and no image export")
+        if not isinstance(tta_1024_weights, (list, tuple)) or not tta_1024_weights:
+            raise ValueError("tta_1024_weights must be a nonempty explicit list")
+        if any(isinstance(w, bool) or not isinstance(w, Real) for w in tta_1024_weights):
+            raise ValueError("1024 weights must be finite numbers between 0 and 1")
+        weights_1024 = [float(w) for w in tta_1024_weights]
+        if (any(not math.isfinite(w) or not 0 <= w <= 1 for w in weights_1024)
+                or len(set(weights_1024)) != len(weights_1024) or 1.0 not in weights_1024):
+            raise ValueError("Scale sweep weights must be unique, between 0 and 1, and include baseline 1")
+        return _evaluate_scale_weight_sweep(model, loader, device, amp, sizes, weights_1024, progress_every)
     if (crater_gammas is not None or gamma != 1.0) and (alpha != 1.0 or mountain_alphas is not None):
         raise ValueError("Crater calibration and mountain calibration cannot be combined")
     if crater_gammas is not None:
@@ -486,7 +665,7 @@ def evaluate_loader(model, loader, device, amp="bf16", tta="none", image_exporte
             raise ValueError("Crater sweep needs unique gammas >= 1 including 1")
         if gamma != 1.0 or image_exporter is not None:
             raise ValueError("Select a single crater gamma before exporting images or setting a scalar gamma")
-        return _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progress_every)
+        return _evaluate_crater_sweep(model, loader, device, amp, tta, sizes, gammas, progress_every, weights)
     sweep = mountain_alphas is not None
     alphas = [validate_mountain_alpha(a) for a in mountain_alphas] if sweep else [alpha]
     if sweep and (not alphas or len(set(alphas)) != len(alphas) or 1.0 not in alphas
@@ -508,7 +687,7 @@ def evaluate_loader(model, loader, device, amp="bf16", tta="none", image_exporte
         images = batch["image"].to(device, non_blocking=True)
         targets = batch["mask"].to(device, non_blocking=True)
         with autocast_context(device, amp):
-            logits = predict_semantic_scores(model, images, tta=tta, tta_sizes=sizes)
+            logits = predict_semantic_scores(model, images, tta=tta, tta_sizes=sizes, tta_weights=weights)
         if logits.shape[-2:] != targets.shape[-2:]:
             logits = F.interpolate(logits.float(), targets.shape[-2:], mode="bilinear", align_corners=False)
         if sweep:
@@ -556,9 +735,10 @@ def evaluate_loader(model, loader, device, amp="bf16", tta="none", image_exporte
         elif sweep and not progress_every and batches % 100 == 0:
             print(f"Mountain score sweep: evaluated {count} images for {len(alphas)} alphas", flush=True)
     model.train(was_training)
-    metrics = {a: _evaluation_result(v["total"], v["scenes"], loader, count, tta, sizes)
+    metrics = {a: _evaluation_result(v["total"], v["scenes"], loader, count, tta, sizes, weights)
                for a, v in states.items()}
-    forward_calls_per_batch = 2 * len(sizes) if sizes else 2 if tta == "hflip" else 1
+    forward_calls_per_batch = tta_metadata(tta, sizes, weights).get(
+        "tta_forward_calls_per_batch", 2 if tta == "hflip" else 1)
     if tta == "multiscale_hflip":
         for result in metrics.values():
             result["model_forward_calls"] = batches * forward_calls_per_batch

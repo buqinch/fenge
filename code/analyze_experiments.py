@@ -97,7 +97,7 @@ def scene_statistics(scene, label, image_count=None, require_all_classes=True):
             "top_errors": errors[:5], "crater_flows": crater_flows}
 
 
-def validate_test(path, mode, run, checkpoint_hash, best_epoch, tta_sizes=None):
+def validate_test(path, mode, run, checkpoint_hash, best_epoch, tta_sizes=None, scale_weight=None):
     value = read_json(path)
     label = str(path)
     require(value.get("image_count") == 5004 and value.get("partial") is False,
@@ -108,7 +108,14 @@ def validate_test(path, mode, run, checkpoint_hash, best_epoch, tta_sizes=None):
     require(value.get("input_size") == 1024, f"{label}: expected 1024 input")
     require(value.get("tta_mode") == mode and value.get("test_time_augmentation") is (mode != "none"),
             f"{label}: incorrect TTA mode")
-    if mode == "multiscale_hflip":
+    if mode == "multiscale_hflip" and scale_weight is not None:
+        require(tta_sizes == [1024, 768], f"{label}: weighted TTA requires exactly 1024 and 768")
+        validate_weighted_tta_metadata(value, scale_weight, label)
+        batch_size = value.get("batch_size")
+        require(type(batch_size) is int and batch_size > 0
+                and value.get("model_forward_calls") == math.ceil(5004 / batch_size) * value["tta_view_count"],
+                f"{label}: weighted test forward count differs from its active views")
+    elif mode == "multiscale_hflip":
         require(tta_sizes in ([1024, 768], [1024, 768, 512]) and all(type(size) is int for size in tta_sizes),
                 f"{label}: unexpected multiscale size combination")
         require(value.get("tta_input_sizes") == tta_sizes and value.get("tta_padded_sizes") == tta_sizes,
@@ -710,16 +717,19 @@ def report(runs, output, curves, curve_note, reference, comparison="tta"):
     return "\n".join(lines)
 
 
-def calibration_validation_statistics(value, identity, scene_counts, label):
+def calibration_validation_statistics(value, identity, scene_counts, label, scale_weight=None):
     """Recompute a complete custom validation result without reading test data."""
     require(value.get("partial") is False and value.get("image_count") == 1601
             and value.get("input_size") == 1024 and value.get("data_identity") == identity
             and set(value.get("scenes", {})) == set(scene_counts),
             f"{label}: expected the unchanged full 1601-image custom validation identity")
-    require(value.get("tta_mode") == "hflip" and value.get("test_time_augmentation") is True
-            and value.get("tta_views") == ["original", "horizontal_flip"]
-            and value.get("continuous_scores_resized_before_argmax") is True,
-            f"{label}: expected 1024 horizontal-flip continuous-score inference")
+    if scale_weight is None:
+        require(value.get("tta_mode") == "hflip" and value.get("test_time_augmentation") is True
+                and value.get("tta_views") == ["original", "horizontal_flip"]
+                and value.get("continuous_scores_resized_before_argmax") is True,
+                f"{label}: expected 1024 horizontal-flip continuous-score inference")
+    else:
+        validate_weighted_tta_metadata(value, scale_weight, label)
     scenes, summed = {}, [[0] * 5 for _ in range(5)]
     for name, count in scene_counts.items():
         source = value["scenes"][name]
@@ -741,6 +751,310 @@ def calibration_validation_statistics(value, identity, scene_counts, label):
                 else:
                     close(actual, expected, f"{label}/{scene_name}/{name} {field}")
     return {"pooled": pooled, "scenes": scenes}
+
+
+def validate_weighted_tta_metadata(value, weight, label):
+    require(not isinstance(weight, bool) and weight in (1.0, 0.75, 0.5), f"{label}: unexpected 1024 scale weight")
+    sizes, weights = [1024, 768], [weight, 1 - weight]
+    requested = [{"input_size": size, "transform": transform}
+                 for size in sizes for transform in ("original", "horizontal_flip")]
+    requested_weights = [scale / 2 for scale in weights for _ in range(2)]
+    views = [view for view, weight in zip(requested, requested_weights) if weight > 0]
+    active_weights = [weight for weight in requested_weights if weight > 0]
+    require(value.get("tta_mode") == "multiscale_hflip" and value.get("test_time_augmentation") is True
+            and value.get("tta_input_sizes") == sizes and value.get("tta_padded_sizes") == sizes
+            and value.get("tta_scale_weights") == weights
+            and value.get("tta_active_input_sizes") == [size for size, weight in zip(sizes, weights) if weight > 0]
+            and value.get("tta_requested_views") == requested and value.get("tta_requested_view_weights") == requested_weights
+            and value.get("tta_requested_view_count") == 4 and value.get("tta_views") == views
+            and value.get("tta_view_weights") == active_weights and value.get("tta_view_count") == len(views)
+            and value.get("tta_forward_calls_per_batch") == len(views),
+            f"{label}: scale weights, requested views and active horizontal-flip pairs disagree")
+    require(value.get("tta_score_domain") == "probability"
+            and value.get("tta_aggregation") == "scale_weighted_float32_probability_mean"
+            and value.get("tta_input_resize") == "bilinear_align_corners_false"
+            and value.get("tta_input_antialias") is True
+            and value.get("tta_score_resize") == "softmax_then_inverse_flip_then_bilinear_align_corners_false"
+            and value.get("tta_output_coordinates") == "original_input_image"
+            and value.get("continuous_scores_resized_before_argmax") is True
+            and value.get("tta_padding") == {"multiple": 32, "mode": "replicate", "sides": "right_bottom",
+                "semantic_logits_cropped_to_unpadded_size_before_softmax": True},
+            f"{label}: weighted TTA must combine continuous probabilities in the original coordinates")
+
+
+def weighted_validation_reference(run_path):
+    """Load the saved validation reference without opening any test result."""
+    from collections import Counter
+
+    directory = Path(run_path).resolve()
+    summary, config = read_json(directory / "summary.json"), read_json(directory / "run_config.json")
+    epoch = summary.get("best_epoch")
+    require(summary.get("status") in STOPPED and summary.get("partial") is False
+            and config.get("partial") is False and type(epoch) is int and epoch > 0
+            and summary.get("selection_scene") == "custom_validation"
+            and summary.get("checkpoint_selection_uses_test") is False
+            and summary.get("val_tta") == config.get("val_tta") == "hflip" and config.get("input_size") == 1024,
+            "Weighted TTA needs a completed 1024/hflip custom-validation-selected checkpoint")
+    saved_path = directory / f"validation_epoch_{epoch:03d}.json"
+    saved = read_json(saved_path)
+    value = saved.get("validation", {});identity = value.get("data_identity", {})
+    require(saved.get("epoch") == epoch and saved.get("partial") is False
+            and saved.get("selection_scene") == "custom_validation"
+            and saved.get("checkpoint_selection_uses_test") is False
+            and identity == config.get("data_identity", {}).get("val")
+            and identity.get("custom_split") is True and identity.get("split") == "val"
+            and identity.get("protocol") == "random_original_source_family_4_to_1"
+            and identity.get("partial") is False
+            and identity.get("image_count") == identity.get("complete_image_count") == identity.get("validation_image_count") == 1601,
+            "Saved validation must identify the same complete 1601 original sources")
+    manifest = Path(identity.get("manifest", ""))
+    require(manifest.is_absolute() and manifest.is_file() and digest(manifest) == identity.get("manifest_sha256"),
+            "Weighted validation manifest path/SHA256 changed")
+    selection = read_json(manifest)
+    train, val = selection.get("splits", {}).get("train", []), selection.get("splits", {}).get("val", [])
+    require(selection.get("schema") == "lusnar_random_split_v1" and selection.get("class_names") == list(CLASSES)
+            and len(train) == 9401 and len(val) == 1601
+            and all(row.get("source_kind") == "original" and row.get("split") == "val" for row in val)
+            and len({row["source_id"] for row in val}) == 1601
+            and not {row["source_id"] for row in train} & {row["source_id"] for row in val}
+            and canonical_digest(val) == identity.get("ordered_samples_sha256"),
+            "Weighted TTA must use saved original validation families without training overlap")
+    counts = dict(sorted(Counter(row["scene"] for row in val).items()))
+    require(set(counts).issubset({"Moon_1", "Moon_3", "Moon_5", "Moon_6", "Moon_7", "Moon_8"})
+            and len(counts) > 1 and set(counts) == set(identity.get("validation_scenes", [])),
+            "Test scenes cannot be used to select scale weights")
+    statistics = calibration_validation_statistics(value, identity, counts, str(saved_path))
+    close(saved.get("selection_score"), statistics["pooled"]["miou"], "Saved weighted reference selection score")
+    close(summary.get("best_validation_miou"), statistics["pooled"]["miou"], "Saved weighted reference best mIoU")
+    return {"directory": directory, "summary": summary, "saved_path": saved_path, "identity": identity,
+            "scene_counts": counts, "statistics": statistics, "checkpoint_sha256": digest(directory / "best.pt")}
+
+
+def weighted_tta_analysis(run_path, result_paths, output):
+    require(result_paths is not None and len(result_paths) in (1, 2),
+            "weighted-tta needs a validation sweep and optionally its validation-selected test result")
+    reference = weighted_validation_reference(run_path)
+    directory, identity = reference["directory"], reference["identity"]
+    counts, saved_stats = reference["scene_counts"], reference["statistics"]
+    checkpoint_hash, epoch = reference["checkpoint_sha256"], reference["summary"]["best_epoch"]
+    output = output.resolve()
+    require(not output.is_relative_to(directory) and not directory.is_relative_to(output),
+            "Weighted TTA output and experiment directories must not contain each other")
+    if (output / "summary.json").exists():
+        require(read_json(output / "summary.json").get("schema") == "lusnar_weighted_tta_analysis_v1",
+                "Weighted TTA cannot overwrite another analysis protocol")
+    source_path = Path(result_paths[0]).resolve();source = read_json(source_path)
+    require(source.get("checkpoint_sha256") == checkpoint_hash and source.get("checkpoint_epoch") == epoch
+            and Path(source.get("checkpoint", "")).is_absolute()
+            and Path(source["checkpoint"]).resolve() == directory / "best.pt"
+            and source.get("checkpoint_partial_training") is False and source.get("evaluation_only") is True
+            and source.get("split") == "val" and source.get("mountain_alpha", 1.0) == 1
+            and source.get("crater_gamma", 1.0) == 1
+            and "mountain_score_sweep" not in source and "crater_score_sweep" not in source,
+            "Scale weight selection must use this exact checkpoint on uncalibrated validation data")
+    calibration_validation_statistics(source, identity, counts, str(source_path), scale_weight=1.0)
+    sweep = source.get("scale_weight_sweep", {})
+    weights = [1.0, 0.75, 0.5]
+    require(sweep.get("weights_1024") == weights and sweep.get("input_sizes") == [1024, 768]
+            and sweep.get("selection_valid") is True and sweep.get("selection_scene") == "custom_validation"
+            and sweep.get("selection_uses_test") is False and sweep.get("loader_passes") == 1
+            and sweep.get("validation_unique_source_count") == 1601
+            and sweep.get("global_scale_weights_for_all_images") is True and sweep.get("automatically_applied") is False
+            and sweep.get("shared_views_per_batch") == 4 and sweep.get("mountain_alpha") == sweep.get("crater_gamma") == 1,
+            "Expected one full validation-only global scan of 1024 weights 1/.75/.5")
+    batch_size = source.get("batch_size")
+    require(type(batch_size) is int and batch_size > 0, "Weighted validation batch size is required")
+    batches = math.ceil(1601 / batch_size)
+    require(source.get("model_forward_calls") == sweep.get("model_forward_calls") == 4 * batches,
+            "All three scale weights must reuse four model forwards per validation batch")
+    candidates = sweep.get("candidates", [])
+    require(isinstance(candidates, list) and [row.get("weight_1024") for row in candidates] == weights,
+            "Scale-weight candidates must contain 1/.75/.5 once in the requested order")
+    verified, rows, class_rows, matrices = [], [], [], []
+    for item in candidates:
+        weight, metrics = item["weight_1024"], item.get("metrics", {})
+        require(not isinstance(weight, bool) and item.get("scale_weights") == [weight, 1 - weight]
+                and item.get("standalone_model_forward_calls") == batches * (2 if weight == 1 else 4)
+                and item.get("additional_model_forward_calls") == 0 and item.get("reused_shared_views") is True
+                and "model_forward_calls" not in metrics,
+                f"w1024={weight}: incorrect scale weights or cached/standalone forward counts")
+        stats = calibration_validation_statistics(metrics, identity, counts, f"w1024={weight}", scale_weight=weight)
+        for scope, old, new in [("custom_validation", saved_stats["pooled"], stats["pooled"])] + [
+                (name, saved_stats["scenes"][name], stats["scenes"][name]) for name in counts]:
+            a, b = old["confusion_matrix_gt_rows_pred_cols"], new["confusion_matrix_gt_rows_pred_cols"]
+            require(all(sum(a[r]) == sum(b[r]) for r in range(5)), f"w1024={weight}/{scope}: GT class counts differ")
+            if weight == 1:
+                require(a == b, f"w1024=1/{scope}: confusion matrix must exactly equal saved best validation")
+            for name, numbers in new["classes"].items():
+                class_rows.append({"weight_1024": weight, "weight_768": 1 - weight, "scope": scope,
+                                   "class": name, **numbers, "miou": new["miou"]})
+            for r, row in enumerate(b):
+                for c, pixels in enumerate(row):
+                    matrices.append({"weight_1024": weight, "scope": scope, "gt_class": CLASSES[r],
+                                     "predicted_class": CLASSES[c], "pixels": pixels})
+        pooled = stats["pooled"]
+        delta = pooled["miou"] - saved_stats["pooled"]["miou"]
+        close(item.get("delta_miou"), delta, f"w1024={weight} aggregate mIoU change")
+        changes = {}
+        for name in CLASSES:
+            change = pooled["classes"][name]["iou"] - saved_stats["pooled"]["classes"][name]["iou"]
+            close(item.get("delta_class_iou", {}).get(name), change, f"w1024={weight}/{name} IoU change")
+            changes[name] = change
+        row = {"weight_1024": weight, "weight_768": 1 - weight, "miou": pooled["miou"], "delta_miou": delta,
+               **{name + "_iou": pooled["classes"][name]["iou"] for name in CLASSES},
+               "standalone_model_forward_calls": item["standalone_model_forward_calls"], "additional_model_forward_calls": 0}
+        rows.append(row)
+        verified.append({**row, "statistics": stats, "delta_class_iou": changes,
+                         "tta_metadata": {name: value for name, value in metrics.items() if name.startswith("tta_")}})
+    require(source["confusion_matrix_gt_rows_pred_cols"] == saved_stats["pooled"]["confusion_matrix_gt_rows_pred_cols"]
+            and all(source["scenes"][name]["confusion_matrix_gt_rows_pred_cols"]
+                    == saved_stats["scenes"][name]["confusion_matrix_gt_rows_pred_cols"] for name in counts),
+            "The sweep's top-level w=1 result must reproduce saved best validation exactly")
+    maximum = max(row["miou"] for row in rows)
+    recommended = max(row["weight_1024"] for row in rows if row["miou"] >= maximum - 1e-12)
+    close(sweep.get("recommended_weight_1024"), recommended, "Validation-selected 1024 scale weight")
+    # The global weight is fixed above, before opening any optional test JSON.
+    test_comparison = None
+    if len(result_paths) == 2:
+        selected_path = Path(result_paths[1]).resolve();selected_raw = read_json(selected_path)
+        if selected_raw.get("tta_scale_weights") is not None:
+            chosen = validate_test(selected_path, "multiscale_hflip", directory, checkpoint_hash, epoch,
+                                   tta_sizes=[1024, 768], scale_weight=recommended)
+        elif recommended == 1:
+            chosen = validate_test(selected_path, "hflip", directory, checkpoint_hash, epoch)
+        elif recommended == 0.5:
+            chosen = validate_test(selected_path, "multiscale_hflip", directory, checkpoint_hash, epoch,
+                                   tta_sizes=[1024, 768])
+        else:
+            raise ValueError("The validation-selected .75 weight needs an explicit weighted test result")
+        baseline_path = directory / "test_hflip_metrics.json"
+        baseline = validate_test(baseline_path, "hflip", directory, checkpoint_hash, epoch)
+        baseline_raw = read_json(baseline_path)
+        equal_path = directory / "test_multiscale_hflip_1024_768_metrics.json"
+        equal = validate_test(equal_path, "multiscale_hflip", directory, checkpoint_hash, epoch, tta_sizes=[1024, 768])
+        equal_raw = read_json(equal_path)
+        test_identity = baseline_raw.get("data_identity", {})
+        require(test_identity.get("split") == "test" and test_identity.get("partial") is False
+                and test_identity.get("image_count") == test_identity.get("complete_image_count") == 5004
+                and selected_raw.get("data_identity") == equal_raw.get("data_identity") == test_identity,
+                "Selected test, baseline and equal-weight reference must identify the same complete test samples")
+        manifest = Path(test_identity.get("manifest", ""))
+        require(manifest.is_absolute() and manifest.is_file() and digest(manifest) == test_identity.get("manifest_sha256"),
+                "Selected test manifest path/SHA256 mismatch")
+        for raw, result in ((baseline_raw, baseline), (equal_raw, equal), (selected_raw, chosen)):
+            require(raw.get("mountain_alpha", 1.0) == raw.get("crater_gamma", 1.0) == 1.0
+                    and not any(key in raw for key in ("mountain_score_sweep", "crater_score_sweep", "scale_weight_sweep")),
+                    "Weighted TTA test comparison must use uncalibrated, already selected fixed scale weights")
+            result["pooled_statistics"] = scene_statistics(raw, result["source"] + "/all_test", 5004)
+            result["tta_metadata"] = {name: value for name, value in raw.items() if name.startswith("tta_")}
+            for scene in SCENES:
+                require(all(result["scenes"][scene]["classes"][name]["gt_pixels"]
+                            == baseline["scenes"][scene]["classes"][name]["gt_pixels"] for name in CLASSES),
+                        f"{scene}: selected test changed GT class counts")
+        test_comparison = {"baseline": baseline, "equal_weight_reference": equal, "selected": chosen, "weight_1024": recommended,
+                           "scale_weights": [recommended, 1 - recommended], "selection_uses_test": False,
+                           "weighted_score_change": chosen["weighted_score"] - baseline["weighted_score"],
+                           "weighted_score_change_vs_equal": chosen["weighted_score"] - equal["weighted_score"],
+                           "scene_miou_changes_vs_baseline": {scene: chosen["scenes"][scene]["miou"] - baseline["scenes"][scene]["miou"]
+                                                              for scene in SCENES},
+                           "scene_miou_changes_vs_equal": {scene: chosen["scenes"][scene]["miou"] - equal["scenes"][scene]["miou"]
+                                                           for scene in SCENES}}
+    report_weighted_tta(reference, source_path, source, sweep, output, verified, rows, class_rows, matrices,
+                        recommended, test_comparison)
+
+
+def report_weighted_tta(reference, source_path, source, sweep, output, candidates, rows, class_rows, matrices,
+                        recommended, test_comparison):
+    directory = reference["directory"]
+    test_rows = []
+    lines = ["# 双尺度水平翻转：验证集选择全局融合权重", "",
+             f"复用 `{directory.name}/best.pt`（第 **{reference['summary']['best_epoch']}** 轮），不重新训练。"
+             "在完整 1601 张随机划分验证原图上比较 w1024=1、0.75、0.5，全部图片与场景共用同一权重。", "",
+             "先分别将 1024 和 768 尺度的原图、水平翻转连续类别概率还原坐标并求平均，"
+             "再计算 `P = w1024 × P1024 + (1−w1024) × P768`，最后执行一次 argmax。"
+             "两个尺度均原尺寸进入两支 CNN；下采样输入使用带抗锯齿的双线性插值。山体 α=1、坑 γ=1。", "",
+             "w1024=1 的整体及每场景整数混淆矩阵已与保存的最佳轮验证逐位核对一致。"
+             "总体 mIoU 由全部验证像素汇总的五类混淆矩阵计算，未对场景 mIoU 简单平均。", "",
+             "## 验证候选", "",
+             "|w1024|w768|总体 mIoU|较 w1024=1/百分点|月壤 IoU|岩石 IoU|坑 IoU|山体 IoU|天空 IoU|",
+             "|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for row in rows:
+        lines.append("|" + "|".join([f"{row['weight_1024']:g}", f"{row['weight_768']:g}", percent(row["miou"]),
+                                     f"{row['delta_miou']*100:+.5f}"] + [percent(row[name + "_iou"]) for name in CLASSES]) + "|")
+    lines += ["", f"验证推荐为 **w1024={recommended:g}、w768={1-recommended:g}**。规则为最大化总体验证 mIoU；"
+              "1e-12 容差内并列时优先较大的 1024 权重。该选择在读取可选测试记录之前完成，不按测试场景分别挑权重。", "",
+              f"验证扫描一次遍历，执行 {sweep['model_forward_calls']:,} 次网络前向：每批缓存四视图后复用三个候选，"
+              "并非对每个权重重新运行网络。单独部署 w1024=1 只需 1024 的两视图；其他候选需要四视图。", "",
+              "## 各验证场景 mIoU", "", "|w1024|" + "|".join(reference["scene_counts"]) + "|",
+              "|---:|" + "---:|" * len(reference["scene_counts"])]
+    for candidate in candidates:
+        lines.append("|" + "|".join([f"{candidate['weight_1024']:g}"] + [percent(candidate["statistics"]["scenes"][scene]["miou"])
+                                                                                for scene in reference["scene_counts"]]) + "|")
+    if test_comparison is None:
+        lines += ["", "## 所选权重的测试评估", "",
+                  "尚未提供按验证推荐权重固定执行的完整 Moon_2/4/9 测试记录。本报告此时只完成验证选择，不作测试改善结论。"]
+    else:
+        old, equal, new = (test_comparison[name] for name in ("baseline", "equal_weight_reference", "selected"))
+        lines += ["", "## 已固定权重的完整测试评估", "",
+                  "以下三项均使用同一检查点及相同 5004 张测试图（Moon_2/4/9=1597/1320/2087）。"
+                  "权重已由验证集固定；等权双尺度只作为既有测试参考，不参与本次选权重。S=(Moon_2 + Moon_4 + 2×Moon_9)/4。", "",
+                  "|方式|Moon_2|Moon_4|Moon_9|加权 S|", "|---|---:|---:|---:|---:|"]
+        for label, item in (("1024 双视图基线", old), ("等权双尺度 w1024=0.5", equal),
+                            (f"验证选择 w1024={recommended:g}", new)):
+            lines.append("|" + "|".join([label] + [percent(item["scenes"][scene]["miou"]) for scene in SCENES]
+                                        + [percent(item["weighted_score"])]) + "|")
+        lines += ["", f"所选方案相对 1024 基线 S 变化为 **{test_comparison['weighted_score_change']*100:+.4f} 个百分点**，"
+                  f"相对等权双尺度为 **{test_comparison['weighted_score_change_vs_equal']*100:+.4f} 个百分点**。", "",
+                  "|场景|所选较 1024 基线/百分点|所选较等权双尺度/百分点|", "|---|---:|---:|"]
+        for scene in SCENES:
+            lines.append(f"|{scene}|{test_comparison['scene_miou_changes_vs_baseline'][scene]*100:+.4f}|"
+                         f"{test_comparison['scene_miou_changes_vs_equal'][scene]*100:+.4f}|")
+        lines += ["", "|场景|类别|基线 IoU|等权 IoU|所选 IoU|所选较等权/百分点|", "|---|---|---:|---:|---:|---:|"]
+        for scene in SCENES:
+            for name in CLASSES:
+                a, b = old["scenes"][scene]["classes"][name]["iou"], new["scenes"][scene]["classes"][name]["iou"]
+                e = equal["scenes"][scene]["classes"][name]["iou"]
+                lines.append(f"|{scene}|{ZH[name]}|{percent(a)}|{percent(e)}|{percent(b)}|{(b-e)*100:+.4f}|")
+                for label, result, weight in (("baseline", old, 1.0), ("equal_weight_reference", equal, 0.5),
+                                              ("selected", new, recommended)):
+                    test_rows.append({"test_role": label, "weight_1024": weight, "weight_768": 1 - weight,
+                                      "scene": scene, "class": name, **result["scenes"][scene]["classes"][name],
+                                      "scene_miou": result["scenes"][scene]["miou"], "weighted_score": result["weighted_score"]})
+        lines += ["", f"- [1024 双视图测试原始记录]({relative_link(old['source'], output)})",
+                  f"- [等权双尺度测试原始记录]({relative_link(equal['source'], output)})",
+                  f"- [验证所选权重测试原始记录]({relative_link(new['source'], output)})",
+                  "- [基线、等权与所选方案完整测试类别指标](test_metrics.csv)"]
+    lines += ["", "## 解释范围与来源", "",
+              "权重只在既有验证集上选择，未额外训练。验证集也参与选轮，没有单独独立的校准集或显著性检验；"
+              "测试集此前已被查看，后补测试不改变本次验证选出的全局权重。", "",
+              f"- [完整验证扫描]({relative_link(source_path, output)})",
+              f"- [保存的最佳轮验证]({relative_link(reference['saved_path'], output)})",
+              "- [候选总体和类别 IoU](metrics.csv)", "- [全部验证场景逐类别 IoU、精确率、召回率](class_metrics.csv)",
+              "- [完整整数混淆矩阵](confusion_matrices.csv)", "- [权重、来源 SHA256 与机器可读结果](summary.json)", ""]
+    result = {"schema": "lusnar_weighted_tta_analysis_v1", "state": "complete", "comparison": "weighted-tta",
+              "created_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(), "run_dir": str(directory),
+              "checkpoint_epoch": reference["summary"]["best_epoch"], "checkpoint_sha256": reference["checkpoint_sha256"],
+              "source": str(source_path), "source_sha256": digest(source_path),
+              "saved_validation_source": str(reference["saved_path"]), "saved_validation_sha256": digest(reference["saved_path"]),
+              "validation_image_count": 1601, "data_identity": reference["identity"],
+              "validation_scene_image_counts": reference["scene_counts"], "input_sizes": [1024, 768],
+              "weights_1024": sweep["weights_1024"], "recommended_weight_1024": recommended,
+              "recommended_scale_weights": [recommended, 1 - recommended], "selection_state": "complete",
+              "selection_scene": "custom_validation", "selection_uses_test": False, "global_scale_weights_for_all_images": True,
+              "baseline_confusion_matrices_exactly_match_saved_best": True, "automatically_applied": False,
+              "test_state": "complete" if test_comparison else "not_provided", "test_comparison": test_comparison,
+              "retrained": False, "statistical_significance_tested": False, "candidates": candidates,
+              "loader_passes": 1, "model_forward_calls": sweep["model_forward_calls"], "selection_rule": sweep.get("selection_rule")}
+    output.mkdir(parents=True, exist_ok=True)
+    for filename, data in (("metrics.csv", rows), ("class_metrics.csv", class_rows), ("confusion_matrices.csv", matrices)):
+        write_csv(output / filename, data, list(data[0]))
+    if test_rows:
+        write_csv(output / "test_metrics.csv", test_rows, list(test_rows[0]))
+    for filename, text in (("summary.json", json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n"),
+                           ("report_zh.md", "\n".join(lines))):
+        temporary = output / (filename + ".tmp");temporary.write_text(text);temporary.replace(output / filename)
+    print(json.dumps({"state": "complete", "recommended_weight_1024": recommended, "test_state": result["test_state"],
+                      "report": str(output / "report_zh.md"), "summary": str(output / "summary.json")}, ensure_ascii=False))
 
 
 def crater_calibration_analysis(run_path, result_paths, output):
@@ -1230,12 +1544,16 @@ def main(argv=None):
     parser.add_argument("--run-on", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=PROJECT / "result" / "analysis")
     parser.add_argument("--reference", type=Path, default=None, help="Optional historical full-test summary JSON")
-    parser.add_argument("--comparison", choices=("tta", "hard-pixels", "random-split", "multiscale-tta", "crater-calibration"), default="tta")
+    parser.add_argument("--comparison", choices=("tta", "hard-pixels", "random-split", "multiscale-tta", "crater-calibration", "weighted-tta"), default="tta")
     parser.add_argument("--test-results", type=Path, nargs="+", help="Complete inference-comparison or validation-calibration result JSONs")
     parser.add_argument("--reference-tta", choices=("none", "hflip"), default="none",
                         help="Test TTA used to select the old reference recipe in random-split mode")
     args = parser.parse_args(argv)
     try:
+        if args.comparison == "weighted-tta":
+            require(args.run_off is None and args.reference is None, "weighted-tta selects one --run-on model's global weights on validation")
+            weighted_tta_analysis(args.run_on, args.test_results, args.output)
+            return
         if args.comparison == "crater-calibration":
             require(args.run_off is None and args.reference is None, "crater-calibration selects gamma on one --run-on validation split")
             crater_calibration_analysis(args.run_on, args.test_results, args.output)
@@ -1245,7 +1563,7 @@ def main(argv=None):
             multiscale_tta_analysis(args.run_on, args.test_results, args.output)
             return
         require(args.run_off is not None, f"{args.comparison} requires --run-off")
-        require(args.test_results is None, "--test-results is only supported by multiscale-tta or crater-calibration")
+        require(args.test_results is None, "--test-results is only supported by inference-comparison or calibration modes")
         if args.comparison == "random-split":
             require(args.reference is None, "random-split uses --run-off as its explicit reference run")
             old_config = read_json(args.run_off.resolve() / "run_config.json")
