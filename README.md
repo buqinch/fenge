@@ -452,6 +452,8 @@ CUDA_VISIBLE_DEVICES=3 python code/evaluate.py --config config/evaluate_random80
 
 保存图片的独立指标为 `result/dual_region_random80_1024/test_multiscale_hflip_1024_768_with_images_metrics.json`，保留原始不保存图片的结果。`comparison` 模式的复核依据是保存的逐图整数混淆矩阵，不声称能从有损 JPEG 重算像素标签。未指定 `--image-output-mode` 时仍为 `all`，保存下文的四个文件。
 
+本次已完成 **5004 张** comparison 导出，所有样本目录均只有三联 JPG 和 IoU JSON。逐图矩阵加总后与原最高分测试的整体、Moon_2、Moon_4、Moon_9 整数矩阵逐项相同，S 保持 **89.7366%**；[全量复核摘要](result/dual_region_random80_1024/visual_analysis_multiscale_1024_768/summary.json)、[逐图指标 CSV](result/dual_region_random80_1024/visual_analysis_multiscale_1024_768/per_image_metrics.csv)、[精选案例清单](result/dual_region_random80_1024/visual_analysis_multiscale_1024_768/selected_cases.json) 已保存。三个场景共选出 16 个用于查看的案例，预览 JPG 位于 `/home/lzc/workspace/fenge_result/dual_region_random80_1024/visual_review_multiscale_1024_768/`；选例用于诊断，不代表随机抽样的错误发生率。
+
 ```bash
 python code/evaluate.py \
   --checkpoint result/dual_region_balanced8000_bs8/best.pt \
