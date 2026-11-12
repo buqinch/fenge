@@ -230,6 +230,31 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=2 \
 
 正式训练只在25%的联合更新中启用遮挡。按本次短测推算，四卡每轮纯训练计算约35分钟（冻结阶段）或45分钟（联合阶段），完整轮次还需加上数据读取、验证与保存时间。各卡峰值PyTorch缓存预留约3.79GiB，不包含NCCL和CUDA上下文。完整原始记录见[单／四卡测速对照](result/c_full_103_speed_comparison.json)。
 
+<!-- c6000-comparison:start -->
+## 4000＋1000＋1000：完整 C 的数据量对照
+
+2026-11-12 在103新增独立四卡实验 [c_adapter_masking_4000_1000_1000_103_4gpu.json](config/c_adapter_masking_4000_1000_1000_103_4gpu.json)。完整C架构、原始DINOv3 ViT-S/16与ConvNeXt-Tiny初始化、训练种子、优化器、学习率、遮挡和早停设置均沿用8000张四卡C组，仅更换训练选择清单和输出目录。初始化模型参数SHA与原8000张四卡组一致。
+
+训练为 **6000张＝4000原图＋1000坑增强＋1000山岩增强**。4000原图与8000张实验完全相同；两种增强分别从原2000张中以seed42无放回选1000，完整顺序保存于 `/home/lzc/workspace/fenge/result/selections/random80_4000_1000_1000_seed42_20261112.json`。清单SHA256为 `cc84cca17b89f88ee514918f65dfd88d8682e7c673275ea7db5a45803716cdfd`。同一来源不跨训练和验证；固定1601张验证、Moon_2/4/9的5004张测试身份与顺序均保持一致。核验见 [数据选择验证](result/c6000_selection_verification.json) 和 [103运行前检查](result/c6000_103_preflight.json)。
+
+使用103物理GPU **4／5／6／7**，每卡batch2、累积1、总batch8，`lusnar`环境。从原始预训练重新训练，最多30轮，前3轮冻结骨干，第4轮起启用25%更新的遮挡监督。旧8000张四卡C组继续运行；两组共用四张卡，耗时会受共享算力影响。
+
+**这是相同epoch计划的数据量对照，不是相同更新次数的对照。** 新组每轮750步，30轮最多22500步；旧组每轮1000步，最多30000步。LR仍按各自总更新数衰减，遮挡warmup仍为1000更新。性能变化需结合样本量和实际更新次数解释。
+
+训练与启动记录位于 `result/c_adapter_masking_4000_1000_1000_103_4gpu/`，正式进程已启动。复现入口（使用新的输出目录避免重复现有任务）：
+
+```bash
+cd /home/lzc/workspace/fenge_vit
+CUDA_VISIBLE_DEVICES=4,5,6,7 bash code/run_on_103.sh \
+  /home/lzc/miniconda3/envs/lusnar/bin/python -m torch.distributed.run \
+  --standalone --nnodes=1 --nproc_per_node=4 code/train_distributed.py \
+  --config config/c_adapter_masking_4000_1000_1000_103_4gpu.json \
+  --output result/c_adapter_masking_6000_reproduction
+```
+
+[独立测试监控](config/periodic_eval_c_6000_103_4gpu.json)在第5／10／15／20／25／30轮对验证best做完整测试，仍使用1024／768等权水平翻转4视图、batch4及1∶1∶2场景加权S；与其他103测试共享GPU3的串行锁，非5倍数结束时补测。测试不参与选轮和早停。[文字同步配置](config/remote103_c_6000_4gpu.json)每60秒将日志和指标同步到本机同名结果目录。模型权重留在103，图片导出仍使用NAS。此处仅记录启动与检查结果，尚无新实验成绩。
+<!-- c6000-comparison:end -->
+
 ## 每五轮的 Moon_2／4／9 测试
 
 ### 最新发布快照

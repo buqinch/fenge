@@ -6,6 +6,10 @@
 
 ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/tree/main/fenge_vit)，包含 DINOv3 ViT-S/16＋ConvNeXt-Tiny、四阶段双向Adapter、Mask2Former及A/B/C训练配置。当前服务器的实际工作目录仍分别为 `/home/lzc/workspace/fenge` 和 `/home/lzc/workspace/fenge_vit`；GitHub中的子目录保存后者的独立版本，两套网络源码不混用。数据配置继续引用本仓库中已经固定的来源清单。
 
+<!-- c6000-comparison:start -->
+新增 **完整C：4000＋1000＋1000（6000张）** 对照已于2026-11-12在103的GPU4／5／6／7启动，每卡batch2、总batch8，从原始DINOv3预训练开始。保持原4000张原图、同一1601张验证和5004张测试，增强各抽1000，每5轮测试best。旧8000张四卡C继续运行；新组每轮750更新，旧组1000更新，比较时同时记录实际更新数。见 [ViT实验说明](fenge_vit/README.md#400010001000完整-c-的数据量对照)、[6000张固定清单](result/selections/random80_4000_1000_1000_seed42_20261112.json)、[训练配置](fenge_vit/config/c_adapter_masking_4000_1000_1000_103_4gpu.json)。
+<!-- c6000-comparison:end -->
+
 <!-- current-best-tests-20261112:start -->
 ### 各组最新已完成测试
 

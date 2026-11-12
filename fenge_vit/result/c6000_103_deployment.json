@@ -1,0 +1,122 @@
+{
+  "status": "training",
+  "checked_at": "2026-11-12T14:33:13.661437+00:00",
+  "run": "c_adapter_masking_4000_1000_1000_103_4gpu",
+  "host": "Server103",
+  "train_config": "config/c_adapter_masking_4000_1000_1000_103_4gpu.json",
+  "training_images": 6000,
+  "selection_counts": {
+    "original": 4000,
+    "crater": 1000,
+    "mountain_rock": 1000
+  },
+  "validation_images": 1601,
+  "test_images": 5004,
+  "physical_gpus": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "batch_per_rank": 2,
+  "accumulation": 1,
+  "global_batch": 8,
+  "updates_per_epoch": 750,
+  "maximum_epochs": 30,
+  "maximum_updates": 22500,
+  "baseline_maximum_updates": 30000,
+  "initial_model_sha256": "d63b934eff8e1d0cebbddaf9b6a9735608218521cfcc90a72bd353be552fc1c3",
+  "initialization_matches_8000_baseline": true,
+  "training_sources_match_8000_baseline": true,
+  "validation_identity_matches_8000_baseline": true,
+  "trainer_ranks": [
+    {
+      "pid": 703976,
+      "RANK": "0",
+      "LOCAL_RANK": "0",
+      "WORLD_SIZE": "4",
+      "CUDA_VISIBLE_DEVICES": "4,5,6,7"
+    },
+    {
+      "pid": 703977,
+      "RANK": "1",
+      "LOCAL_RANK": "1",
+      "WORLD_SIZE": "4",
+      "CUDA_VISIBLE_DEVICES": "4,5,6,7"
+    },
+    {
+      "pid": 703978,
+      "RANK": "2",
+      "LOCAL_RANK": "2",
+      "WORLD_SIZE": "4",
+      "CUDA_VISIBLE_DEVICES": "4,5,6,7"
+    },
+    {
+      "pid": 703979,
+      "RANK": "3",
+      "LOCAL_RANK": "3",
+      "WORLD_SIZE": "4",
+      "CUDA_VISIBLE_DEVICES": "4,5,6,7"
+    }
+  ],
+  "latest_logged_batch": {
+    "epoch": 1,
+    "batch": 25,
+    "batches": 750,
+    "global_update": 24,
+    "backbones_frozen": true,
+    "rank0_scaled_loss_base": 41.20909881591797,
+    "rank0_masking_nll": 0.0,
+    "masking_coefficient": 0.0,
+    "global_effective_batch": 8
+  },
+  "all_logged_losses_finite": true,
+  "old_8000_training_still_alive": true,
+  "shared_gpu_compute": true,
+  "launch": {
+    "schema": "vit_c6000_103_4gpu_launch_v1",
+    "role": "train",
+    "launched_at": "2026-11-12T14:30:00.287212+00:00",
+    "host": "Server103",
+    "launcher_pid": 703735,
+    "pgid": 703735,
+    "command": [
+      "bash",
+      "code/run_on_103.sh",
+      "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "-u",
+      "-m",
+      "torch.distributed.run",
+      "--standalone",
+      "--nnodes=1",
+      "--nproc_per_node=4",
+      "code/train_distributed.py",
+      "--config",
+      "config/c_adapter_masking_4000_1000_1000_103_4gpu.json"
+    ],
+    "cwd": "/home/lzc/workspace/fenge_vit",
+    "config": "config/c_adapter_masking_4000_1000_1000_103_4gpu.json",
+    "config_sha256": "e9f2ecc7d299a0f1489f1542b5b030585a36c39e2f5a870d833775df235ff087",
+    "log": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking_4000_1000_1000_103_4gpu/train.log",
+    "cuda_visible_devices": "4,5,6,7",
+    "process_start_ticks": "2842622"
+  },
+  "monitor": {
+    "every_epochs": 5,
+    "gpu_index": 3,
+    "state": "result/periodic_eval_c_6000_103_4gpu_every5/state.json",
+    "identity": {
+      "pid": 703783,
+      "start_ticks": "2842652",
+      "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+    },
+    "errors": {}
+  },
+  "local_text_sync": {
+    "interval_seconds": 60,
+    "config": "config/remote103_c_6000_4gpu.json",
+    "pid_on_Server70": 2326219
+  },
+  "completed_epochs": 0,
+  "new_experiment_metrics_available": false
+}
