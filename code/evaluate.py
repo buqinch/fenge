@@ -54,6 +54,8 @@ def main(argv=None):
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--save-images", action="store_true", default=False,
                         help="Optionally save scored class-ID/color predictions and RGB/GT/prediction comparisons")
+    parser.add_argument("--image-output-mode", choices=("all", "comparison"), default="all",
+                        help="comparison saves only the RGB/GT/prediction JPG and per-image IoU JSON/CSV")
     parser.add_argument("--image-output-root", default=str(PROJECT.parent / "fenge_result"),
                         help="Image root; each checkpoint's experiment directory name is preserved underneath")
     allowed = {action.dest for action in parser._actions}
@@ -65,6 +67,8 @@ def main(argv=None):
         parser.error("--checkpoint is required")
     if args.batch_size < 1 or args.workers < 0 or args.progress_every < 0:
         parser.error("batch-size must be positive; workers and progress-every must be nonnegative")
+    if args.image_output_mode not in ("all", "comparison"):
+        parser.error("image-output-mode must be all or comparison")
     try:
         args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
         args.tta_weights = validate_tta_weights(args.tta, args.tta_sizes, args.tta_weights)
@@ -132,7 +136,8 @@ def main(argv=None):
         image_exporter = EvaluationImageExporter(path(args.image_output_root), checkpoint_path.parent.name,
                                                  args.split, args.tta, mountain_alpha=args.mountain_alpha,
                                                  tta_sizes=args.tta_sizes, crater_gamma=args.crater_gamma,
-                                                 tta_weights=args.tta_weights)
+                                                 tta_weights=args.tta_weights,
+                                                 image_output_mode=args.image_output_mode)
     evaluation_started = time.perf_counter()
     result = evaluate_loader(model, loader, device, args.amp, tta=args.tta, image_exporter=image_exporter,
                              mountain_alpha=args.mountain_alpha, mountain_alphas=args.mountain_alphas,

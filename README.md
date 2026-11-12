@@ -28,6 +28,37 @@ python code/evaluate.py --checkpoint result/dual_region_random80_1024/best.pt \
   --split test --tta multiscale_hflip --tta-sizes 1024 768 --device cuda:3
 ```
 
+## 当前最高测试 S 方案的逐类别结果
+
+下表固定使用 **第 29 轮最佳检查点＋1024／768 等权翻转 TTA（4 视图）**，山体与撞击坑类别系数均为 1。验证集为完整自定义 **1601 张**，该方案验证 mIoU 为 **97.6754%**；**97.5166%** 属于 1024 翻转方案，验证最佳 **97.7806%** 属于 0.75／0.25 加权方案，均不用于下表。
+
+完整测试共 **5004 张**：Moon_2 **1597 张**、Moon_4 **1320 张**、Moon_9 **2087 张**。各指标由对应集合全部像素的混淆矩阵计算，单位为百分比；未定义值显示“—”。
+
+| 集合 | 类别 | IoU | 精确率（Precision） | 召回率（Recall） |
+|---|---|---:|---:|---:|
+| 自定义验证 | 月壤 | 99.7335% | 99.9054% | 99.8278% |
+| 自定义验证 | 岩石 | 93.6351% | 95.6400% | 97.8103% |
+| 自定义验证 | 撞击坑 | 97.1039% | 98.4197% | 98.6419% |
+| 自定义验证 | 山体 | 98.0765% | 98.9021% | 99.1560% |
+| 自定义验证 | 天空 | 99.8280% | 99.9280% | 99.8998% |
+| Moon_2 | 月壤 | 99.3448% | 99.6305% | 99.7122% |
+| Moon_2 | 岩石 | 88.5927% | 93.6012% | 94.3042% |
+| Moon_2 | 撞击坑 | 84.4451% | 98.7426% | 85.3630% |
+| Moon_2 | 山体 | 95.7331% | 96.6129% | 99.0577% |
+| Moon_2 | 天空 | 99.8057% | 99.9199% | 99.8856% |
+| Moon_4 | 月壤 | 99.1773% | 99.4084% | 99.7662% |
+| Moon_4 | 岩石 | 88.9764% | 94.6789% | 93.6600% |
+| Moon_4 | 撞击坑 | 81.0743% | 97.6799% | 82.6662% |
+| Moon_4 | 山体 | 97.7858% | 98.6177% | 99.1447% |
+| Moon_4 | 天空 | 99.7663% | 99.9167% | 99.8494% |
+| Moon_9 | 月壤 | 98.1101% | 98.8883% | 99.2042% |
+| Moon_9 | 岩石 | 84.3132% | 92.6065% | 90.3983% |
+| Moon_9 | 撞击坑 | 57.6963% | 86.9729% | 63.1540% |
+| Moon_9 | 山体 | 90.2741% | 91.9292% | 98.0447% |
+| Moon_9 | 天空 | 99.6212% | 99.7722% | 99.8482% |
+
+来源：[完整测试逐场景指标](result/dual_region_random80_1024/test_multiscale_hflip_1024_768_metrics.json)；[完整验证权重扫描](result/dual_region_random80_1024/val_multiscale_hflip_1024_768_weight_sweep_metrics.json)中 `weight_1024=0.5` 候选的 `metrics`。
+
 ## 文件结构
 
 ```text
@@ -410,6 +441,16 @@ python code/verify.py --calibration-only
 ### 可选保存评估图片
 
 `evaluate.py` 默认不保存图片，需要逐图查看时开启 `--save-images`。常规两视角测试使用默认关闭选项；按后续要求，已额外完成一次无 TTA 组第 5 轮最佳权重的完整单视图图片导出。
+
+当前最高测试 S 的等权四视图方案使用下面的配置，**每张仅保存三联图与 IoU JSON**：
+
+```bash
+CUDA_VISIBLE_DEVICES=3 python code/evaluate.py --config config/evaluate_random80_multiscale_save_images.json
+```
+
+该配置启用 `--save-images --image-output-mode comparison`，输出位于 `/home/lzc/workspace/fenge_result/dual_region_random80_1024/test_multiscale_hflip_1024_768/`。每个 `Moon_*/<sample_id>/` 目录仅有 `comparison.jpg` 和 `metrics.json`；三联图从左到右为原图、真值、预测，底部显示单图 mIoU 和五类 IoU。JSON 额外保留精确率、召回率及整数混淆矩阵，根目录的 `per_image_metrics.csv` 汇总全部单图 IoU，数值范围为 0–1。单图 mIoU 只平均该图 GT 出现的类别，未出现类别的 IoU 为 null、图中为 N/A；全测试和场景 mIoU 由累计像素混淆矩阵另行计算，不平均单图 mIoU。
+
+保存图片的独立指标为 `result/dual_region_random80_1024/test_multiscale_hflip_1024_768_with_images_metrics.json`，保留原始不保存图片的结果。`comparison` 模式的复核依据是保存的逐图整数混淆矩阵，不声称能从有损 JPEG 重算像素标签。未指定 `--image-output-mode` 时仍为 `all`，保存下文的四个文件。
 
 ```bash
 python code/evaluate.py \

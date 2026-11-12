@@ -1,4 +1,4 @@
-"""Audit saved segmentation IDs and select spaced, quantitative review cases.
+"""Audit saved segmentation IDs or per-image matrices and select review cases.
 
 The script produces measurements and image paths, never inferred visual causes.
 Production CLI requires the complete 5004-image, 1024-square Moon_2/4/9 test.
@@ -9,6 +9,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -67,16 +68,90 @@ def id_mask(path, expected_size):
     return array
 
 
-def image_paths(root, record):
+def image_paths(root, record, output_mode="all"):
     files = record["files"]
-    required = {"prediction_ids", "prediction_color", "ground_truth_ids", "comparison"}
-    require(required.issubset(files), "Image index does not list all four exported files")
+    required = ({"comparison", "metrics"} if output_mode == "comparison" else
+                {"prediction_ids", "prediction_color", "ground_truth_ids", "comparison"})
+    require(required.issubset(files), f"Image index lacks files required by {output_mode} export")
+    if output_mode == "comparison":
+        require(set(files) == required, "Comparison export must list only comparison and metrics files")
     paths = {}
     for name in required:
         path = (root / files[name]).resolve()
         require(path.is_relative_to(root) and path.is_file(), f"Saved file missing or outside image directory: {path}")
         paths[name] = str(path)
     return paths
+
+
+def saved_matrix(value, pixels, label):
+    require(isinstance(value, list) and len(value) == 5
+            and all(isinstance(row, list) and len(row) == 5 for row in value),
+            f"{label}: expected a 5x5 confusion matrix")
+    require(all(type(cell) is int and 0 <= cell <= pixels for row in value for cell in row),
+            f"{label}: confusion counts must be nonnegative integers")
+    require(sum(sum(row) for row in value) == pixels, f"{label}: confusion pixel count differs from image size")
+    return np.asarray(value, dtype=np.int64)
+
+
+def check_metric_values(saved, matrix, label):
+    """Recompute scalar metrics independently of the exporter and index."""
+    expected = statistics(matrix)
+
+    def same_number(actual, wanted, name):
+        if wanted is None:
+            require(actual is None, f"{label}: {name} must be null for its empty denominator/absent GT")
+        else:
+            require(type(actual) in (int, float) and math.isfinite(actual)
+                    and math.isclose(actual, wanted, rel_tol=1e-12, abs_tol=1e-12),
+                    f"{label}: {name} does not reproduce its confusion matrix")
+
+    same_number(saved.get("miou"), expected["miou"], "miou")
+    for name in ("class_iou", "class_precision", "class_recall"):
+        values = saved.get(name)
+        require(isinstance(values, dict) and set(values) == set(CLASSES), f"{label}: invalid {name} classes")
+        for cls in CLASSES:
+            same_number(values[cls], expected[name][cls], f"{name}.{cls}")
+    if "pixel_accuracy" in saved:
+        same_number(saved["pixel_accuracy"], float(np.trace(matrix) / matrix.sum()), "pixel_accuracy")
+    present = [name for name, count in zip(CLASSES, matrix.sum(1)) if count]
+    if "gt_present_classes" in saved:
+        require(saved["gt_present_classes"] == present, f"{label}: GT-present classes differ from matrix")
+    if "absent_gt_policy" in saved:
+        require(saved["absent_gt_policy"] == "Average only classes present in scene ground truth",
+                f"{label}: unsupported absent-GT metric policy")
+    for key, counts in (("class_gt_pixels", matrix.sum(1)), ("class_predicted_pixels", matrix.sum(0))):
+        if key in saved:
+            require(saved[key] == {name: int(count) for name, count in zip(CLASSES, counts)},
+                    f"{label}: {key} differs from matrix")
+
+
+def comparison_matrix(record, paths, expected_size):
+    saved = read_json(paths["metrics"])
+    label = f"{record['scene']}/{record['sample_id']}"
+    require(isinstance(saved, dict) and saved == record.get("metrics"),
+            f"{label}: saved metrics JSON and image index differ")
+    require(saved.get("schema") == "lusnar_per_image_metrics_v1", f"{label}: unsupported per-image metric schema")
+    for key in ("scene", "sample_id", "source_id"):
+        require(saved.get(key) == record.get(key), f"{label}: {key} identity differs from index")
+    require(record.get("shape_hw") == saved.get("shape_hw") == [expected_size, expected_size],
+            f"{label}: wrong source image size")
+    require(saved.get("class_names") == list(CLASSES), f"{label}: per-image class order differs")
+    matrix = saved_matrix(saved.get("confusion_matrix_gt_rows_pred_cols"), expected_size ** 2, label)
+    check_metric_values(saved, matrix, label)
+    require(record.get("class_pixel_counts") == matrix.sum(0).tolist(),
+            f"{label}: index predicted-class pixel counts differ from matrix")
+    # Comparison mode uses the original three panels and legend, followed by
+    # its 68-pixel IoU footer; small test fixtures use 256-pixel panels.
+    preview_size = max(expected_size, 256)
+    expected_comparison_hw = [preview_size + 136, preview_size * 3]
+    declared_hw = record.get("comparison_shape_hw", saved.get("comparison_shape_hw"))
+    require(declared_hw == expected_comparison_hw, f"{label}: wrong declared comparison JPEG dimensions")
+    with Image.open(paths["comparison"]) as image:
+        require(image.format == "JPEG" and image.mode == "RGB"
+                and list(reversed(image.size)) == expected_comparison_hw,
+                f"{label}: wrong comparison JPEG format or dimensions")
+        image.verify()
+    return matrix
 
 
 def image_row(record, ordinal, matrix, paths):
@@ -133,7 +208,7 @@ def crater_diagnostics(paths, expected_size):
             "definition": "Eight 3x3 full-neighborhood erosions, outside-image false; boundary=GT minus interior, including image-edge contact. Semantic pixels, not physical instances."}
 
 
-def choose_cases(rows, paths_by_key, expected_size, min_index_gap, gt_min_fraction):
+def choose_cases(rows, paths_by_key, expected_size, min_index_gap, gt_min_fraction, output_mode="all"):
     selected, unavailable = [], []
     for scene in sorted({row["scene"] for row in rows}):
         scene_rows = [row for row in rows if row["scene"] == scene]
@@ -173,7 +248,9 @@ def choose_cases(rows, paths_by_key, expected_size, min_index_gap, gt_min_fracti
                                                             "minimum_class_fraction": 0.005,
                                                             "minimum_class_count": 3}),
                                            "min_scene_ordinal_gap": min_index_gap},
-                             "crater_diagnostics": crater_diagnostics(paths, expected_size)})
+                             "crater_diagnostics": (crater_diagnostics(paths, expected_size) if output_mode == "all" else
+                                                    {"status": "unavailable", "available": False,
+                                                     "reason": "Comparison export does not save GT/prediction class-ID masks; a confusion matrix cannot locate crater interiors or boundaries."})})
     return selected, unavailable
 
 
@@ -226,6 +303,8 @@ def analyze(image_index, metrics_path, output, *, expected_counts=None, expected
     index, metrics = read_json(image_index), read_json(metrics_path)
     require(index.get("schema") == "lusnar_evaluation_images_v1" and index.get("state") == "complete", "Image export is not complete")
     require(index.get("class_names") == list(CLASSES), "Image index class order differs")
+    output_mode = index.get("output_mode", "all")
+    require(output_mode in ("all", "comparison"), "Unsupported image export output mode")
     require(index.get("split") == metrics.get("split") == "test", "Only complete test image exports are supported")
     require(index.get("tta_mode") == metrics.get("tta_mode"), "Image index and scoring TTA differ")
     require(index.get("evaluation", {}).get("checkpoint_sha256") == metrics.get("checkpoint_sha256")
@@ -243,21 +322,25 @@ def analyze(image_index, metrics_path, output, *, expected_counts=None, expected
     ordinals, paths_by_key, rows = {scene: 0 for scene in expected_counts}, {}, []
     for number, record in enumerate(records, 1):
         scene, sample_id = record["scene"], str(record["sample_id"])
-        paths = image_paths(image_index.parent, record)
-        gt = id_mask(paths["ground_truth_ids"], expected_size)
-        prediction = id_mask(paths["prediction_ids"], expected_size)
-        matrix = np.bincount((gt * 5 + prediction).ravel(), minlength=25).reshape(5, 5)
+        paths = image_paths(image_index.parent, record, output_mode)
+        if output_mode == "comparison":
+            matrix = comparison_matrix(record, paths, expected_size)
+        else:
+            gt = id_mask(paths["ground_truth_ids"], expected_size)
+            prediction = id_mask(paths["prediction_ids"], expected_size)
+            matrix = np.bincount((gt * 5 + prediction).ravel(), minlength=25).reshape(5, 5)
         totals[scene] += matrix
         rows.append(image_row(record, ordinals[scene], matrix, paths))
         ordinals[scene] += 1
         paths_by_key[(scene, sample_id)] = paths
         if number % 250 == 0 or number == expected_total:
-            print(f"Read and counted {number}/{expected_total} saved image pairs", flush=True)
+            evidence = "per-image metric files" if output_mode == "comparison" else "image pairs"
+            print(f"Read and counted {number}/{expected_total} saved {evidence}", flush=True)
     overall = sum(totals.values(), np.zeros((5, 5), dtype=np.int64))
-    require(np.array_equal(overall, np.asarray(metrics["confusion_matrix_gt_rows_pred_cols"])), "Saved IDs do not reproduce the exact scoring confusion matrix")
+    require(np.array_equal(overall, np.asarray(metrics["confusion_matrix_gt_rows_pred_cols"])), "Saved image evidence does not reproduce the exact scoring confusion matrix")
     for scene, matrix in totals.items():
-        require(np.array_equal(matrix, np.asarray(metrics["scenes"][scene]["confusion_matrix_gt_rows_pred_cols"])), f"{scene} saved IDs differ from its scoring matrix")
-    selected, unavailable = choose_cases(rows, paths_by_key, expected_size, min_index_gap, gt_min_fraction)
+        require(np.array_equal(matrix, np.asarray(metrics["scenes"][scene]["confusion_matrix_gt_rows_pred_cols"])), f"{scene} saved image evidence differs from its scoring matrix")
+    selected, unavailable = choose_cases(rows, paths_by_key, expected_size, min_index_gap, gt_min_fraction, output_mode)
     gallery_output = Path(gallery_output).resolve() if gallery_output else image_index.parent.parent / "visual_review"
     galleries = render_galleries(selected, gallery_output, image_index.parent.name)
     csv_path = output / "per_image_metrics.csv"
@@ -278,6 +361,9 @@ def analyze(image_index, metrics_path, output, *, expected_counts=None, expected
                          "per_image_miou_percentiles": {str(p): float(np.percentile(values, p)) for p in (10, 25, 50, 75, 90)},
                          "images_with_crater_gt_at_least_1_percent": sum(row["scene"] == scene and row["crater_gt_fraction"] >= .01 for row in rows)}
     result = {"schema": "lusnar_saved_image_analysis_v1", "state": "complete", "image_count": expected_total,
+              "output_mode": output_mode,
+              "audit_basis": ("saved_per_image_confusion_matrices" if output_mode == "comparison" else
+                              "saved_ground_truth_and_prediction_class_id_pngs"),
               "production_full_test": expected_counts == EXPECTED_COUNTS and expected_size == 1024,
               "shape_hw": [expected_size, expected_size], "exact_confusion_matrix_match": True,
               "image_index": str(image_index), "image_index_sha256": digest(image_index),
@@ -290,6 +376,8 @@ def analyze(image_index, metrics_path, output, *, expected_counts=None, expected
               "notes": ["Scene mIoU uses accumulated pixel matrices; per-image mIoU percentiles are a separate statistic.",
                         "Error cases target the 80th eligible-error percentile, median/good cases the 50th/85th image-mIoU percentile, subject to temporal spacing.",
                         "Selection is for visual review; it does not estimate failure prevalence or identify causes."]}
+    if output_mode == "comparison":
+        result["notes"].append("Per-image metrics were independently recomputed from saved JSON confusion matrices, not from JPEG colors or unavailable ID PNGs. Spatial crater diagnostics are unavailable.")
     if set(totals) == set(EXPECTED_COUNTS):
         result["weighted_score"] = (scenes["Moon_2"]["miou"] + scenes["Moon_4"]["miou"] + 2 * scenes["Moon_9"]["miou"]) / 4
     write_json(output / "summary.json", result)
