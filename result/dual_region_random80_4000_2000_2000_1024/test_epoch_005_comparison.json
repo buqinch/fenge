@@ -1,0 +1,924 @@
+{
+  "schema": "lusnar_interim_checkpoint_comparison_v1",
+  "status": "complete",
+  "verified_at_utc": "2026-11-12T04:25:02.358621+00:00",
+  "comparison_scope": "Interim fixed epoch005 checkpoint versus completed baseline epoch029 with identical equal-weight four-view test",
+  "training_budget_equal": false,
+  "ratio_effect_isolated": false,
+  "test_used_for_checkpoint_selection": false,
+  "sources": {
+    "baseline_metrics": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_1024/test_multiscale_hflip_1024_768_metrics.json",
+      "sha256": "9e9da5c95daf9f4e61600c334bb03e52ff9069b62c8e6e943d0167cff9f870d0"
+    },
+    "current_metrics": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/test_epoch_005_multiscale_hflip_1024_768_metrics.json",
+      "sha256": "72a147a45f135f1b7678e4dfc06b44a5ac8a055ddefb602d756193db3c0d85b1"
+    },
+    "baseline_checkpoint": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_1024/best.pt",
+      "sha256": "ed1e2096ccd3be31b7ba40ac07c4dbd7849ed1823cb942f4b802706fe1cc6828"
+    },
+    "current_checkpoint": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/best_epoch_005_eval.pt",
+      "sha256": "d56bdfe82c2d8f5c1ee3beb93c4b303c7088e50fd069bd54c055c71dd9b03a12"
+    },
+    "baseline_run_config": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_1024/run_config.json",
+      "sha256": "38574c2a463b8378fc41bef4022d55bc9dda8743ee1f657d50c4b17a85e0a9c4"
+    },
+    "current_run_config": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/run_config.json",
+      "sha256": "4979b59f43652b812b80ad07f592c3b0dca4464547a284a393a34da4551a4f25"
+    },
+    "baseline_final_summary": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_1024/summary.json",
+      "sha256": "4fefb46e0e16799cbd86a9e7ee50236f19ba6ca996b00892d5e9e8cfd87bc043"
+    },
+    "current_epoch005_validation": {
+      "path": "/home/lzc/workspace/fenge/result/dual_region_random80_4000_2000_2000_1024/validation_epoch_005.json",
+      "sha256": "83a5788278ebe2e84ebdc343323d368449cfc24b296a43faf8198c7b26f886e2"
+    },
+    "baseline_manifest": {
+      "path": "/home/lzc/workspace/fenge/result/selections/random80_seed42_20261112.json",
+      "sha256": "29da57bc3a846e5ae38ba8bd55919e8813f3da954695ffa53552d2e4094e7187"
+    },
+    "current_manifest": {
+      "path": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_pool_20261112.json",
+      "sha256": "dfcb4d28eaeb5ecce6d60a2fd8ede7768d813e6aaec8c43f2c319e79b2a14dd5"
+    },
+    "current_training_selection": {
+      "path": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_seed42_20261112.json",
+      "sha256": "f6948e94ede914a53fd957d5a457284d34a18319c151511e2448e34a98f1ef6c"
+    }
+  },
+  "test_data_identity": {
+    "manifest": "/home/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+    "manifest_sha256": "69b4e7cb3878333102858b1db3872763b84dc38cf30513d3ad723ac3ade1dd87",
+    "split": "test",
+    "train_source": null,
+    "image_count": 5004,
+    "complete_image_count": 5004,
+    "partial": false,
+    "unique_source_count": 5004,
+    "ordered_samples_sha256": "589d4730e853eb4140d7a10c61700b88c72477be0c84d6b9255dd06556ca833e"
+  },
+  "test_protocol": {
+    "tta_mode": "multiscale_hflip",
+    "tta_input_sizes": [
+      1024,
+      768
+    ],
+    "tta_padded_sizes": [
+      1024,
+      768
+    ],
+    "tta_views": [
+      {
+        "input_size": 1024,
+        "transform": "original"
+      },
+      {
+        "input_size": 1024,
+        "transform": "horizontal_flip"
+      },
+      {
+        "input_size": 768,
+        "transform": "original"
+      },
+      {
+        "input_size": 768,
+        "transform": "horizontal_flip"
+      }
+    ],
+    "tta_view_count": 4,
+    "tta_view_weights": [
+      0.25,
+      0.25,
+      0.25,
+      0.25
+    ],
+    "tta_forward_calls_per_batch": 4,
+    "tta_score_domain": "probability",
+    "tta_aggregation": "equal_weight_float32_probability_mean",
+    "tta_input_resize": "bilinear_align_corners_false",
+    "tta_input_antialias": true,
+    "tta_score_resize": "softmax_then_inverse_flip_then_bilinear_align_corners_false",
+    "tta_output_coordinates": "original_input_image",
+    "tta_padding": {
+      "multiple": 32,
+      "mode": "replicate",
+      "sides": "right_bottom",
+      "semantic_logits_cropped_to_unpadded_size_before_softmax": true
+    },
+    "continuous_scores_resized_before_argmax": true,
+    "model_forward_calls": 10008,
+    "batch_size": 2,
+    "amp": "bf16"
+  },
+  "mountain_alpha": 1.0,
+  "crater_gamma": 1.0,
+  "baseline": {
+    "checkpoint_epoch": 29,
+    "completed_training_epochs": 30,
+    "training_status": "complete",
+    "training_image_count": 9401,
+    "validation_tta": "hflip",
+    "validation_tta_sizes": null,
+    "evaluation_seconds": 301.1175505130086
+  },
+  "current": {
+    "checkpoint_epoch": 5,
+    "snapshot_kind": "fixed validation best at user request",
+    "training_continues": true,
+    "snapshot_validation_miou": 0.9619390128820109,
+    "training_image_count": 8000,
+    "validation_tta": "multiscale_hflip",
+    "validation_tta_sizes": [
+      1024,
+      768
+    ],
+    "evaluation_seconds": 325.9564663489873
+  },
+  "verification": {
+    "checkpoint_paths_hashes_epochs_match": true,
+    "test_data_identity_exact_match": true,
+    "complete_scene_counts_match": true,
+    "total_pixels": 5247074304,
+    "scene_confusion_matrices_sum_exact": true,
+    "same_gt_row_sums_every_scene": true,
+    "iou_precision_recall_pixel_accuracy_independently_recomputed": true,
+    "weighted_score_formula": "(Moon_2 mIoU + Moon_4 mIoU + 2*Moon_9 mIoU)/4",
+    "model_forward_calls": 10008,
+    "same_inference_protocol_exact": true
+  },
+  "comparison": {
+    "scene_metrics": [
+      {
+        "scene": "Moon_2",
+        "image_count": 1597,
+        "pixel_count": 1674575872,
+        "baseline_miou": 0.9358427282478947,
+        "current_miou": 0.9252476558394476,
+        "delta_miou_pp": -1.0595072408447148
+      },
+      {
+        "scene": "Moon_4",
+        "image_count": 1320,
+        "pixel_count": 1384120320,
+        "baseline_miou": 0.9335604358410258,
+        "current_miou": 0.9135235623110001,
+        "delta_miou_pp": -2.00368735300257
+      },
+      {
+        "scene": "Moon_9",
+        "image_count": 2087,
+        "pixel_count": 2188378112,
+        "baseline_miou": 0.8600296385521954,
+        "current_miou": 0.8481615810807895,
+        "delta_miou_pp": -1.1868057471405846
+      }
+    ],
+    "weighted_score": {
+      "baseline": 0.8973656102983278,
+      "current": 0.8837735950780067,
+      "delta_pp": -1.3592015220321163
+    },
+    "pooled_miou": {
+      "baseline": 0.8967624968695928,
+      "current": 0.8832377158145587,
+      "delta_pp": -1.3524781055034074
+    },
+    "class_metrics": [
+      {
+        "scene": "Moon_2",
+        "image_count": 1597,
+        "class": "regolith",
+        "class_zh": "月壤",
+        "gt_pixels": 1153203401,
+        "baseline_iou": 0.9934481068057893,
+        "current_iou": 0.9923041039712139,
+        "delta_iou_pp": -0.11440028345753861,
+        "baseline_precision": 0.9963049461513239,
+        "current_precision": 0.995653708683067,
+        "delta_precision_pp": -0.06512374682569044,
+        "baseline_recall": 0.9971219613147846,
+        "current_recall": 0.9966211372628444,
+        "delta_recall_pp": -0.05008240519401852,
+        "baseline_tp": 1149884437,
+        "current_tp": 1149306885,
+        "delta_tp": -577552,
+        "baseline_fp": 4264643,
+        "current_fp": 5017028,
+        "delta_fp": 752385,
+        "baseline_fn": 3318964,
+        "current_fn": 3896516,
+        "delta_fn": 577552,
+        "baseline_predicted_pixels": 1154149080,
+        "current_predicted_pixels": 1154323913,
+        "delta_predicted_pixels": 174833
+      },
+      {
+        "scene": "Moon_2",
+        "image_count": 1597,
+        "class": "rock",
+        "class_zh": "岩石",
+        "gt_pixels": 30692028,
+        "baseline_iou": 0.8859274088714437,
+        "current_iou": 0.8621124017028824,
+        "delta_iou_pp": -2.381500716856133,
+        "baseline_precision": 0.9360115866189246,
+        "current_precision": 0.929004062712891,
+        "delta_precision_pp": -0.7007523906033541,
+        "baseline_recall": 0.94304231053093,
+        "current_recall": 0.922917899071381,
+        "delta_recall_pp": -2.012441145954902,
+        "baseline_tp": 28943881,
+        "current_tp": 28326222,
+        "delta_tp": -617659,
+        "baseline_fp": 1978686,
+        "current_fp": 2164734,
+        "delta_fp": 186048,
+        "baseline_fn": 1748147,
+        "current_fn": 2365806,
+        "delta_fn": 617659,
+        "baseline_predicted_pixels": 30922567,
+        "current_predicted_pixels": 30490956,
+        "delta_predicted_pixels": -431611
+      },
+      {
+        "scene": "Moon_2",
+        "image_count": 1597,
+        "class": "crater",
+        "class_zh": "撞击坑",
+        "gt_pixels": 17330406,
+        "baseline_iou": 0.8444507957198645,
+        "current_iou": 0.8319952939318982,
+        "delta_iou_pp": -1.2455501787966283,
+        "baseline_precision": 0.9874260302699039,
+        "current_precision": 0.9847307140163,
+        "delta_precision_pp": -0.26953162536039743,
+        "baseline_recall": 0.8536301457680795,
+        "current_recall": 0.8428691168573893,
+        "delta_recall_pp": -1.0761028910690196,
+        "baseline_tp": 14793757,
+        "current_tp": 14607264,
+        "delta_tp": -186493,
+        "baseline_fp": 188385,
+        "current_fp": 226501,
+        "delta_fp": 38116,
+        "baseline_fn": 2536649,
+        "current_fn": 2723142,
+        "delta_fn": 186493,
+        "baseline_predicted_pixels": 14982142,
+        "current_predicted_pixels": 14833765,
+        "delta_predicted_pixels": -148377
+      },
+      {
+        "scene": "Moon_2",
+        "image_count": 1597,
+        "class": "mountain",
+        "class_zh": "山体",
+        "gt_pixels": 52041900,
+        "baseline_iou": 0.9573305765491553,
+        "current_iou": 0.9426555999185955,
+        "delta_iou_pp": -1.4674976630559833,
+        "baseline_precision": 0.966129009194488,
+        "current_precision": 0.9522981227871722,
+        "delta_precision_pp": -1.383088640731578,
+        "baseline_recall": 0.9905768428900559,
+        "current_recall": 0.9893726593379565,
+        "delta_recall_pp": -0.12041835520993915,
+        "baseline_tp": 51551501,
+        "current_tp": 51488833,
+        "delta_tp": -62668,
+        "baseline_fp": 1807316,
+        "current_fp": 2579144,
+        "delta_fp": 771828,
+        "baseline_fn": 490399,
+        "current_fn": 553067,
+        "delta_fn": 62668,
+        "baseline_predicted_pixels": 53358817,
+        "current_predicted_pixels": 54067977,
+        "delta_predicted_pixels": 709160
+      },
+      {
+        "scene": "Moon_2",
+        "image_count": 1597,
+        "class": "sky",
+        "class_zh": "天空",
+        "gt_pixels": 421308137,
+        "baseline_iou": 0.9980567532932212,
+        "current_iou": 0.9971708796726475,
+        "delta_iou_pp": -0.0885873620573685,
+        "baseline_precision": 0.9991992535265409,
+        "current_precision": 0.9991159657527413,
+        "delta_precision_pp": -0.008328777379962293,
+        "baseline_recall": 0.9988556689091433,
+        "current_recall": 0.9980514736652238,
+        "delta_recall_pp": -0.08041952439195033,
+        "baseline_tp": 420826021,
+        "current_tp": 420487207,
+        "delta_tp": -338814,
+        "baseline_fp": 337245,
+        "current_fp": 372054,
+        "delta_fp": 34809,
+        "baseline_fn": 482116,
+        "current_fn": 820930,
+        "delta_fn": 338814,
+        "baseline_predicted_pixels": 421163266,
+        "current_predicted_pixels": 420859261,
+        "delta_predicted_pixels": -304005
+      },
+      {
+        "scene": "Moon_4",
+        "image_count": 1320,
+        "class": "regolith",
+        "class_zh": "月壤",
+        "gt_pixels": 948578636,
+        "baseline_iou": 0.9917729117969775,
+        "current_iou": 0.9896064350002782,
+        "delta_iou_pp": -0.2166476796699235,
+        "baseline_precision": 0.9940837415786608,
+        "current_precision": 0.9926800836188096,
+        "delta_precision_pp": -0.1403657959851201,
+        "baseline_recall": 0.9976616150566562,
+        "current_recall": 0.996880925958362,
+        "delta_recall_pp": -0.07806890982942072,
+        "baseline_tp": 946360494,
+        "current_tp": 945619949,
+        "delta_tp": -740545,
+        "baseline_fp": 5632235,
+        "current_fp": 6972900,
+        "delta_fp": 1340665,
+        "baseline_fn": 2218142,
+        "current_fn": 2958687,
+        "delta_fn": 740545,
+        "baseline_predicted_pixels": 951992729,
+        "current_predicted_pixels": 952592849,
+        "delta_predicted_pixels": 600120
+      },
+      {
+        "scene": "Moon_4",
+        "image_count": 1320,
+        "class": "rock",
+        "class_zh": "岩石",
+        "gt_pixels": 29376699,
+        "baseline_iou": 0.8897644639801111,
+        "current_iou": 0.8583776989127588,
+        "delta_iou_pp": -3.1386765067352274,
+        "baseline_precision": 0.9467889905099918,
+        "current_precision": 0.9362281507453282,
+        "delta_precision_pp": -1.0560839764663599,
+        "baseline_recall": 0.9366002286369888,
+        "current_recall": 0.9116828953450488,
+        "delta_recall_pp": -2.4917333291940014,
+        "baseline_tp": 27514223,
+        "current_tp": 26782234,
+        "delta_tp": -731989,
+        "baseline_fp": 1546342,
+        "current_fp": 1824291,
+        "delta_fp": 277949,
+        "baseline_fn": 1862476,
+        "current_fn": 2594465,
+        "delta_fn": 731989,
+        "baseline_predicted_pixels": 29060565,
+        "current_predicted_pixels": 28606525,
+        "delta_predicted_pixels": -454040
+      },
+      {
+        "scene": "Moon_4",
+        "image_count": 1320,
+        "class": "crater",
+        "class_zh": "撞击坑",
+        "gt_pixels": 18902881,
+        "baseline_iou": 0.8107432588082208,
+        "current_iou": 0.7609527467872638,
+        "delta_iou_pp": -4.979051202095707,
+        "baseline_precision": 0.9767988749711908,
+        "current_precision": 0.9606045831427982,
+        "delta_precision_pp": -1.6194291828392604,
+        "baseline_recall": 0.8266622426496787,
+        "current_recall": 0.7854651362403434,
+        "delta_recall_pp": -4.119710640933527,
+        "baseline_tp": 15626298,
+        "current_tp": 14847554,
+        "delta_tp": -778744,
+        "baseline_fp": 371159,
+        "current_fp": 608914,
+        "delta_fp": 237755,
+        "baseline_fn": 3276583,
+        "current_fn": 4055327,
+        "delta_fn": 778744,
+        "baseline_predicted_pixels": 15997457,
+        "current_predicted_pixels": 15456468,
+        "delta_predicted_pixels": -540989
+      },
+      {
+        "scene": "Moon_4",
+        "image_count": 1320,
+        "class": "mountain",
+        "class_zh": "山体",
+        "gt_pixels": 11369205,
+        "baseline_iou": 0.9778584488369938,
+        "current_iou": 0.9611676084310662,
+        "delta_iou_pp": -1.669084040592761,
+        "baseline_precision": 0.986177463309792,
+        "current_precision": 0.9710915122957107,
+        "delta_precision_pp": -1.5085951014081278,
+        "baseline_recall": 0.9914471592340889,
+        "current_recall": 0.9894796513916321,
+        "delta_recall_pp": -0.1967507842456806,
+        "baseline_tp": 11271966,
+        "current_tp": 11249597,
+        "delta_tp": -22369,
+        "baseline_fp": 157991,
+        "current_fp": 334890,
+        "delta_fp": 176899,
+        "baseline_fn": 97239,
+        "current_fn": 119608,
+        "delta_fn": 22369,
+        "baseline_predicted_pixels": 11429957,
+        "current_predicted_pixels": 11584487,
+        "delta_predicted_pixels": 154530
+      },
+      {
+        "scene": "Moon_4",
+        "image_count": 1320,
+        "class": "sky",
+        "class_zh": "天空",
+        "gt_pixels": 375892899,
+        "baseline_iou": 0.9976630957828262,
+        "current_iou": 0.9975133224236334,
+        "delta_iou_pp": -0.014977335919275081,
+        "baseline_precision": 0.9991669275816417,
+        "current_precision": 0.9987722623947812,
+        "delta_precision_pp": -0.03946651868604878,
+        "baseline_recall": 0.9984936613553852,
+        "current_recall": 0.9987379649861382,
+        "delta_recall_pp": 0.024430363075300665,
+        "baseline_tp": 375326677,
+        "current_tp": 375418509,
+        "delta_tp": 91832,
+        "baseline_fp": 312935,
+        "current_fp": 461482,
+        "delta_fp": 148547,
+        "baseline_fn": 566222,
+        "current_fn": 474390,
+        "delta_fn": -91832,
+        "baseline_predicted_pixels": 375639612,
+        "current_predicted_pixels": 375879991,
+        "delta_predicted_pixels": 240379
+      },
+      {
+        "scene": "Moon_9",
+        "image_count": 2087,
+        "class": "regolith",
+        "class_zh": "月壤",
+        "gt_pixels": 1487426085,
+        "baseline_iou": 0.9811005815733744,
+        "current_iou": 0.9785128589873333,
+        "delta_iou_pp": -0.2587722586041119,
+        "baseline_precision": 0.9888834094597502,
+        "current_precision": 0.9868646186619036,
+        "delta_precision_pp": -0.20187907978466146,
+        "baseline_recall": 0.9920419104388639,
+        "current_recall": 0.9914253991316819,
+        "delta_recall_pp": -0.06165113071819883,
+        "baseline_tp": 1475589015,
+        "current_tp": 1474672000,
+        "delta_tp": -917015,
+        "baseline_fp": 16587920,
+        "current_fp": 19628203,
+        "delta_fp": 3040283,
+        "baseline_fn": 11837070,
+        "current_fn": 12754085,
+        "delta_fn": 917015,
+        "baseline_predicted_pixels": 1492176935,
+        "current_predicted_pixels": 1494300203,
+        "delta_predicted_pixels": 2123268
+      },
+      {
+        "scene": "Moon_9",
+        "image_count": 2087,
+        "class": "rock",
+        "class_zh": "岩石",
+        "gt_pixels": 97128887,
+        "baseline_iou": 0.8431320151038317,
+        "current_iou": 0.8175958989527005,
+        "delta_iou_pp": -2.553611615113127,
+        "baseline_precision": 0.926064994893833,
+        "current_precision": 0.9258436056338298,
+        "delta_precision_pp": -0.02213892600031464,
+        "baseline_recall": 0.9039825299346836,
+        "current_recall": 0.8748890430506014,
+        "delta_recall_pp": -2.90934868840822,
+        "baseline_tp": 87802817,
+        "current_tp": 84976999,
+        "delta_tp": -2825818,
+        "baseline_fp": 7009985,
+        "current_fp": 6806320,
+        "delta_fp": -203665,
+        "baseline_fn": 9326070,
+        "current_fn": 12151888,
+        "delta_fn": 2825818,
+        "baseline_predicted_pixels": 94812802,
+        "current_predicted_pixels": 91783319,
+        "delta_predicted_pixels": -3029483
+      },
+      {
+        "scene": "Moon_9",
+        "image_count": 2087,
+        "class": "crater",
+        "class_zh": "撞击坑",
+        "gt_pixels": 29241631,
+        "baseline_iou": 0.5769626094395757,
+        "current_iou": 0.5428880699735315,
+        "delta_iou_pp": -3.407453946604422,
+        "baseline_precision": 0.8697286025897734,
+        "current_precision": 0.8290349646431991,
+        "delta_precision_pp": -4.069363794657422,
+        "baseline_recall": 0.631540149042986,
+        "current_recall": 0.6113296826705733,
+        "delta_recall_pp": -2.021046637241275,
+        "baseline_tp": 18467264,
+        "current_tp": 17876277,
+        "delta_tp": -590987,
+        "baseline_fp": 2766100,
+        "current_fp": 3686477,
+        "delta_fp": 920377,
+        "baseline_fn": 10774367,
+        "current_fn": 11365354,
+        "delta_fn": 590987,
+        "baseline_predicted_pixels": 21233364,
+        "current_predicted_pixels": 21562754,
+        "delta_predicted_pixels": 329390
+      },
+      {
+        "scene": "Moon_9",
+        "image_count": 2087,
+        "class": "mountain",
+        "class_zh": "山体",
+        "gt_pixels": 78094856,
+        "baseline_iou": 0.9027413896563445,
+        "current_iou": 0.9062722496754689,
+        "delta_iou_pp": 0.35308600191243933,
+        "baseline_precision": 0.9192916965716932,
+        "current_precision": 0.9156448502222668,
+        "delta_precision_pp": -0.3646846349426358,
+        "baseline_recall": 0.9804469964065239,
+        "current_recall": 0.9888314538924305,
+        "delta_recall_pp": 0.838445748590666,
+        "baseline_tp": 76567867,
+        "current_tp": 77222650,
+        "delta_tp": 654783,
+        "baseline_fp": 6722200,
+        "current_fp": 7114252,
+        "delta_fp": 392052,
+        "baseline_fn": 1526989,
+        "current_fn": 872206,
+        "delta_fn": -654783,
+        "baseline_predicted_pixels": 83290067,
+        "current_predicted_pixels": 84336902,
+        "delta_predicted_pixels": 1046835
+      },
+      {
+        "scene": "Moon_9",
+        "image_count": 2087,
+        "class": "sky",
+        "class_zh": "天空",
+        "gt_pixels": 496486653,
+        "baseline_iou": 0.9962115969878509,
+        "current_iou": 0.9955388278149137,
+        "delta_iou_pp": -0.06727691729372376,
+        "baseline_precision": 0.9977222482413651,
+        "current_precision": 0.997856605845216,
+        "delta_precision_pp": 0.013435760385083206,
+        "baseline_recall": 0.9984824486309001,
+        "current_recall": 0.9976722657235259,
+        "delta_recall_pp": -0.0810182907374224,
+        "baseline_tp": 495733209,
+        "current_tp": 495330964,
+        "delta_tp": -402245,
+        "baseline_fp": 1131735,
+        "current_fp": 1063970,
+        "delta_fp": -67765,
+        "baseline_fn": 753444,
+        "current_fn": 1155689,
+        "delta_fn": 402245,
+        "baseline_predicted_pixels": 496864944,
+        "current_predicted_pixels": 496394934,
+        "delta_predicted_pixels": -470010
+      }
+    ]
+  },
+  "notes_zh": [
+    "本次是用户请求时固定保存的第5轮验证最佳快照；训练继续进行，此结果不代表训练结束后的最终最佳。",
+    "旧基线已完成30轮、验证最佳为第29轮；本次快照仅训练5轮。两者训练预算不同，不能将测试差异归因于训练配比。",
+    "测试均使用同一5004张图像及GT、1024/768等权四视图、batch2 BF16、山体和撞击坑系数均为1。",
+    "旧训练6401+1500+1500=9401张、hflip验证；新训练4000+2000+2000=8000张、四视图验证。验证图像相同，但训练数据与选轮TTA同时改变。",
+    "该已查看测试集上的阶段性对照不参与本次训练轮次选择；训练仍按完整1601张自定义验证集选轮。"
+  ],
+  "confusion_matrices": {
+    "baseline": {
+      "overall": [
+        [
+          3571833946,
+          8877048,
+          3268849,
+          4466629,
+          761650
+        ],
+        [
+          10755476,
+          144260921,
+          56421,
+          1911595,
+          213201
+        ],
+        [
+          14579266,
+          554280,
+          48887319,
+          1432761,
+          21292
+        ],
+        [
+          339493,
+          989081,
+          281,
+          139391334,
+          785772
+        ],
+        [
+          810563,
+          114604,
+          93,
+          876522,
+          1291885907
+        ]
+      ],
+      "Moon_2": [
+        [
+          1149884437,
+          1797166,
+          185299,
+          1205365,
+          131134
+        ],
+        [
+          1418864,
+          28943881,
+          3086,
+          295821,
+          30376
+        ],
+        [
+          2530078,
+          6571,
+          14793757,
+          0,
+          0
+        ],
+        [
+          163481,
+          151183,
+          0,
+          51551501,
+          175735
+        ],
+        [
+          152220,
+          23766,
+          0,
+          306130,
+          420826021
+        ]
+      ],
+      "Moon_4": [
+        [
+          946360494,
+          1516477,
+          367595,
+          100651,
+          233419
+        ],
+        [
+          1836380,
+          27514223,
+          3471,
+          11650,
+          10975
+        ],
+        [
+          3268545,
+          8038,
+          15626298,
+          0,
+          0
+        ],
+        [
+          24626,
+          4072,
+          0,
+          11271966,
+          68541
+        ],
+        [
+          502684,
+          17755,
+          93,
+          45690,
+          375326677
+        ]
+      ],
+      "Moon_9": [
+        [
+          1475589015,
+          5563405,
+          2715955,
+          3160613,
+          397097
+        ],
+        [
+          7500232,
+          87802817,
+          49864,
+          1604124,
+          171850
+        ],
+        [
+          8780643,
+          539671,
+          18467264,
+          1432761,
+          21292
+        ],
+        [
+          151386,
+          833826,
+          281,
+          76567867,
+          541496
+        ],
+        [
+          155659,
+          73083,
+          0,
+          524702,
+          495733209
+        ]
+      ]
+    },
+    "current": {
+      "overall": [
+        [
+          3569598834,
+          9674213,
+          4386498,
+          4592320,
+          956257
+        ],
+        [
+          13514952,
+          140085455,
+          134877,
+          3212299,
+          250031
+        ],
+        [
+          17068066,
+          468153,
+          47331095,
+          603580,
+          4024
+        ],
+        [
+          326912,
+          530526,
+          249,
+          139961080,
+          687194
+        ],
+        [
+          708201,
+          122453,
+          268,
+          1620087,
+          1291236680
+        ]
+      ],
+      "Moon_2": [
+        [
+          1149306885,
+          1962776,
+          219525,
+          1554357,
+          159858
+        ],
+        [
+          1933444,
+          28326222,
+          6727,
+          385571,
+          40064
+        ],
+        [
+          2717454,
+          5686,
+          14607264,
+          2,
+          0
+        ],
+        [
+          207460,
+          173226,
+          249,
+          51488833,
+          172132
+        ],
+        [
+          158670,
+          23046,
+          0,
+          639214,
+          420487207
+        ]
+      ],
+      "Moon_4": [
+        [
+          945619949,
+          1796751,
+          580831,
+          223045,
+          358060
+        ],
+        [
+          2531316,
+          26782234,
+          27815,
+          19432,
+          15902
+        ],
+        [
+          4050235,
+          5092,
+          14847554,
+          0,
+          0
+        ],
+        [
+          27995,
+          4093,
+          0,
+          11249597,
+          87520
+        ],
+        [
+          363354,
+          18355,
+          268,
+          92413,
+          375418509
+        ]
+      ],
+      "Moon_9": [
+        [
+          1474672000,
+          5914686,
+          3586142,
+          2814918,
+          438339
+        ],
+        [
+          9050192,
+          84976999,
+          100335,
+          2807296,
+          194065
+        ],
+        [
+          10300377,
+          457375,
+          17876277,
+          603578,
+          4024
+        ],
+        [
+          91457,
+          353207,
+          0,
+          77222650,
+          427542
+        ],
+        [
+          186177,
+          81052,
+          0,
+          888460,
+          495330964
+        ]
+      ]
+    }
+  }
+}
