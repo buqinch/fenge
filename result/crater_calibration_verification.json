@@ -1,0 +1,149 @@
+{
+  "python": "3.11.17",
+  "torch": "2.1.1+cu121",
+  "device": "cpu",
+  "crater_calibration_only": true,
+  "crater_calibration_checks": {
+    "gamma_one_preserves_original_tensor_and_dtype": true,
+    "only_class_two_is_adjusted": true,
+    "probability_and_logit_calibration_equivalent": true,
+    "input_scores_unchanged": true,
+    "invalid_gamma_calls_rejected": 14,
+    "sweep_cases": [
+      {
+        "tta_mode": "none",
+        "image_count": 1601,
+        "actual_forward_calls": 3,
+        "gamma_values": [
+          1.0,
+          1.05,
+          1.2,
+          1.5,
+          4.0
+        ],
+        "recommended_gamma": 1.2,
+        "gamma_one_exactly_matches_original_loader": true,
+        "all_gamma_confusion_matrices_match_independent_case_frequency_oracle": true,
+        "all_transition_matrices_and_correction_false_positive_counts_match": true,
+        "baseline_diagnostics": {
+          "missed_crater_pixels": 683093,
+          "missed_crater_pred_regolith_pixels": 546476,
+          "example_count": 32,
+          "example_groups": {
+            "rank2_close": 12,
+            "rank2_far": 12,
+            "other_rank": 8
+          },
+          "rank_gap_ratio_histograms_thresholds_and_source_coordinates_match": true
+        },
+        "synthetic_gamma_tradeoff": [
+          {
+            "gamma": 1.0,
+            "miou": 0.6190490854664038,
+            "crater_iou": 0.16666910654203784,
+            "corrected_missed_crater_pixels": 0,
+            "new_false_crater_pixels": 0
+          },
+          {
+            "gamma": 1.05,
+            "miou": 0.6666681305957589,
+            "crater_iou": 0.3333357732087045,
+            "corrected_missed_crater_pixels": 136619,
+            "new_false_crater_pixels": 0
+          },
+          {
+            "gamma": 1.2,
+            "miou": 0.8533327965607516,
+            "crater_iou": 0.6666654467289811,
+            "corrected_missed_crater_pixels": 409854,
+            "new_false_crater_pixels": 0
+          },
+          {
+            "gamma": 1.5,
+            "miou": 0.5799989386542135,
+            "crater_iou": 0.4999990850467358,
+            "corrected_missed_crater_pixels": 409854,
+            "new_false_crater_pixels": 273238
+          },
+          {
+            "gamma": 4.0,
+            "miou": 0.5288882129529717,
+            "crater_iou": 0.44444399261530454,
+            "corrected_missed_crater_pixels": 409854,
+            "new_false_crater_pixels": 409856
+          }
+        ]
+      },
+      {
+        "tta_mode": "hflip",
+        "image_count": 1601,
+        "actual_forward_calls": 6,
+        "gamma_values": [
+          1.0,
+          1.05,
+          1.2,
+          1.5,
+          4.0
+        ],
+        "recommended_gamma": 1.2,
+        "gamma_one_exactly_matches_original_loader": true,
+        "all_gamma_confusion_matrices_match_independent_case_frequency_oracle": true,
+        "all_transition_matrices_and_correction_false_positive_counts_match": true,
+        "baseline_diagnostics": {
+          "missed_crater_pixels": 683093,
+          "missed_crater_pred_regolith_pixels": 546476,
+          "example_count": 32,
+          "example_groups": {
+            "rank2_close": 12,
+            "rank2_far": 12,
+            "other_rank": 8
+          },
+          "rank_gap_ratio_histograms_thresholds_and_source_coordinates_match": true
+        },
+        "synthetic_gamma_tradeoff": [
+          {
+            "gamma": 1.0,
+            "miou": 0.6190490854664038,
+            "crater_iou": 0.16666910654203784,
+            "corrected_missed_crater_pixels": 0,
+            "new_false_crater_pixels": 0
+          },
+          {
+            "gamma": 1.05,
+            "miou": 0.6666681305957589,
+            "crater_iou": 0.3333357732087045,
+            "corrected_missed_crater_pixels": 136619,
+            "new_false_crater_pixels": 0
+          },
+          {
+            "gamma": 1.2,
+            "miou": 0.8533327965607516,
+            "crater_iou": 0.6666654467289811,
+            "corrected_missed_crater_pixels": 409854,
+            "new_false_crater_pixels": 0
+          },
+          {
+            "gamma": 1.5,
+            "miou": 0.5799989386542135,
+            "crater_iou": 0.4999990850467358,
+            "corrected_missed_crater_pixels": 409854,
+            "new_false_crater_pixels": 273238
+          },
+          {
+            "gamma": 4.0,
+            "miou": 0.5288882129529717,
+            "crater_iou": 0.44444399261530454,
+            "corrected_missed_crater_pixels": 409854,
+            "new_false_crater_pixels": 409856
+          }
+        ]
+      }
+    ],
+    "partial_sweep_has_diagnostics_but_cannot_recommend": true,
+    "drop_last_incomplete_loader_cannot_recommend_even_if_dataset_partial_is_false": true,
+    "example_coordinates_checked_across_multiple_loader_batches": true,
+    "test_sweep_rejected_before_forward_but_fixed_scalar_allowed": true,
+    "invalid_sweep_combinations_rejected_before_forward": 11
+  },
+  "status": "passed"
+}

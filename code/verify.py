@@ -242,6 +242,318 @@ def check_multiscale_tta() -> dict:
             "size_786_is_only_a_padding_edge_case_not_an_experiment_scale": True}
 
 
+def check_crater_calibration() -> dict:
+    """Use explicit class probabilities to audit crater scaling and its sweep."""
+    from lunarseg.metrics import adjust_crater_scores, validate_crater_gamma
+
+    probabilities = torch.tensor([
+        [.50, .01, .45, .03, .01],  # GT crater, soil wins; crater second, close.
+        [.82, .01, .13, .03, .01],  # GT crater, soil wins; crater second, beyond max gamma.
+        [.50, .35, .10, .04, .01],  # GT crater, soil wins; crater is third.
+        [.52, .02, .42, .03, .01],  # GT soil: boosting eventually introduces FP.
+        [.20, .05, .65, .08, .02],  # Correct crater remains correct.
+        [.20, .55, .10, .10, .05],  # Correct rock, crater is not second.
+        [.49, .01, .47, .02, .01],  # GT crater, very small soil/crater margin.
+        [.70, .03, .20, .05, .02],  # GT soil: only a large boost produces FP.
+        [.05, .02, .40, .50, .03],  # Correct mountain becomes crater for large gamma.
+        [.05, .49, .44, .01, .01],  # GT crater initially classified as rock.
+        [.03, .02, .05, .10, .80],  # Correct sky stays correct.
+        [.40, .35, .08, .12, .05],  # Correct soil, crater not second.
+    ], dtype=torch.float32)
+    truths = torch.tensor([2, 2, 2, 0, 2, 1, 2, 0, 3, 2, 4, 0], dtype=torch.long)
+    scores = probabilities.T.reshape(1, 5, 3, 4)
+    logits, log_probabilities = scores.log() + 3, scores.log()
+    others = [0, 1, 3, 4]
+    for gamma in (.8, 1.0, 1.05, 1.2, 1.5, 4.0):
+        expected_probabilities = scores.clone()
+        expected_probabilities[:, 2] *= gamma
+        expected_logits = logits.clone()
+        expected_logits[:, 2] += math.log(gamma)
+        untouched = logits.clone(), scores.clone(), log_probabilities.clone()
+        adjusted_logits = adjust_crater_scores(logits, gamma, "none")
+        adjusted_log_probabilities = adjust_crater_scores(log_probabilities, gamma, "none")
+        torch.testing.assert_close(adjusted_logits, expected_logits, rtol=0, atol=0)
+        normalized = expected_probabilities / expected_probabilities.sum(1, keepdim=True)
+        torch.testing.assert_close(adjusted_logits.softmax(1), normalized, rtol=2e-6, atol=2e-7)
+        torch.testing.assert_close(adjusted_log_probabilities.softmax(1), normalized, rtol=2e-6, atol=2e-7)
+        assert torch.equal(adjusted_logits[:, others], logits[:, others])
+        for tta in ("hflip", "multiscale_hflip"):
+            adjusted = adjust_crater_scores(scores, gamma, tta)
+            assert torch.equal(adjusted, expected_probabilities)
+            assert torch.equal(adjusted[:, others], scores[:, others])
+            assert torch.equal(adjusted.argmax(1), adjusted_logits.argmax(1))
+            if gamma == 1:
+                assert adjusted is scores
+        if gamma == 1:
+            assert adjusted_logits is logits and adjusted_log_probabilities is log_probabilities
+            double_scores = scores.double()
+            assert adjust_crater_scores(double_scores, 1, "hflip") is double_scores
+        assert all(torch.equal(actual, before) for actual, before in
+                   zip((logits, scores, log_probabilities), untouched))
+    rejected = 0
+    for value in (0, -.1, float("nan"), float("inf"), float("-inf"), True, False):
+        for call in (lambda: validate_crater_gamma(value),
+                     lambda: adjust_crater_scores(scores, value, "hflip")):
+            try:
+                call()
+            except (ValueError, TypeError):
+                rejected += 1
+            else:
+                raise AssertionError(f"Invalid crater gamma accepted: {value}")
+
+    class SyntheticDataset(torch.utils.data.Dataset):
+        input_size = 32
+
+        def __init__(self, count=1601, partial=False, split="val"):
+            self.count, self.partial, self.split, self.reads = count, partial, split, 0
+            self.identity = {"source": "independent_crater_calibration_fixture", "custom_split": True,
+                             "split": split, "selection_scope": "custom_val_originals", "partial": partial,
+                             "image_count": count, "complete_image_count": 1601,
+                             "validation_image_count": 1601}
+            scenes = ("Moon_1", "Moon_3", "Moon_5", "Moon_6", "Moon_7", "Moon_8")
+            self.records = [{"scene": scenes[index % len(scenes)], "sample_id": str(index),
+                             "source_id": f"{scenes[index % len(scenes)]}/{index}",
+                             "image": f"/synthetic/{scenes[index % len(scenes)]}/{index}.png"}
+                            for index in range(count)]
+
+        def __len__(self):
+            return self.count
+
+        def __getitem__(self, index):
+            self.reads += 1
+            case_ids = (torch.arange(1024).reshape(32, 32) + index).remainder(12)
+            image = torch.stack((case_ids.float(), torch.zeros(32, 32), torch.full((32, 32), float(index))))
+            return {"image": image, "mask": truths[case_ids],
+                    **{field: self.records[index][field] for field in ("scene", "sample_id", "source_id")}}
+
+    class CountingModel(torch.nn.Module):
+        def __init__(self, region_scores=True):
+            super().__init__()
+            self.calls, self.region_scores = 0, region_scores
+
+        def forward(self, images):
+            self.calls += 1
+            case_ids = images[:, 0].long()
+            values = probabilities[case_ids].permute(0, 3, 1, 2).log()
+            return {"semantic_logits": values if self.region_scores else values + 3}
+
+    gammas = [1.0, 1.05, 1.2, 1.5, 4.0]
+    def frequencies(count):
+        result = [0] * 12
+        for index in range(count):
+            for case in range(12):
+                result[case] += 1024 // 12 + int((case - index) % 12 < 1024 % 12)
+        return result
+
+    def expected_matrix(count, gamma):
+        matrix = [[0] * 5 for _ in range(5)]
+        for case, frequency in enumerate(frequencies(count)):
+            # A pure Python oracle uses the twelve declared probabilities, not
+            # either calibration helper or its output prediction tensor.
+            row = probabilities[case].tolist()
+            predicted = max(range(5), key=lambda cls: row[cls] * (gamma if cls == 2 else 1))
+            matrix[int(truths[case])][predicted] += frequency
+        return matrix
+
+    def matrix_ious(matrix):
+        values = []
+        for cls in range(5):
+            gt, predicted = sum(matrix[cls]), sum(row[cls] for row in matrix)
+            values.append(matrix[cls][cls] / (gt + predicted - matrix[cls][cls]))
+        return values
+
+    normalized_rows = probabilities.log().softmax(1).tolist()
+    baseline_classes = [max(range(5), key=lambda cls: row[cls]) for row in normalized_rows]
+    case_rank = [1 + sum(value > row[2] for value in row) for row in normalized_rows]
+    case_gap = [float(np.float32(row[pred] - row[2])) for row, pred in zip(normalized_rows, baseline_classes)]
+    case_ratio = [float(np.float32(row[pred] / row[2])) for row, pred in zip(normalized_rows, baseline_classes)]
+
+    def check_diagnostics(metadata, dataset):
+        frequencies_by_case = frequencies(len(dataset))
+        shared = metadata["baseline_missed_crater_diagnostics"]
+        for name, relevant in (("missed_crater", [0, 1, 2, 6, 9]),
+                               ("missed_crater_pred_regolith", [0, 1, 2, 6])):
+            group = shared[name]
+            count = sum(frequencies_by_case[case] for case in relevant)
+            assert group["pixel_count"] == count
+            expected_ranks = {str(rank): sum(frequencies_by_case[case] for case in relevant
+                                            if case_rank[case] == rank) for rank in range(1, 6)}
+            assert group["crater_rank_counts"] == expected_ranks
+            assert group["rank2_pixels"] == expected_ranks["2"]
+            assert group["rank2_fraction"] == expected_ranks["2"] / count
+            for field, values in (("winner_minus_crater_probability", case_gap),
+                                  ("winner_to_crater_probability_ratio", case_ratio)):
+                distribution = group[field]
+                assert distribution["count"] == count
+                expected_mean = sum(frequencies_by_case[case] * values[case] for case in relevant) / count
+                assert math.isclose(distribution["mean"], expected_mean, rel_tol=2e-6, abs_tol=2e-7)
+                assert math.isclose(distribution["min"], min(values[case] for case in relevant), rel_tol=2e-6, abs_tol=2e-7)
+                assert math.isclose(distribution["max"], max(values[case] for case in relevant), rel_tol=2e-6, abs_tol=2e-7)
+                expected_bins = [0] * len(distribution["bin_upper_bounds"])
+                for case in relevant:
+                    index = next(index for index, upper in enumerate(distribution["bin_upper_bounds"])
+                                 if upper is None or values[case] <= float(np.float32(upper)))
+                    expected_bins[index] += frequencies_by_case[case]
+                assert distribution["bin_counts"] == expected_bins
+            for threshold in group["ratio_threshold_counts"]:
+                count_below = sum(frequencies_by_case[case] for case in relevant
+                                  if case_ratio[case] <= float(np.float32(threshold["gamma"])))
+                assert threshold["pixels"] == count_below and threshold["fraction"] == count_below / count
+        example_count, sources = 0, Counter()
+        for group, examples in shared["pixel_example_groups"].items():
+            assert examples, f"Synthetic cases must exercise diagnostic example group {group}"
+            for example in examples:
+                index, y, x = int(example["sample_id"]), example["y"], example["x"]
+                record = dataset.records[index]
+                assert 0 <= y < 32 and 0 <= x < 32
+                case = (y * 32 + x + index) % 12
+                assert example["source_id"] == record["source_id"]
+                assert example["scene"] == record["scene"] and example["image"] == record["image"]
+                assert example["coordinate_frame"] == "final_target_grid" and example["height"] == example["width"] == 32
+                assert example["gt"] == int(truths[case]) == 2
+                assert example["pred"] == baseline_classes[case] != 2 and example["crater_rank"] == case_rank[case]
+                for key, value in (("pwinner", normalized_rows[case][baseline_classes[case]]),
+                                   ("pcrater", normalized_rows[case][2]), ("gap", case_gap[case]), ("ratio", case_ratio[case])):
+                    assert math.isclose(example[key], value, rel_tol=2e-6, abs_tol=2e-7), (key, example, value)
+                expected_group = ("other_rank" if case_rank[case] != 2 else
+                                  "rank2_close" if case_ratio[case] <= max(gammas) else "rank2_far")
+                assert group == example["group"] == expected_group
+                sources[example["source_id"]] += 1
+                example_count += 1
+        assert example_count == shared["pixel_example_count"] <= 32 and max(sources.values()) <= 2
+        return {"missed_crater_pixels": shared["missed_crater"]["pixel_count"],
+                "missed_crater_pred_regolith_pixels": shared["missed_crater_pred_regolith"]["pixel_count"],
+                "example_count": example_count,
+                "example_groups": {name: len(rows) for name, rows in shared["pixel_example_groups"].items()},
+                "rank_gap_ratio_histograms_thresholds_and_source_coordinates_match": True}
+
+    reports = []
+    for tta in ("none", "hflip"):
+        dataset = SyntheticDataset()
+        loader = torch.utils.data.DataLoader(dataset, batch_size=800, num_workers=0)
+        baseline_model = CountingModel()
+        baseline = evaluate_loader(baseline_model, loader, torch.device("cpu"), amp="none", tta=tta)
+        explicit_one = evaluate_loader(CountingModel(), loader, torch.device("cpu"), amp="none", tta=tta, crater_gamma=1)
+        assert explicit_one == baseline
+        dataset.reads = 0
+        model = CountingModel()
+        sweep = evaluate_loader(model, loader, torch.device("cpu"), amp="none", tta=tta, crater_gammas=gammas)
+        metadata = sweep["crater_score_sweep"]
+        assert dataset.reads == len(dataset) and model.calls == len(loader) * (2 if tta == "hflip" else 1)
+        assert metadata["loader_passes"] == 1 and metadata["model_forward_calls"] == model.calls
+        assert metadata["selection_valid"] is True and metadata["recommended_gamma"] == 1.2
+        assert metadata["selection_scene"] == "custom_validation" and metadata["selection_uses_test"] is False
+        assert metadata["validation_unique_source_count"] == len(dataset)
+        assert {key: value for key, value in sweep.items() if key != "crater_score_sweep"} == baseline
+        diagnostic_report = check_diagnostics(metadata, dataset)
+        tradeoff = []
+        for candidate in metadata["candidates"]:
+            gamma = candidate["gamma"]
+            matrix = expected_matrix(len(dataset), gamma)
+            assert candidate["metrics"]["confusion_matrix_gt_rows_pred_cols"] == matrix
+            frequencies_by_case = frequencies(len(dataset))
+            winners = [max(range(5), key=lambda cls: float(row[cls]) * (gamma if cls == 2 else 1)) for row in probabilities]
+            transitions = [[0] * 5 for _ in range(5)]
+            counts = dict.fromkeys(("corrected_missed_crater_pixels", "corrected_regolith_to_crater_pixels",
+                                   "new_false_crater_pixels", "new_regolith_to_crater_false_pixels",
+                                   "new_false_crater_on_gt_regolith_pixels", "lost_true_crater_pixels",
+                                   "removed_false_crater_pixels", "changed_between_non_crater_classes_pixels"), 0)
+            for case, (before, after) in enumerate(zip(baseline_classes, winners)):
+                frequency, truth = frequencies_by_case[case], int(truths[case])
+                transitions[before][after] += frequency
+                if before != 2 and after == 2:
+                    if truth == 2:
+                        counts["corrected_missed_crater_pixels"] += frequency
+                        if before == 0:
+                            counts["corrected_regolith_to_crater_pixels"] += frequency
+                    else:
+                        counts["new_false_crater_pixels"] += frequency
+                        if truth == 0:
+                            counts["new_false_crater_on_gt_regolith_pixels"] += frequency
+                            if before == 0:
+                                counts["new_regolith_to_crater_false_pixels"] += frequency
+            diagnostic = candidate["diagnostics"]
+            assert all(diagnostic[key] == value for key, value in counts.items())
+            assert diagnostic["transition_matrix_baseline_rows_calibrated_cols"] == transitions
+            baseline_matrix = expected_matrix(len(dataset), 1)
+            ious, baseline_ious = matrix_ious(matrix), matrix_ious(baseline_matrix)
+            assert math.isclose(candidate["metrics"]["miou"], sum(ious) / 5, rel_tol=1e-12)
+            assert math.isclose(candidate["metrics"]["class_iou"]["crater"], ious[2], rel_tol=1e-12)
+            assert math.isclose(candidate["delta_miou"], (sum(ious) - sum(baseline_ious)) / 5, abs_tol=1e-12)
+            assert math.isclose(candidate["delta_crater_iou"], ious[2] - baseline_ious[2], abs_tol=1e-12)
+            baseline_tp, tp = baseline_matrix[2][2], matrix[2][2]
+            baseline_fp, fp = sum(row[2] for row in baseline_matrix) - baseline_tp, sum(row[2] for row in matrix) - tp
+            for key, value in (("baseline_crater_true_positive_pixels", baseline_tp),
+                               ("baseline_crater_false_positive_pixels", baseline_fp),
+                               ("crater_true_positive_pixels", tp), ("crater_false_positive_pixels", fp),
+                               ("delta_crater_true_positive_pixels", tp - baseline_tp),
+                               ("delta_crater_false_positive_pixels", fp - baseline_fp)):
+                assert diagnostic[key] == value
+            tradeoff.append({"gamma": gamma, "miou": sum(ious) / 5, "crater_iou": ious[2],
+                             "corrected_missed_crater_pixels": counts["corrected_missed_crater_pixels"],
+                             "new_false_crater_pixels": counts["new_false_crater_pixels"]})
+        reports.append({"tta_mode": tta, "image_count": len(dataset), "actual_forward_calls": model.calls,
+                        "gamma_values": gammas, "recommended_gamma": metadata["recommended_gamma"],
+                        "gamma_one_exactly_matches_original_loader": True,
+                        "all_gamma_confusion_matrices_match_independent_case_frequency_oracle": True,
+                        "all_transition_matrices_and_correction_false_positive_counts_match": True,
+                        "baseline_diagnostics": diagnostic_report, "synthetic_gamma_tradeoff": tradeoff})
+    partial_dataset = SyntheticDataset(35, partial=True)
+    partial_loader = torch.utils.data.DataLoader(partial_dataset, batch_size=4, num_workers=0)
+    partial_model = CountingModel()
+    partial_result = evaluate_loader(partial_model, partial_loader, torch.device("cpu"), amp="none", tta="hflip", crater_gammas=gammas)
+    partial_sweep = partial_result["crater_score_sweep"]
+    assert partial_sweep["selection_valid"] is False and partial_sweep["recommended_gamma"] is None
+    check_diagnostics(partial_sweep, partial_dataset)
+    all_examples = [row for group in partial_sweep["baseline_missed_crater_diagnostics"]["pixel_example_groups"].values() for row in group]
+    assert max(int(row["sample_id"]) for row in all_examples) >= 4  # Coordinates span real loader batches.
+    assert partial_dataset.reads == len(partial_dataset) and partial_model.calls == len(partial_loader) * 2
+    incomplete_dataset = SyntheticDataset()
+    incomplete_loader = torch.utils.data.DataLoader(incomplete_dataset, batch_size=800, drop_last=True, num_workers=0)
+    incomplete_model = CountingModel()
+    incomplete = evaluate_loader(incomplete_model, incomplete_loader, torch.device("cpu"), amp="none", crater_gammas=gammas)
+    assert incomplete["image_count"] == 1600 and incomplete_dataset.partial is False
+    assert incomplete["crater_score_sweep"]["selection_valid"] is False
+    assert incomplete["crater_score_sweep"]["recommended_gamma"] is None
+    assert incomplete_model.calls == len(incomplete_loader)
+    invalid_options = [{"crater_gammas": []}, {"crater_gammas": [1, 1]}, {"crater_gammas": [1.2, 1.5]},
+                       {"crater_gammas": [.9, 1]}, {"crater_gammas": [1, True]}, {"crater_gammas": "1,1.2"},
+                       {"crater_gammas": gammas, "mountain_alpha": .9},
+                       {"crater_gammas": gammas, "mountain_alphas": [1, .9]},
+                       {"crater_gammas": gammas, "crater_gamma": 1.2},
+                       {"crater_gammas": gammas, "image_exporter": lambda *_: None},
+                       {"crater_gamma": 1.2, "mountain_alpha": .9}]
+    for options in invalid_options:
+        model = CountingModel()
+        try:
+            evaluate_loader(model, partial_loader, torch.device("cpu"), amp="none", **options)
+        except (ValueError, TypeError):
+            pass
+        else:
+            raise AssertionError(f"Invalid crater calibration combination accepted: {options}")
+        assert model.calls == 0
+    test_dataset = SyntheticDataset(1, partial=False, split="test")
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, num_workers=0)
+    model = CountingModel()
+    try:
+        evaluate_loader(model, test_loader, torch.device("cpu"), amp="none", crater_gammas=gammas)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Crater gamma sweep selected a factor from test data")
+    assert model.calls == 0
+    evaluate_loader(model, test_loader, torch.device("cpu"), amp="none", crater_gamma=1.2)
+    assert model.calls == 1  # A previously fixed scalar remains legal at test time.
+    return {"gamma_one_preserves_original_tensor_and_dtype": True, "only_class_two_is_adjusted": True,
+            "probability_and_logit_calibration_equivalent": True, "input_scores_unchanged": True,
+            "invalid_gamma_calls_rejected": rejected, "sweep_cases": reports,
+            "partial_sweep_has_diagnostics_but_cannot_recommend": True,
+            "drop_last_incomplete_loader_cannot_recommend_even_if_dataset_partial_is_false": True,
+            "example_coordinates_checked_across_multiple_loader_batches": True,
+            "test_sweep_rejected_before_forward_but_fixed_scalar_allowed": True,
+            "invalid_sweep_combinations_rejected_before_forward": len(invalid_options)}
+
+
 def check_mountain_calibration() -> dict:
     """Check score-domain calibration on CPU without weights or a dataset."""
     # Pixel zero has a negative mountain logit that must lose after downweighting.
@@ -1117,9 +1429,12 @@ def main() -> None:
                             help="Audit a saved random split and CPU data-loader rejection fixtures; no model is loaded")
     cpu_checks.add_argument("--multiscale-tta-only", action="store_true",
                             help="Check multiscale score fusion and variable-size inference on CPU; no weights or dataset are loaded")
+    cpu_checks.add_argument("--crater-calibration-only", action="store_true",
+                            help="Check crater probability scaling and validation-only sweeps on CPU")
     args = parser.parse_args()
     if args.output is None:
-        filename = ("multiscale_tta_verification.json" if args.multiscale_tta_only else
+        filename = ("crater_calibration_verification.json" if args.crater_calibration_only else
+                    "multiscale_tta_verification.json" if args.multiscale_tta_only else
                     "split_verification.json" if args.split_only else
                     "hard_pixel_verification.json" if args.hard_pixel_only else
                     "calibration_verification.json" if args.calibration_only else "verification.json")
@@ -1133,6 +1448,13 @@ def main() -> None:
     torch.set_num_threads(4)
     if args.split_manifest is not None and not args.split_only:
         parser.error("--split-manifest requires --split-only")
+    if args.crater_calibration_only:
+        report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
+                  "crater_calibration_only": True, "crater_calibration_checks": check_crater_calibration(), "status": "passed"}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+        print(f"CPU crater-calibration checks passed. Verification report: {args.output}", flush=True)
+        return
     if args.multiscale_tta_only:
         report = {"python": platform.python_version(), "torch": torch.__version__, "device": "cpu",
                   "multiscale_tta_only": True, "multiscale_tta_checks": check_multiscale_tta(), "status": "passed"}

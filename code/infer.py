@@ -15,7 +15,8 @@ from PIL import Image
 from torch.nn import functional as F
 
 from lunarseg.model import ModelConfig, build_model
-from lunarseg.metrics import adjust_mountain_scores, predict_semantic_scores, tta_metadata, validate_tta_sizes
+from lunarseg.metrics import (adjust_mountain_scores, predict_semantic_scores, tta_metadata, validate_tta_sizes,
+                              adjust_crater_scores, validate_crater_gamma)
 
 
 PALETTE = np.asarray([[187, 70, 156], [232, 250, 80], [120, 0, 200], [173, 69, 31], [34, 201, 248]], dtype=np.uint8)
@@ -36,10 +37,15 @@ def main() -> None:
                         help="Square image sizes for multiscale_hflip, e.g. 1024 768 512")
     parser.add_argument("--mountain-alpha", type=float, default=1.0,
                         help="Multiply final mountain class probability by this positive factor before argmax")
+    parser.add_argument("--crater-gamma", type=float, default=1.0,
+                        help="Multiply only the final crater probability by this positive global factor")
     parser.add_argument("--overlay", action="store_true")
     args = parser.parse_args()
     try:
         args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
+        args.crater_gamma = validate_crater_gamma(args.crater_gamma)
+        if args.crater_gamma != 1 and args.mountain_alpha != 1:
+            raise ValueError("Crater calibration requires mountain-alpha=1")
     except (ValueError, TypeError) as exc:
         parser.error(str(exc))
     if not math.isfinite(args.mountain_alpha) or args.mountain_alpha <= 0:
@@ -92,6 +98,7 @@ def main() -> None:
             # Interpolate continuous class scores before assigning class IDs.
             scores = F.interpolate(scores.float(), size=(original_size[1], original_size[0]), mode="bilinear", align_corners=False)
             scores = adjust_mountain_scores(scores, mountain_alpha=args.mountain_alpha, tta=args.tta)
+            scores = adjust_crater_scores(scores, gamma=args.crater_gamma, tta=args.tta)
             mask = scores.argmax(1)[0].cpu().numpy().astype(np.uint8)
             relative = path.relative_to(source_root)
             # Keep the original suffix in the directory name to avoid collisions
@@ -121,6 +128,8 @@ def main() -> None:
         "model_config": config.to_dict(), "device": str(device), "amp": args.amp,
         **tta_metadata(args.tta, args.tta_sizes), "continuous_scores_resized_before_argmax": True,
         "mountain_alpha": args.mountain_alpha,
+        "crater_gamma": args.crater_gamma,
+        "crater_score_adjustment": "Only final class-2 probability multiplied by gamma before argmax; one global factor",
         "mountain_score_adjustment": "Multiply final continuous class-3 probability by alpha after resizing, before argmax; "
                                      "single-view logits/log-probabilities use +log(alpha), hflip probabilities use *alpha; "
                                      "other classes unchanged; alpha=1 preserves original scores",

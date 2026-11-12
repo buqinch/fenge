@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from lunarseg.data import DEFAULT_MANIFEST, DEFAULT_TEST_MANIFEST, LunarDataset, sha256_file
-from lunarseg.metrics import evaluate_loader, validate_mountain_alpha, validate_tta_sizes
+from lunarseg.metrics import evaluate_loader, validate_mountain_alpha, validate_tta_sizes, validate_crater_gamma
 from lunarseg.model import ModelConfig, build_model
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -41,6 +41,10 @@ def main(argv=None):
                         help="Multiply only the final mountain score by this positive factor before argmax")
     parser.add_argument("--mountain-alphas", type=float, nargs="+", default=None,
                         help="Moon_5 only: compare factors including 1 in a single loader pass, e.g. 1 .95 .90 .85 .80")
+    parser.add_argument("--crater-gamma", type=float, default=1.0,
+                        help="Multiply only the final crater score by this positive global factor")
+    parser.add_argument("--crater-gammas", type=float, nargs="+", default=None,
+                        help="Validation only: compare factors >=1 including 1 in one pass, e.g. 1 1.03 1.06 1.10")
     parser.add_argument("--max-samples", type=int, default=None)
     parser.add_argument("--save-images", action="store_true", default=False,
                         help="Optionally save scored class-ID/color predictions and RGB/GT/prediction comparisons")
@@ -58,6 +62,17 @@ def main(argv=None):
     try:
         args.tta_sizes = validate_tta_sizes(args.tta, args.tta_sizes)
         args.mountain_alpha = validate_mountain_alpha(args.mountain_alpha)
+        args.crater_gamma = validate_crater_gamma(args.crater_gamma)
+        if args.crater_gamma != 1 or args.crater_gammas is not None:
+            if args.mountain_alpha != 1 or args.mountain_alphas is not None:
+                raise ValueError("Crater calibration requires unchanged mountain scores (alpha=1, no mountain sweep)")
+        if args.crater_gammas is not None:
+            args.crater_gammas = [validate_crater_gamma(g) for g in args.crater_gammas]
+            if (not args.crater_gammas or len(set(args.crater_gammas)) != len(args.crater_gammas)
+                    or 1.0 not in args.crater_gammas or any(g < 1 for g in args.crater_gammas)):
+                raise ValueError("--crater-gammas requires unique factors >=1 including 1")
+            if args.crater_gamma != 1 or args.split != "val" or args.save_images:
+                raise ValueError("Crater sweep requires val, gamma=1 and no --save-images")
         if args.mountain_alphas is not None:
             args.mountain_alphas = [validate_mountain_alpha(a) for a in args.mountain_alphas]
             if (not args.mountain_alphas or len(set(args.mountain_alphas)) != len(args.mountain_alphas)
@@ -100,11 +115,12 @@ def main(argv=None):
         from lunarseg.visualization import EvaluationImageExporter
         image_exporter = EvaluationImageExporter(path(args.image_output_root), checkpoint_path.parent.name,
                                                  args.split, args.tta, mountain_alpha=args.mountain_alpha,
-                                                 tta_sizes=args.tta_sizes)
+                                                 tta_sizes=args.tta_sizes, crater_gamma=args.crater_gamma)
     evaluation_started = time.perf_counter()
     result = evaluate_loader(model, loader, device, args.amp, tta=args.tta, image_exporter=image_exporter,
                              mountain_alpha=args.mountain_alpha, mountain_alphas=args.mountain_alphas,
-                             tta_sizes=args.tta_sizes, progress_every=args.progress_every)
+                             tta_sizes=args.tta_sizes, progress_every=args.progress_every,
+                             crater_gamma=args.crater_gamma, crater_gammas=args.crater_gammas)
     view_protocol = (f"sizes {args.tta_sizes}, original + horizontal flip at each size, equal view probability averaging"
                      if args.tta == "multiscale_hflip" else
                      f"{config.input_size} original + horizontal-flip score averaging" if args.tta == "hflip" else "single view")
@@ -112,6 +128,8 @@ def main(argv=None):
                   checkpoint_epoch=checkpoint.get("epoch"), split=args.split,
                   evaluation_seconds=time.perf_counter() - evaluation_started,
                   mountain_alpha=args.mountain_alpha,
+                  crater_gamma=args.crater_gamma,
+                  crater_score_adjustment="Only final class-2 probability multiplied by gamma before argmax; one global factor",
                   mountain_score_adjustment="Only mountain probability multiplied by alpha after final resize, before argmax; not a threshold",
                   batch_size=args.batch_size, amp=args.amp,
                   cudnn_deterministic=True, cudnn_benchmark=False,
@@ -125,9 +143,12 @@ def main(argv=None):
             "checkpoint_epoch": result["checkpoint_epoch"], "input_size": config.input_size,
             "tta_input_sizes": args.tta_sizes,
             "mountain_alpha": args.mountain_alpha,
+            "crater_gamma": args.crater_gamma,
             "partial": result["partial"], "continuous_scores_resized_before_argmax": True})
     calibration_suffix = ("_mountain_sweep" if args.mountain_alphas is not None else
                           f"_mountain_{str(args.mountain_alpha).replace('.', 'p')}" if args.mountain_alpha != 1 else "")
+    calibration_suffix += ("_crater_sweep" if args.crater_gammas is not None else
+                           f"_crater_{str(args.crater_gamma).replace('.', 'p')}" if args.crater_gamma != 1 else "")
     tta_suffix = ("_multiscale_hflip_" + "_".join(map(str, args.tta_sizes)) if args.tta == "multiscale_hflip"
                   else "_hflip" if args.tta == "hflip" else "")
     suffix = tta_suffix + calibration_suffix + ("_partial" if dataset.partial else "")
@@ -150,6 +171,15 @@ def main(argv=None):
                             "mountain_iou": c["metrics"]["class_iou"]["mountain"],
                             "mountain_precision": c["metrics"]["class_precision"]["mountain"],
                             "mountain_recall": c["metrics"]["class_recall"]["mountain"]}
+                           for c in sweep["candidates"]]}
+    if "crater_score_sweep" in result:
+        sweep = result["crater_score_sweep"]
+        printed["crater_score_sweep"] = {
+            "recommended_gamma": sweep["recommended_gamma"], "selection_valid": sweep["selection_valid"],
+            "candidates": [{"gamma": c["gamma"], "miou": c["metrics"]["miou"],
+                            "crater_iou": c["metrics"]["class_iou"]["crater"],
+                            "crater_precision": c["metrics"]["class_precision"]["crater"],
+                            "crater_recall": c["metrics"]["class_recall"]["crater"]}
                            for c in sweep["candidates"]]}
     print(json.dumps(printed, ensure_ascii=False), flush=True)
 

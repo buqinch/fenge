@@ -9,7 +9,7 @@ import torch
 from PIL import Image, ImageDraw, ImageFont
 
 from .data import CLASS_NAMES
-from .metrics import validate_mountain_alpha, tta_metadata, validate_tta_sizes
+from .metrics import validate_mountain_alpha, tta_metadata, validate_tta_sizes, validate_crater_gamma
 
 
 PALETTE = np.asarray([[187, 70, 156], [232, 250, 80], [120, 0, 200],
@@ -66,7 +66,7 @@ class EvaluationImageExporter:
     the confusion matrix, including test labels originally stored in a ZIP.
     """
 
-    def __init__(self, output_root, experiment_name, split, tta, mountain_alpha=1.0, tta_sizes=None):
+    def __init__(self, output_root, experiment_name, split, tta, mountain_alpha=1.0, tta_sizes=None, crater_gamma=1.0):
         if split not in ("val", "test"):
             raise ValueError("Image exports support val/test")
         self.tta_sizes = validate_tta_sizes(tta, tta_sizes)
@@ -74,7 +74,12 @@ class EvaluationImageExporter:
         self.experiment_name = component(experiment_name, "experiment")
         self.split, self.tta = split, tta
         self.mountain_alpha = validate_mountain_alpha(mountain_alpha)
+        self.crater_gamma = validate_crater_gamma(crater_gamma)
+        if self.crater_gamma != 1 and self.mountain_alpha != 1:
+            raise ValueError("Crater calibration requires mountain-alpha=1")
         suffix = f"_mountain_{str(self.mountain_alpha).replace('.', 'p')}" if self.mountain_alpha != 1 else ""
+        if self.crater_gamma != 1:
+            suffix += f"_crater_{str(self.crater_gamma).replace('.', 'p')}"
         scale_suffix = "_" + "_".join(map(str, self.tta_sizes)) if self.tta_sizes else ""
         self.directory = self.output_root / self.experiment_name / f"{split}_{tta}{scale_suffix}{suffix}"
         self.index_path = self.directory / "index.json"
@@ -88,6 +93,7 @@ class EvaluationImageExporter:
                 "experiment": self.experiment_name, "split": self.split, "tta_mode": self.tta,
                 **tta_metadata(self.tta, self.tta_sizes),
                 "mountain_alpha": self.mountain_alpha,
+                "crater_gamma": self.crater_gamma,
                 "image_count": len(self.records), "class_names": list(CLASS_NAMES),
                 "palette_rgb": PALETTE.tolist(),
                 "rgb_source": "evaluation input tensor, ImageNet normalization reversed and rounded to uint8",

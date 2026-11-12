@@ -710,6 +710,362 @@ def report(runs, output, curves, curve_note, reference, comparison="tta"):
     return "\n".join(lines)
 
 
+def calibration_validation_statistics(value, identity, scene_counts, label):
+    """Recompute a complete custom validation result without reading test data."""
+    require(value.get("partial") is False and value.get("image_count") == 1601
+            and value.get("input_size") == 1024 and value.get("data_identity") == identity
+            and set(value.get("scenes", {})) == set(scene_counts),
+            f"{label}: expected the unchanged full 1601-image custom validation identity")
+    require(value.get("tta_mode") == "hflip" and value.get("test_time_augmentation") is True
+            and value.get("tta_views") == ["original", "horizontal_flip"]
+            and value.get("continuous_scores_resized_before_argmax") is True,
+            f"{label}: expected 1024 horizontal-flip continuous-score inference")
+    scenes, summed = {}, [[0] * 5 for _ in range(5)]
+    for name, count in scene_counts.items():
+        source = value["scenes"][name]
+        require(source.get("image_count") == count, f"{label}/{name}: incomplete validation scene")
+        scenes[name] = scene_statistics(source, f"{label}/{name}", count, require_all_classes=False)
+        matrix = scenes[name]["confusion_matrix_gt_rows_pred_cols"]
+        summed = [[summed[r][c] + matrix[r][c] for c in range(5)] for r in range(5)]
+    require(value.get("confusion_matrix_gt_rows_pred_cols") == summed,
+            f"{label}: aggregate validation matrix differs from its scenes")
+    pooled = scene_statistics(value, f"{label}/custom_validation", 1601, require_all_classes=False)
+    for scene_name, statistics in {"custom_validation": pooled, **scenes}.items():
+        source = value if scene_name == "custom_validation" else value["scenes"][scene_name]
+        for name, item in statistics["classes"].items():
+            for field in ("precision", "recall"):
+                actual = source.get("class_" + field, {}).get(name)
+                expected = item[field]
+                if expected is None:
+                    require(actual is None, f"{label}/{scene_name}/{name}: undefined {field} must be null")
+                else:
+                    close(actual, expected, f"{label}/{scene_name}/{name} {field}")
+    return {"pooled": pooled, "scenes": scenes}
+
+
+def crater_calibration_analysis(run_path, result_paths, output):
+    """Select one global crater multiplier using validation evidence only."""
+    from collections import Counter
+
+    require(result_paths is not None and len(result_paths) == 1,
+            "crater-calibration requires one complete validation --test-results JSON")
+    directory, output = Path(run_path).resolve(), output.resolve()
+    require(not output.is_relative_to(directory) and not directory.is_relative_to(output),
+            "Calibration output and experiment directories must not contain each other")
+    if (output / "summary.json").exists():
+        require(read_json(output / "summary.json").get("schema") == "lusnar_crater_calibration_analysis_v1",
+                "Crater calibration cannot overwrite another analysis protocol")
+    summary, config = read_json(directory / "summary.json"), read_json(directory / "run_config.json")
+    epoch = summary.get("best_epoch")
+    require(summary.get("status") in STOPPED and summary.get("partial") is False
+            and config.get("partial") is False and type(epoch) is int and epoch > 0
+            and summary.get("selection_scene") == "custom_validation"
+            and summary.get("checkpoint_selection_uses_test") is False
+            and summary.get("val_tta") == config.get("val_tta") == "hflip"
+            and config.get("input_size") == 1024,
+            "Crater calibration requires a completed, validation-selected 1024/hflip custom-split checkpoint")
+    saved_path = directory / f"validation_epoch_{epoch:03d}.json"
+    saved = read_json(saved_path)
+    reference = saved.get("validation", {})
+    identity = reference.get("data_identity", {})
+    require(saved.get("epoch") == epoch and saved.get("partial") is False
+            and saved.get("selection_scene") == "custom_validation"
+            and saved.get("checkpoint_selection_uses_test") is False
+            and identity == config.get("data_identity", {}).get("val")
+            and identity.get("custom_split") is True and identity.get("split") == "val"
+            and identity.get("protocol") == "random_original_source_family_4_to_1"
+            and identity.get("partial") is False
+            and identity.get("image_count") == identity.get("complete_image_count") == identity.get("validation_image_count") == 1601,
+            "Saved best validation must identify the complete custom validation split")
+    manifest = Path(identity.get("manifest", ""))
+    require(manifest.is_absolute() and manifest.is_file() and digest(manifest) == identity.get("manifest_sha256"),
+            "Custom validation manifest path/SHA256 changed")
+    selection = read_json(manifest)
+    val_rows = selection.get("splits", {}).get("val", [])
+    train_rows = selection.get("splits", {}).get("train", [])
+    require(selection.get("schema") == "lusnar_random_split_v1" and selection.get("class_names") == list(CLASSES)
+            and len(val_rows) == 1601 and len(train_rows) == 9401
+            and all(row.get("split") == "val" and row.get("source_kind") == "original" for row in val_rows)
+            and len({row["source_id"] for row in val_rows}) == 1601
+            and not {row["source_id"] for row in val_rows} & {row["source_id"] for row in train_rows}
+            and canonical_digest(val_rows) == identity.get("ordered_samples_sha256"),
+            "Calibration requires all saved original validation sources without training-family overlap")
+    counts = dict(sorted(Counter(row["scene"] for row in val_rows).items()))
+    allowed = {"Moon_1", "Moon_3", "Moon_5", "Moon_6", "Moon_7", "Moon_8"}
+    require(set(counts).issubset(allowed) and len(counts) > 1
+            and set(counts) == set(identity.get("validation_scenes", [])),
+            "Test scenes cannot enter crater calibration")
+    saved_stats = calibration_validation_statistics(reference, identity, counts, str(saved_path))
+    close(saved.get("selection_score"), saved_stats["pooled"]["miou"], "Saved best selection score")
+    close(summary.get("best_validation_miou"), saved_stats["pooled"]["miou"], "Saved best validation mIoU")
+    checkpoint_hash = digest(directory / "best.pt")
+    source_path = Path(result_paths[0]).resolve()
+    source = read_json(source_path)
+    require(source.get("checkpoint_sha256") == checkpoint_hash and source.get("checkpoint_epoch") == epoch
+            and Path(source.get("checkpoint", "")).is_absolute()
+            and Path(source["checkpoint"]).resolve() == directory / "best.pt"
+            and source.get("checkpoint_partial_training") is False
+            and source.get("split") == "val" and source.get("evaluation_only") is True
+            and source.get("mountain_alpha", 1.0) == 1.0 and "mountain_score_sweep" not in source
+            and source.get("crater_gamma", 1.0) == 1.0,
+            "Crater sweep must evaluate this exact best checkpoint on validation without other calibration")
+    calibration_validation_statistics(source, identity, counts, str(source_path))
+    require(source["confusion_matrix_gt_rows_pred_cols"] == reference["confusion_matrix_gt_rows_pred_cols"]
+            and all(source["scenes"][name]["confusion_matrix_gt_rows_pred_cols"]
+                    == reference["scenes"][name]["confusion_matrix_gt_rows_pred_cols"] for name in counts),
+            "Gamma=1 must exactly reproduce the saved best validation confusion matrices")
+    sweep = source.get("crater_score_sweep", {})
+    gammas = [1.0, 1.03, 1.06, 1.10]
+    require(sweep.get("gammas") == gammas and sweep.get("class_id") == 2
+            and sweep.get("selection_valid") is True and sweep.get("selection_scene") == "custom_validation"
+            and sweep.get("global_gamma_for_all_images") is True and sweep.get("loader_passes") == 1
+            and sweep.get("selection_uses_test") is False and sweep.get("mountain_alpha") == 1.0
+            and sweep.get("probability_threshold") is False and sweep.get("validation_unique_source_count") == 1601
+            and sweep.get("automatically_applied") is False,
+            "Expected one-pass global crater-only validation scan of gamma=1/1.03/1.06/1.10")
+    batch_size = source.get("batch_size")
+    require(type(batch_size) is int and batch_size > 0
+            and sweep.get("model_forward_calls") == 2 * math.ceil(1601 / batch_size),
+            "All crater candidates must reuse the same 1024/hflip forward pass")
+    candidates = sweep.get("candidates", [])
+    require(isinstance(candidates, list) and [row.get("gamma") for row in candidates] == gammas,
+            "Crater candidates must contain each requested gamma exactly once")
+    baseline = saved_stats["pooled"]
+    baseline_crater = baseline["classes"]["crater"]
+    verified, metric_rows, class_rows, matrices = [], [], [], []
+    for item in candidates:
+        gamma = item["gamma"]
+        value = item.get("metrics", {})
+        statistics = calibration_validation_statistics(value, identity, counts, f"gamma={gamma}")
+        for scope, old, new in [("custom_validation", saved_stats["pooled"], statistics["pooled"])] + [
+                (name, saved_stats["scenes"][name], statistics["scenes"][name]) for name in counts]:
+            a, b = old["confusion_matrix_gt_rows_pred_cols"], new["confusion_matrix_gt_rows_pred_cols"]
+            require(all(sum(a[r]) == sum(b[r]) for r in range(5)), f"gamma={gamma}/{scope}: GT class counts changed")
+            require(all(b[r][2] >= a[r][2] and all(b[r][c] <= a[r][c] for c in range(5) if c != 2)
+                        for r in range(5)), f"gamma={gamma}/{scope}: scaling crater changed another winning class")
+            if gamma == 1:
+                require(a == b, f"gamma=1/{scope}: baseline confusion matrix differs from saved best validation")
+            for name, numbers in new["classes"].items():
+                class_rows.append({"gamma": gamma, "scope": scope, "class": name, **numbers, "miou": new["miou"]})
+            for r, row in enumerate(b):
+                for c, pixels in enumerate(row):
+                    matrices.append({"gamma": gamma, "scope": scope, "gt_class": CLASSES[r],
+                                     "predicted_class": CLASSES[c], "pixels": pixels})
+        pooled = statistics["pooled"]
+        crater = pooled["classes"]["crater"]
+        matrix, old_matrix = pooled["confusion_matrix_gt_rows_pred_cols"], baseline["confusion_matrix_gt_rows_pred_cols"]
+        new_tp, new_fp = crater["tp"] - baseline_crater["tp"], crater["fp"] - baseline_crater["fp"]
+        expected = {"corrected_missed_crater_pixels": new_tp,
+                    "corrected_regolith_to_crater_pixels": old_matrix[2][0] - matrix[2][0],
+                    "new_false_crater_pixels": new_fp,
+                    "new_regolith_to_crater_false_pixels": old_matrix[0][0] - matrix[0][0],
+                    "new_false_crater_on_gt_regolith_pixels": matrix[0][2] - old_matrix[0][2],
+                    "baseline_crater_true_positive_pixels": baseline_crater["tp"],
+                    "crater_true_positive_pixels": crater["tp"],
+                    "baseline_crater_false_positive_pixels": baseline_crater["fp"],
+                    "crater_false_positive_pixels": crater["fp"],
+                    "delta_crater_true_positive_pixels": new_tp, "delta_crater_false_positive_pixels": new_fp,
+                    "lost_true_crater_pixels": 0, "removed_false_crater_pixels": 0,
+                    "changed_between_non_crater_classes_pixels": 0}
+        diagnostics = item.get("diagnostics", {})
+        require(all(type(diagnostics.get(name)) is int and diagnostics[name] == count for name, count in expected.items()),
+                f"gamma={gamma}: added crater true/false-positive diagnostics disagree with confusion-matrix differences")
+        previous_predictions = [sum(old_matrix[r][c] for r in range(5)) for c in range(5)]
+        new_predictions = [sum(matrix[r][c] for r in range(5)) for c in range(5)]
+        transition = [[0] * 5 for _ in range(5)]
+        for c in range(5):
+            transition[c][c] = previous_predictions[c] if c == 2 else new_predictions[c]
+            if c != 2:
+                transition[c][2] = previous_predictions[c] - new_predictions[c]
+        require(diagnostics.get("transition_matrix_baseline_rows_calibrated_cols") == transition,
+                f"gamma={gamma}: prediction-transition matrix disagrees with class-2-only calibration")
+        delta_miou, delta_iou = pooled["miou"] - baseline["miou"], crater["iou"] - baseline_crater["iou"]
+        close(item.get("delta_miou"), delta_miou, f"gamma={gamma} delta mIoU")
+        close(item.get("delta_crater_iou"), delta_iou, f"gamma={gamma} delta crater IoU")
+        row = {"gamma": gamma, "miou": pooled["miou"], "crater_iou": crater["iou"],
+               "crater_precision": crater["precision"], "crater_recall": crater["recall"],
+               "delta_miou": delta_miou, "delta_crater_iou": delta_iou, **expected,
+               "new_false_pixels_per_corrected_crater_pixel": ratio(new_fp, new_tp),
+               "previously_correct_non_crater_pixels_lost": sum(old_matrix[k][k] - matrix[k][k] for k in range(5) if k != 2),
+               "net_correct_pixel_change": sum(matrix[k][k] - old_matrix[k][k] for k in range(5))}
+        metric_rows.append(row)
+        verified.append({**row, "statistics": statistics, "diagnostics": diagnostics})
+    improving = [row for row in metric_rows if row["delta_miou"] > 1e-12 and row["delta_crater_iou"] > 1e-12]
+    best_score = max((row["miou"] for row in improving), default=baseline["miou"])
+    recommended = min((row["gamma"] for row in improving if row["miou"] >= best_score - 1e-12), default=1.0)
+    close(sweep.get("recommended_gamma"), recommended, "Validation-selected crater gamma")
+    # Rank/gap diagnostics are checked and rendered below; no test result is
+    # loaded anywhere in this calibration path.
+    rank_diagnostics = sweep.get("baseline_missed_crater_diagnostics", {})
+    validate_crater_rank_diagnostics(rank_diagnostics, saved_stats, val_rows, gammas)
+    report_crater_calibration(directory, output, source_path, saved_path, summary, checkpoint_hash,
+                              identity, counts, verified, metric_rows, class_rows, matrices,
+                              rank_diagnostics, recommended, sweep)
+
+
+def validate_crater_rank_diagnostics(value, saved_stats, val_rows, gammas):
+    baseline = saved_stats["pooled"]
+    expected = {"missed_crater": baseline["classes"]["crater"]["fn"],
+                "missed_crater_pred_regolith": baseline["confusion_matrix_gt_rows_pred_cols"][2][0]}
+    for name, count in expected.items():
+        group = value.get(name, {})
+        ranks = group.get("crater_rank_counts", {})
+        require(group.get("pixel_count") == count and set(ranks) == {str(i) for i in range(1, 6)}
+                and all(type(n) is int and n >= 0 for n in ranks.values()) and sum(ranks.values()) == count
+                and group.get("rank2_pixels") == ranks["2"], f"{name}: crater-rank counts disagree with baseline misses")
+        if count:
+            close(group.get("rank2_fraction"), ranks["2"] / count, f"{name} rank-2 fraction")
+        else:
+            require(group.get("rank2_fraction") is None, f"{name}: empty rank fraction must be null")
+        for field, minimum in (("winner_minus_crater_probability", 0.0), ("winner_to_crater_probability_ratio", 1.0)):
+            distribution = group.get(field, {})
+            bounds, bins = distribution.get("bin_upper_bounds", []), distribution.get("bin_counts", [])
+            require(distribution.get("count") == count and bounds and bounds[-1] is None
+                    and len(bounds) == len(bins) and all(type(n) is int and n >= 0 for n in bins)
+                    and sum(bins) == count and isinstance(distribution.get("bin_rule"), str)
+                    and all(isinstance(n, (int, float)) and math.isfinite(n) for n in bounds[:-1])
+                    and all(a < b for a, b in zip(bounds[:-2], bounds[1:-1])), f"{name}/{field}: malformed histogram")
+            if count:
+                lo, mean, hi = (distribution.get(key) for key in ("min", "mean", "max"))
+                require(all(isinstance(n, (int, float)) and math.isfinite(n) for n in (lo, mean, hi))
+                        and minimum - 1e-7 <= lo <= mean <= hi, f"{name}/{field}: invalid score distribution")
+            else:
+                require(all(distribution.get(key) is None for key in ("min", "mean", "max")),
+                        f"{name}/{field}: empty distribution must have null statistics")
+        thresholds = group.get("ratio_threshold_counts", [])
+        require([row.get("gamma") for row in thresholds] == gammas
+                and all(type(row.get("pixels")) is int and 0 <= row["pixels"] <= count for row in thresholds)
+                and all(a["pixels"] <= b["pixels"] for a, b in zip(thresholds, thresholds[1:])),
+                f"{name}: malformed ratio-threshold counts")
+        for row in thresholds:
+            if count:
+                close(row.get("fraction"), row["pixels"] / count, f"{name}/ratio<={row['gamma']}")
+            else:
+                require(row.get("fraction") is None, f"{name}: empty ratio fraction must be null")
+    require(all(isinstance(value.get(field), str) and value[field] for field in
+                ("crater_rank_definition", "ratio_definition", "rank2_close_definition", "pixel_example_policy")),
+            "Rank/ratio and bounded-example definitions are required")
+    examples = value.get("pixel_example_groups", {})
+    limits = {"rank2_close": 12, "rank2_far": 12, "other_rank": 8}
+    require(set(examples) == set(limits) and all(isinstance(examples[name], list) and len(examples[name]) <= limit
+                                               for name, limit in limits.items())
+            and value.get("pixel_example_count") == sum(map(len, examples.values())) <= 32,
+            "Crater diagnostic examples must be bounded to 32 points")
+    sources, seen = {row["source_id"]: row for row in val_rows}, {}
+    for name, points in examples.items():
+        for point in points:
+            source_id = point.get("source_id")
+            require(source_id in sources and point.get("scene") == sources[source_id]["scene"]
+                    and point.get("gt") == 2 and point.get("pred") in (0, 1, 3, 4)
+                    and point.get("group") == name and point.get("coordinate_frame") == "final_target_grid"
+                    and point.get("height") == point.get("width") == 1024
+                    and all(type(point.get(key)) is int and 0 <= point[key] < 1024 for key in ("x", "y")),
+                    "Crater diagnostic point has invalid source, label, or coordinates")
+            seen[source_id] = seen.get(source_id, 0) + 1
+            require(seen[source_id] <= 2, "Diagnostic points exceed two per validation source")
+            winner, crater = point.get("pwinner"), point.get("pcrater")
+            require(all(isinstance(n, (int, float)) and math.isfinite(n) and 0 <= n <= 1 for n in (winner, crater))
+                    and winner >= crater and type(point.get("crater_rank")) is int and 1 <= point["crater_rank"] <= 5,
+                    "Crater diagnostic probabilities/rank are invalid")
+            require(math.isclose(point.get("gap", math.nan), winner - crater, rel_tol=1e-6, abs_tol=1e-7)
+                    and math.isclose(point.get("ratio", math.nan), winner / max(crater, 1.1754943508222875e-38),
+                                     rel_tol=1e-6, abs_tol=1e-7), "Crater diagnostic gap/ratio is inconsistent")
+            require((name == "rank2_close" and point["crater_rank"] == 2 and point["ratio"] <= max(gammas) + 1e-6)
+                    or (name == "rank2_far" and point["crater_rank"] == 2 and point["ratio"] > max(gammas))
+                    or (name == "other_rank" and point["crater_rank"] != 2), "Crater diagnostic point is in the wrong group")
+
+
+def report_crater_calibration(directory, output, source_path, saved_path, training_summary, checkpoint_hash,
+                              identity, counts, candidates, rows, class_rows, matrices, rank_diagnostics, recommended, sweep):
+    names = {"missed_crater": "全部漏检撞击坑", "missed_crater_pred_regolith": "被判为月壤的漏检撞击坑"}
+    lines = ["# 撞击坑全局分数缩放：完整验证集扫描", "",
+             f"复用 `{directory.name}/best.pt`（第 **{training_summary['best_epoch']}** 轮），固定 **1024 原图＋水平翻转**。"
+             "本次没有重新训练；四个 γ 共用一次完整验证数据遍历和同一组网络前向结果。", "",
+             "验证集为随机划分保存的 1601 张纯原图，含 Moon_1/3/5/6/7/8；"
+             "总体 mIoU 从全部验证像素累积的混淆矩阵计算，未将六个场景的 mIoU 简单平均。"
+             "γ=1 的整体和每场景整数混淆矩阵均已与 best 轮保存记录逐位核对一致。", "",
+             f"检查点 SHA256：`{checkpoint_hash}`。", "",
+             "只将最终撞击坑类别（ID=2）的连续概率乘以同一个 γ，其他四类分数不变，然后 argmax。"
+             "γ 对所有验证图片固定；山体 α=1，无阈值或标签后处理。归一化不会改变此 argmax。", "",
+             "## 候选结果与推荐", "",
+             "|γ|总体 mIoU|变化/百分点|坑 IoU|坑精确率|坑召回率|新增坑 TP|新增坑 FP|新增 FP/修复坑像素|",
+             "|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for row in rows:
+        cost = row["new_false_pixels_per_corrected_crater_pixel"]
+        lines.append(f"|{row['gamma']:g}|{percent(row['miou'])}|{row['delta_miou']*100:+.5f}|{percent(row['crater_iou'])}|"
+                     f"{percent(row['crater_precision'])}|{percent(row['crater_recall'])}|{row['corrected_missed_crater_pixels']:,}|"
+                     f"{row['new_false_crater_pixels']:,}|{'—' if cost is None else f'{cost:.4f}'}|")
+    lines += ["", f"按预定验证规则推荐 **γ={recommended:g}**：只在总体 mIoU 和坑 IoU 均比 γ=1 提升的候选中最大化总体 mIoU；"
+              "1e-12 容差内并列时选较小 γ；没有双改善则保留 γ=1。该推荐未自动应用，也没有读取测试结果来挑选系数。", "",
+              "|γ|修复坑→月壤漏检|新增真月壤→坑误检（全部原预测）|其中原本正确月壤→坑|其他类别原本正确像素损失|净正确像素变化|",
+              "|---:|---:|---:|---:|---:|---:|"]
+    for row in rows:
+        lines.append(f"|{row['gamma']:g}|{row['corrected_regolith_to_crater_pixels']:,}|{row['new_false_crater_on_gt_regolith_pixels']:,}|"
+                     f"{row['new_regolith_to_crater_false_pixels']:,}|{row['previously_correct_non_crater_pixels_lost']:,}|{row['net_correct_pixel_change']:+,}|")
+    lines += ["", "新增 TP/FP 与预测转换统计已由混淆矩阵差独立复算。新增 FP 包含把原本正确和原本已错分的非坑像素改判为坑；"
+              "两者对整体正确像素数的影响不同。所有候选均保留原有坑预测，其他非坑类别之间没有互换。", "",
+              "## 各场景撞击坑指标", "", "|γ|场景|坑 IoU|坑精确率|坑召回率|", "|---:|---|---:|---:|---:|"]
+    for row in candidates:
+        for scene, stats in row["statistics"]["scenes"].items():
+            crater = stats["classes"]["crater"]
+            lines.append(f"|{row['gamma']:g}|{scene}|{percent(crater['iou'])}|{percent(crater['precision'])}|{percent(crater['recall'])}|")
+    lines += ["", "Moon_1 没有坑真值，坑 IoU/召回率显示为 —；其坑误检仍进入总体混淆矩阵和坑精确率。", "",
+              "## 基线漏坑的类别排名与分数差", "",
+              "|漏检范围|像素数|坑排第 2 的像素|第 2 占比|平均赢家−坑概率|平均赢家/坑概率|", "|---|---:|---:|---:|---:|---:|"]
+    histogram_rows = []
+    for name, title in names.items():
+        group = rank_diagnostics[name]
+        gap = group["winner_minus_crater_probability"];ratios = group["winner_to_crater_probability_ratio"]
+        fmt = lambda n: "—" if n is None else f"{n:.6f}"
+        lines.append(f"|{title}|{group['pixel_count']:,}|{group['rank2_pixels']:,}|{percent(group['rank2_fraction'])}|{fmt(gap['mean'])}|{fmt(ratios['mean'])}|")
+        for field, distribution in (("winner_minus_crater_probability", gap), ("winner_to_crater_probability_ratio", ratios)):
+            previous = None
+            for upper, count in zip(distribution["bin_upper_bounds"], distribution["bin_counts"]):
+                interval = f"≤{upper:g}" if previous is None else f">{previous:g}" if upper is None else f"({previous:g}, {upper:g}]"
+                histogram_rows.append({"scope": name, "score": field, "interval": interval, "pixels": count,
+                                       "fraction": ratio(count, group["pixel_count"])})
+                previous = upper
+    lines += ["", "排名定义为 1＋严格大于坑概率的类别数；概率并列时即使坑排名为 1，argmax 仍可能选择 ID 更小的月壤或岩石。"
+              "赢家/坑概率比接近 1 表示较小增益可能改变归属；排名第 2 不是可修复的必要条件。"
+              "比值恰在阈值处仍受浮点运算及 argmax 并列规则影响，不能把阈值累计数直接等同于实际修复数。", "",
+              "|漏检范围|比值≤1|比值≤1.03|比值≤1.06|比值≤1.10|", "|---|---:|---:|---:|---:|"]
+    for name, title in names.items():
+        lines.append("|" + "|".join([title] + [f"{row['pixels']:,}（{percent(row['fraction'])}）" for row in rank_diagnostics[name]["ratio_threshold_counts"]]) + "|")
+    lines += ["", "分数差和比值的完整直方图见 [rank_score_histograms.csv](rank_score_histograms.csv)。"
+              f"原始 JSON 保存 {rank_diagnostics['pixel_example_count']} 个有坐标的案例，按固定遍历顺序收集，最多 32 个、每原图最多 2 个；"
+              "这些是示例而非随机抽样，不能用它们估计总体比例。", "",
+              "## 使用范围与复核", "",
+              "本次只在既有验证集上扫描四个全局系数，没有使用 Moon_2/4/9 指标挑选 γ。验证推荐不代表测试集一定改善，"
+              "验证集同时参与了选轮，当前没有额外独立校准集或显著性检验。", "",
+              f"- [完整验证扫描原始记录与案例]({relative_link(source_path, output)})",
+              f"- [保存的最佳轮验证记录]({relative_link(saved_path, output)})", "- [候选与误检代价](metrics.csv)",
+              "- [全部类别与场景指标](class_metrics.csv)", "- [完整混淆矩阵](confusion_matrices.csv)",
+              "- [来源 SHA256 与机器可读结果](summary.json)", ""]
+    result = {"schema": "lusnar_crater_calibration_analysis_v1", "state": "complete", "comparison": "crater-calibration",
+              "created_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(), "run_dir": str(directory),
+              "checkpoint_epoch": training_summary["best_epoch"], "checkpoint_sha256": checkpoint_hash,
+              "source": str(source_path), "source_sha256": digest(source_path),
+              "saved_validation_source": str(saved_path), "saved_validation_sha256": digest(saved_path),
+              "baseline_confusion_matrices_exactly_match_saved_best": True, "validation_image_count": 1601,
+              "validation_scene_image_counts": counts, "data_identity": identity, "tta_mode": "hflip", "input_size": 1024,
+              "gammas": sweep["gammas"], "global_gamma_for_all_images": True, "recommended_gamma": recommended,
+              "selection_scene": "custom_validation", "selection_uses_test": False, "automatically_applied": False,
+              "retrained": False, "candidates": candidates, "baseline_missed_crater_diagnostics": rank_diagnostics,
+              "model_forward_calls": sweep["model_forward_calls"], "loader_passes": 1,
+              "selection_rule": sweep.get("selection_rule"), "statistical_significance_tested": False}
+    output.mkdir(parents=True, exist_ok=True)
+    for filename, data in (("metrics.csv", rows), ("class_metrics.csv", class_rows),
+                           ("confusion_matrices.csv", matrices), ("rank_score_histograms.csv", histogram_rows)):
+        write_csv(output / filename, data, list(data[0]))
+    for filename, text in (("summary.json", json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n"),
+                           ("report_zh.md", "\n".join(lines))):
+        temporary = output / (filename + ".tmp")
+        temporary.write_text(text)
+        temporary.replace(output / filename)
+    print(json.dumps({"state": "complete", "report": str(output / "report_zh.md"),
+                      "recommended_gamma": recommended, "summary": str(output / "summary.json")}, ensure_ascii=False))
+
+
 def multiscale_tta_analysis(run_path, test_paths, output):
     """Compare complete inference-only results for one validation-selected model."""
     require(test_paths is not None and len(test_paths) == 2,
@@ -754,8 +1110,9 @@ def multiscale_tta_analysis(run_path, test_paths, output):
         if baseline_identity is None:
             baseline_identity = identity
         require(identity == baseline_identity, f"{test['source']}: test sample/GT identity differs from baseline")
-        require(source.get("mountain_alpha", 1.0) == 1.0 and "mountain_score_sweep" not in source,
-                f"{test['source']}: compare uncalibrated scores with mountain alpha=1 only")
+        require(source.get("mountain_alpha", 1.0) == 1.0 and "mountain_score_sweep" not in source
+                and source.get("crater_gamma", 1.0) == 1.0 and "crater_score_sweep" not in source,
+                f"{test['source']}: compare uncalibrated scores with mountain alpha=1 and crater gamma=1 only")
         for scene in SCENES:
             for name in CLASSES:
                 values = test["scenes"][scene]["classes"][name]
@@ -873,18 +1230,22 @@ def main(argv=None):
     parser.add_argument("--run-on", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=PROJECT / "result" / "analysis")
     parser.add_argument("--reference", type=Path, default=None, help="Optional historical full-test summary JSON")
-    parser.add_argument("--comparison", choices=("tta", "hard-pixels", "random-split", "multiscale-tta"), default="tta")
-    parser.add_argument("--test-results", type=Path, nargs="+", help="Complete four/six-view result JSONs for multiscale-tta")
+    parser.add_argument("--comparison", choices=("tta", "hard-pixels", "random-split", "multiscale-tta", "crater-calibration"), default="tta")
+    parser.add_argument("--test-results", type=Path, nargs="+", help="Complete inference-comparison or validation-calibration result JSONs")
     parser.add_argument("--reference-tta", choices=("none", "hflip"), default="none",
                         help="Test TTA used to select the old reference recipe in random-split mode")
     args = parser.parse_args(argv)
     try:
+        if args.comparison == "crater-calibration":
+            require(args.run_off is None and args.reference is None, "crater-calibration selects gamma on one --run-on validation split")
+            crater_calibration_analysis(args.run_on, args.test_results, args.output)
+            return
         if args.comparison == "multiscale-tta":
             require(args.run_off is None and args.reference is None, "multiscale-tta compares one --run-on checkpoint")
             multiscale_tta_analysis(args.run_on, args.test_results, args.output)
             return
         require(args.run_off is not None, f"{args.comparison} requires --run-off")
-        require(args.test_results is None, "--test-results is only supported by multiscale-tta")
+        require(args.test_results is None, "--test-results is only supported by multiscale-tta or crater-calibration")
         if args.comparison == "random-split":
             require(args.reference is None, "random-split uses --run-off as its explicit reference run")
             old_config = read_json(args.run_off.resolve() / "run_config.json")
