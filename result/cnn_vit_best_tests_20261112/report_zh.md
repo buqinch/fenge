@@ -1,5 +1,8 @@
 # CNN 与 ViT 当前最佳检查点的完整测试
 
+<!-- latest-results-link -->
+本页保留此前固定检查点的历史测试；最新训练完成状态和新增测试见 [最新完整汇总](../../fenge_vit/result/progress_analysis/latest_report_zh.md)。
+
 更新时间：2026-11-12T20:13:45.299066+08:00。状态：complete。
 
 统一评估 Moon_2／4／9 的1597／1320／2087张原图，共5004张；1024／768等权水平翻转TTA，共4视图。S按场景mIoU的1∶1∶2权重计算，和全部像素合并后的pooled mIoU分开报告。

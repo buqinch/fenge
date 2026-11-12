@@ -11,32 +11,32 @@ ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/
 <!-- c6000-comparison:end -->
 
 <!-- current-best-tests-20261112:start -->
-### 各组最新已完成测试
+### 已完成结果汇总
 
-捕获时间：**2026-11-12T22:05:33+08:00**。所有完整测试均为5004张、1024／768等权翻转4视图。表中轮次是已测权重轮次，可能落后于当前验证best。
+快照时间：**2026-11-12T23:27:53+08:00**。四组CNN均已完成30轮。四组最终验证best均已完成5004张测试。ViT各组仍在训练，阶段测试完成不代表训练结束。
 
-|模型|检查点轮次|Moon_2|Moon_4|Moon_9|加权 S|
+完整测试5004张，统一1024／768等权翻转4视图。下表轮次为实际已测权重轮次。
+
+|模型|已测权重轮次|Moon_2|Moon_4|Moon_9|加权 S|
 |---|---:|---:|---:|---:|---:|
 |CNN 对照|28|93.6695%|93.5634%|86.3247%|89.9706%|
 |CNN 亲和监督|28|93.7410%|93.4841%|85.8571%|89.7348%|
-|CNN 周围关系|16|94.2586%|94.0510%|85.2697%|89.7123%|
-|CNN 细节注入|15|94.3246%|93.9452%|85.5919%|89.8634%|
+|CNN 周围关系|30|94.0234%|93.9374%|85.7678%|89.8741%|
+|CNN 细节注入|30|94.2704%|94.2583%|85.8402%|90.0523%|
 |ViT A 融合|5|92.2278%|92.1160%|86.1820%|89.1769%|
-|ViT B Adapter|3|91.5117%|91.2714%|84.5091%|87.9503%|
-|ViT C 单卡遮挡|3|92.0118%|89.9628%|84.2491%|87.6182%|
+|ViT B Adapter|5|92.1541%|92.1666%|85.6290%|88.8947%|
+|ViT C 单卡遮挡|5|92.4636%|92.8613%|86.5011%|89.5818%|
 
-亲和监督与对照均已完成30轮，best均为第28轮：S分别为89.7348%和89.9706%，亲和低0.2357个百分点。Moon_9坑IoU下降2.2695个百分点，是主要损失。对照与此前细节第11轮89.9852%仅差0.0146个百分点，尚不能据此认定细节模块具有稳定优势。
+亲和监督相对对照的S变化为-0.2357个百分点。当前已观察到的CNN最高S为CNN 细节注入第30轮的90.0523%；训练best始终按验证集选择，不据测试结果回选轮次。
 
-CNN细节与周围关系仍在训练；最新验证best尚无对应完整测试，不用历史测试值冒充新best成绩。ViT A第5轮S为89.1769%；B／C单卡此处列出的完整测试仍是第3轮，C该检查点尚未启用遮挡。四卡C尚无完整测试；不同进度不能作为最终架构优劣结论。
+ViT A／B／C单卡已测权重轮次分别为5／5／5，S分别为89.1769%／88.8947%／89.5818%；C比B高0.6871个百分点。C的遮挡从第4轮已实际启用，这仍是单次种子、训练早期结果。A与B／C训练主机和GPU不同，不能把分差全部归因为结构。
 
-测试任务快照：ViT B Adapter epoch_005：running
-
-[最新效果报告](fenge_vit/result/progress_analysis/latest_report_zh.md) · [此前固定检查点对照](result/cnn_vit_best_tests_20261112/report_zh.md) · [亲和／对照测试记录](result/completed_cnn_gpu4_20261112/summary.json)
+[最新完整报告](fenge_vit/result/progress_analysis/latest_report_zh.md) · [全部已完成测试与来源](fenge_vit/result/progress_analysis/latest_status.json) · [逐类别测试指标](fenge_vit/result/progress_analysis/completed_test_classes.csv)
 <!-- current-best-tests-20261112:end -->
 
 ### 细节注入第 11 轮：完整 Moon_2／4／9 测试
 
-**`dual_region_priors_detail_8000_1024` 第 11 轮**已完成全部 5004 张测试，使用 **1024／768 等权水平翻转 TTA（4 视图）**，类别分数系数均为 1。加权 **S＝89.98520096%**，比下方此前基线的 89.82321883% 高 **0.1620 个百分点**。这是当前已观察到的更高测试 S，训练仍继续，best 仍仅由固定验证集选取。
+**`dual_region_priors_detail_8000_1024` 第 11 轮**已完成全部 5004 张测试，使用 **1024／768 等权水平翻转 TTA（4 视图）**，类别分数系数均为 1。加权 **S＝89.98520096%**，比下方此前基线的 89.82321883% 高 **0.1620 个百分点**。这是此前已完成测试的历史检查点；本组现已训练完30轮，最终best及最新测试见上方汇总。
 
 |指标|固定验证1601张（1024无TTA）|Moon_2（1597张）|Moon_4（1320张）|Moon_9（2087张）|
 |---|---:|---:|---:|---:|
@@ -63,7 +63,7 @@ python code/evaluate.py --config config/evaluate_detail_epoch011_multiscale.json
 
 ### 此前完成的 4000＋2000＋2000 基线
 
-此前完成的8000张训练实验 `dual_region_random80_4000_2000_2000_1024` 在第27轮早停，验证选出的best是第24轮；其1024／768等权水平翻转完整测试 **S=89.82321883%**，高于下文第29轮旧基线的89.73656103%，差值为 **0.0867个百分点**。当前先验CNN和ViT的进展及细节第11轮测试见上文，验证分数不能替代测试S。
+此前完成的8000张训练实验 `dual_region_random80_4000_2000_2000_1024` 在第27轮早停，验证选出的best是第24轮；其1024／768等权水平翻转完整测试 **S=89.82321883%**，高于下文第29轮旧基线的89.73656103%，差值为 **0.0867个百分点**。先验CNN与ViT的最新结果见上文，验证分数不能替代测试S。
 
 |指标|固定验证1601张|Moon_2（1597张）|Moon_4（1320张）|Moon_9（2087张）|
 |---|---:|---:|---:|---:|
@@ -76,26 +76,27 @@ python code/evaluate.py --config config/evaluate_detail_epoch011_multiscale.json
 
 比赛分数使用 `weighted_score=(Moon_2+Moon_4+2×Moon_9)/4`。本次完整精度为 `0.898232188286191`；若先将各场景mIoU四舍五入到8位再计算，则为 `0.8982321875`。`miou=0.8971735272492559` 是合并像素混淆矩阵后的指标，二者的统计口径不同。
 
-[此前基线完整测试指标](result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json) · [对应验证记录](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_024.json) · [当前七组实验的阶段分析](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/report_zh.md)
+[此前基线完整测试指标](result/dual_region_random80_4000_2000_2000_1024/test_multiscale_hflip_1024_768_metrics.json) · [对应验证记录](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_024.json) · [早期七组实验的阶段分析](https://github.com/buqinch/fenge/blob/main/fenge_vit/result/progress_analysis/report_zh.md)
 
-当前保留CNN的control／affinity以及103上的context／detail；两组几何实验已按用户要求停止并清理，依据保存在 [清理记录](result/prior_ablation/pruned_runs_20261112.json)。ViT A在103卡2，B／C在本机卡2／4，均batch8、累积1；每5轮由验证best触发完整Moon_2/4/9测试（已启动的第3轮测试保留，非5倍数终止轮补测），使用两台主机各自的空闲卡3。
+CNN的control／affinity及103上的context／detail均已完成训练；两组几何实验已按用户要求停止并清理，依据保存在 [清理记录](result/prior_ablation/pruned_runs_20261112.json)。ViT A在103卡2，B／C在本机卡2／4，均batch8、累积1；每5轮由验证best触发完整Moon_2/4/9测试（已启动的第3轮测试保留，非5倍数终止轮补测），使用两台主机各自的空闲卡3。CNN最终权重的补测按请求在本机卡4串行执行。
 
-### 在训方案的最新验证进度
+### 各实验的最新验证进度
 
-截至 **2026-11-12T22:05:33+08:00**，固定1601张验证集、1024单视图、无TTA；与测试S分开报告。
+截至 **2026-11-12T23:27:53+08:00**，固定1601张验证、1024无TTA。
 
-|实验|已完成轮数|最佳轮次|最佳验证 mIoU|快照状态|
-|---|---:|---:|---:|---|
-|CNN 对照|30|28|97.4096%|已完成|
-|CNN 亲和监督|30|28|97.4095%|已完成|
-|CNN 周围关系|27|27|98.5521%|训练中|
-|CNN 细节注入|25|25|98.7033%|训练中|
-|ViT A 融合|6|6|96.2013%|训练中|
-|ViT B Adapter|5|5|95.8007%|训练中|
-|ViT C 单卡遮挡|4|4|95.7868%|训练中|
-|ViT C 四卡遮挡|3|3|95.5677%|训练中|
+|实验|训练张数|已完成轮数|最佳轮次|最佳验证 mIoU|状态|
+|---|---:|---:|---:|---:|---|
+|CNN 对照|8000|30|28|97.4096%|训练完成|
+|CNN 亲和监督|8000|30|28|97.4095%|训练完成|
+|CNN 周围关系|8000|30|30|98.5792%|训练完成|
+|CNN 细节注入|8000|30|30|98.7520%|训练完成|
+|ViT A 融合|8000|7|7|96.2807%|训练中|
+|ViT B Adapter|8000|6|6|95.8064%|训练中|
+|ViT C 单卡遮挡|8000|5|5|95.9906%|训练中|
+|ViT C 四卡／8000张|8000|5|5|96.0709%|训练中|
+|ViT C 四卡／6000张|6000|1|1|93.0960%|训练中|
 
-亲和和对照已跑满30轮，其余组继续训练。C单卡从第4轮起执行遮挡；四卡C当前已完成的前三轮仍处于冻结阶段。每5轮测试当时验证best，测试不参与选轮。完整逐类别结果见 [最新效果报告](fenge_vit/result/progress_analysis/latest_report_zh.md)。
+四组CNN训练已结束；ViT各组继续训练，每5轮测试验证best。完整统计见 [最新效果报告](fenge_vit/result/progress_analysis/latest_report_zh.md)。
 
 ## 上一阶段第29轮基线的完整测试与TTA对照（2026-11-12）
 
@@ -314,15 +315,15 @@ python code/monitor_experiments.py \
   --config config/early_stopping_random80_4000_2000_2000.json
 ```
 
-上述两个入口已作为独立后台进程运行，查看现有日志即可，无需重复启动。结果目录为 [dual_region_random80_4000_2000_2000_1024](result/dual_region_random80_4000_2000_2000_1024/)，启动检查见 [startup_check.json](result/random80_4000_2000_2000_monitor/startup_check.json)。[早停配置](config/early_stopping_random80_4000_2000_2000.json) 从第 4 轮建立参考值，连续 5 轮未累计提高 **0.05 个百分点**即停止，任意严格验证新高仍保存 `best.pt`。监控读取已完成轮次 JSON，结束后自动以最佳验证检查点和同一四视图 TTA 完整评估 Moon_2/4/9；最终 S 按 **1:1:2** 加权，保存在 `weighted_score`。本次不调用依赖旧 9401 张设置的分析脚本；新成绩以实际生成的测试 JSON 为准。
+上述训练与监控已完成，保留命令供复现，无需重复启动。结果目录为 [dual_region_random80_4000_2000_2000_1024](result/dual_region_random80_4000_2000_2000_1024/)，启动检查见 [startup_check.json](result/random80_4000_2000_2000_monitor/startup_check.json)。[早停配置](config/early_stopping_random80_4000_2000_2000.json) 从第 4 轮建立参考值，连续 5 轮未累计提高 **0.05 个百分点**即停止，任意严格验证新高仍保存 `best.pt`。监控读取已完成轮次 JSON，结束后自动以最佳验证检查点和同一四视图 TTA 完整评估 Moon_2/4/9；最终 S 按 **1:1:2** 加权，保存在 `weighted_score`。本次不调用依赖旧 9401 张设置的分析脚本；新成绩以实际生成的测试 JSON 为准。
 
-本次配方参考已查看的测试成绩，记录于 [方案来源](result/selections/random80_4000_2000_2000_recipe_20261112.json)；新实验每轮检查点仍只按固定验证集 mIoU 选择。新训练尚未完成，不将旧模型的 89.7366% 记为本次成绩。
+本次配方参考已查看的测试成绩，记录于 [方案来源](result/selections/random80_4000_2000_2000_recipe_20261112.json)；新实验每轮检查点仍只按固定验证集 mIoU 选择。本次训练已在第27轮早停，验证best为第24轮，完整测试S为89.8232%。
 
-启动核验已完成首轮的全部 1000 次训练更新和 1601 张四视图验证，mIoU 为 **92.2085%**，`best.pt`／`last.pt` 已保存，监控成功读取首轮完整指标并进入后续训练。见 [首轮验证 JSON](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_001.json) 与 [训练日志](result/dual_region_random80_4000_2000_2000_1024/train.log)；首轮数值仅证明本次训练和评估流程已实际执行，最终结果待训练结束。
+启动核验已完成首轮的全部 1000 次训练更新和 1601 张四视图验证，mIoU 为 **92.2085%**，`best.pt`／`last.pt` 已保存，监控成功读取首轮完整指标并进入后续训练。见 [首轮验证 JSON](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_001.json) 与 [训练日志](result/dual_region_random80_4000_2000_2000_1024/train.log)；这里的首轮数值仅记录启动阶段；最终结果见上方第24轮基线汇总。
 
-**进度快照（2026-11-12 13:51，北京时间）**：已完成第 **16** 轮，当前最佳为第 **16** 轮，固定 1601 张验证集、1024／768 等权四视图 mIoU **97.3562%**；训练继续运行。见 [第 16 轮验证](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_016.json)、[完整历史](result/dual_region_random80_4000_2000_2000_1024/history.jsonl) 与 [状态](result/dual_region_random80_4000_2000_2000_1024/summary.json)。
+**历史进度快照（2026-11-12 13:51，北京时间）**：已完成第 **16** 轮，当前最佳为第 **16** 轮，固定 1601 张验证集、1024／768 等权四视图 mIoU **97.3562%**；当时训练仍在继续，现已结束。见 [第 16 轮验证](result/dual_region_random80_4000_2000_2000_1024/validation_epoch_016.json)、[完整历史](result/dual_region_random80_4000_2000_2000_1024/history.jsonl) 与 [状态](result/dual_region_random80_4000_2000_2000_1024/summary.json)。
 
-**第 5 轮阶段评测（2026-11-12）**：用户请求时最佳检查点为第 5 轮，自定义验证 mIoU **96.1939%**。已固定保存 `best_epoch_005_eval.pt`，在物理 GPU 4 完整测试 5004 张；两侧均采用 1024／768 等权四视图，类别分数系数均为 1，原训练继续运行。
+**第 5 轮阶段评测（2026-11-12）**：用户请求时最佳检查点为第 5 轮，自定义验证 mIoU **96.1939%**。已固定保存 `best_epoch_005_eval.pt`，在物理 GPU 4 完整测试 5004 张；两侧均采用 1024／768 等权四视图，类别分数系数均为 1，当时原训练继续运行。
 
 | 场景／指标 | 旧基线，第 29 轮 | 本次，第 5 轮 | 本次减旧（百分点） |
 |---|---:|---:|---:|
@@ -342,7 +343,7 @@ python code/monitor_experiments.py \
 | Moon_9 mIoU（2087 张） | 85.8876% |
 | 加权 S（1:1:2） | **89.7321%** |
 
-原始 [第 14 轮测试 JSON](result/dual_region_random80_4000_2000_2000_1024/test_eval_20261112_124022_metrics.json) 包含五类 IoU、精确率、召回率和混淆矩阵。此 S 比旧基线第 29 轮四视图的 89.7366% 低约 0.0045 个百分点，尚未刷新该已观察测试最高分；也不能把第 14 轮测试成绩当作当前第 16 轮权重的测试成绩。最终选轮仍按固定验证集进行。
+原始 [第 14 轮测试 JSON](result/dual_region_random80_4000_2000_2000_1024/test_eval_20261112_124022_metrics.json) 包含五类 IoU、精确率、召回率和混淆矩阵。此 S 比旧基线第 29 轮四视图的 89.7366% 低约 0.0045 个百分点，尚未刷新该已观察测试最高分；也不能把第14轮测试成绩当作其他轮次权重的测试成绩。最终选轮仍按固定验证集进行。
 
 复现上述第 5 轮提前测试（完整 Moon_2/4/9，物理 GPU 4，四视图）：
 
@@ -376,7 +377,7 @@ CUDA_VISIBLE_DEVICES=4 python code/evaluate.py \
 
 实验计划及状态位于 [prior_ablation](result/prior_ablation/)。冻结计划中的源码／配置哈希记录的是本轮启动版本；此次几何清理修订另见 [清理与兼容验证](result/prior_ablation/geometry_cleanup_20261112.json)，不会改写已运行来源。新实验直接使用现存训练 JSON 和独立输出目录；旧冻结计划用于当前队列观察，不能视为新源码的启动计划。每组日志、逐轮指标和权重保存在 `result/dual_region_priors_<实验名>_8000_1024/`。队列入口为 `python code/prior_ablation.py --plan result/prior_ablation/plan.json`；已经启动的队列不需要再次运行。单组可直接传上述 JSON 给 `code/train.py`。所有开关默认关闭，旧检查点可继续严格加载；CPU 统计、坐标对齐、损失与精确续训检查，以及真实 batch 4／1024／全部骨干解冻反向更新和四视图推理检查均已通过，见 [验证记录](result/prior_ablation/verification_runtime.json)。这些运行检查不代表已取得分割提升，结果以完整训练后的对照报告为准。
 
-本轮于 **2026-11-12 13:42（北京时间）**开始。control 和 affinity 均已正常完成 30 轮，并完成各自第 28 轮 best 的测试；context／detail 在 Server103 的 GPU 0／1 继续运行。已淘汰的两个几何组不再提供启动入口。共同初始化核验见 [启动记录](result/prior_ablation/startup_check.json)；逐轮结果见 [对照报告](result/prior_ablation/report_zh.md)。
+本轮于 **2026-11-12 13:42（北京时间）**开始。control 和 affinity 均已正常完成 30 轮，并完成各自第 28 轮 best 的测试；context／detail 也已在 Server103 完成30轮训练。已淘汰的两个几何组不再提供启动入口。共同初始化核验见 [启动记录](result/prior_ablation/startup_check.json)；逐轮结果见 [对照报告](result/prior_ablation/report_zh.md)。
 
 ### 亮度条件诊断：固定第 29 轮 B0
 
@@ -472,7 +473,7 @@ CPU 损失与梯度验证使用现有入口 `python code/verify.py --hard-pixel-
 
 ### Server103 并行实验与结果存放
 
-`context` 和 `detail` 在 `lzc@10.134.171.103` 的物理 GPU 0／1 上运行，使用现有 **`/home/lzc/miniconda3/envs/lusnar/bin/python`**。固定训练 4000 原图＋2000 坑增强＋2000 山岩增强、1601 张验证，原始 DINOv3／MobileNet 初始化。按用户后续要求，两组以 **batch 8、累积 1** 重新开始，启用激活重计算；此前 batch 4 的尝试尚未完成第 1 轮，已停止并归档。原始数据清单与样本数保持不变。
+`context` 和 `detail` 已在 `lzc@10.134.171.103` 的物理 GPU 0／1 完成30轮训练，使用现有 **`/home/lzc/miniconda3/envs/lusnar/bin/python`**。固定训练 4000 原图＋2000 坑增强＋2000 山岩增强、1601 张验证，原始 DINOv3／MobileNet 初始化。按用户后续要求，两组以 **batch 8、累积 1** 重新开始，启用激活重计算；此前 batch 4 的尝试尚未完成第 1 轮，已停止并归档。原始数据清单与样本数保持不变。
 
 当前服务器保留主代码、原数据清单及文字结果；103 在相同项目路径 `/home/lzc/workspace/fenge` 使用同步的代码副本，直接读取共享 NAS，不复制训练图片。103 的 NAS 挂载通过 [run_on_103.sh](code/run_on_103.sh) 在进程内映射，使 `/media/nas` 和 `/home/nas` 保留原清单所需的规范路径，不改宿主机挂载。所有远端训练、续训和评估应通过这个入口运行：
 
@@ -481,7 +482,7 @@ cd /home/lzc/workspace/fenge
 bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python code/evaluate.py   --checkpoint result/dual_region_priors_context_8000_1024/best.pt --split val
 ```
 
-任务已经启动，不要重复启动训练。103 队列只管理 `context detail`；本机队列当前只管理 `control affinity`，不会操作另一台机器的 PID。两边都使用完整验证 JSON 的五轮／0.05 个百分点早停规则，保留的四组仍汇总于 [prior_ablation/report_zh.md](result/prior_ablation/report_zh.md)。
+这两条CNN队列的训练任务现已全部完成，无需重新启动。原103队列只管理 `context detail`；本机队列只管理 `control affinity`，不会操作另一台机器的 PID。两边都使用完整验证 JSON 的五轮／0.05 个百分点早停规则，保留的四组仍汇总于 [prior_ablation/report_zh.md](result/prior_ablation/report_zh.md)。
 
 - **图片结果**：后续 `evaluate.py --save-images --image-output-mode comparison` 默认保存到 NAS `/media/nas/lzc/fenge_result/<实验名>/<评估模式>/<场景>/<样本>/`。每张保存三联图与 IoU；已有历史图库路径保持其原记录。
 - **文字结果**：103 的两组 `result/dual_region_priors_*_8000_1024/` 日志、配置、JSON、JSONL、CSV、Markdown 每 60 秒同步到当前服务器同名目录；先核验逐轮记录，再原子发布 summary。同步不包含权重和图片。

@@ -7,8 +7,8 @@
 |---|---|---|---|---|---|---:|---:|---:|---:|
 |control|—|Server70|4×2|False|complete|30|28|97.4096%|—|
 |affinity|control|Server70|4×2|False|complete|30|28|97.4095%|-0.0001|
-|context|control|Server103|8×1|True|running|28|28|98.5644%|+1.1548|
-|detail|control|Server103|8×1|True|running|25|25|98.7033%|+1.2937|
+|context|control|Server103|8×1|True|complete|30|30|98.5792%|+1.1697|
+|detail|control|Server103|8×1|True|complete|30|30|98.7520%|+1.3425|
 
 亲和、中心—周围关系和细节注入分别与单视图control比较；几何一致性与同样两视图真值监督的geometry_control比较。
 最多30轮并使用相同早停规则；若实际更新数不同，不把最佳分差解释为固定训练预算下的纯模块因果收益。单种子结果尚不能证明稳定提升。
@@ -16,5 +16,3 @@
 
 **批大小差异限制：** context、detail 按显式计划使用不同的实际batch/累积组合。即使有效batch同为8，MobileNet BatchNorm的统计和更新次数、worker分配造成的水平翻转、随机监督点与数值轨迹仍可能不同；相对4×2对照的分差不能只归因于新增模块。
 样本顺序hash仍逐轮强制一致；翻转与样本＋翻转hash逐轮核对，只有显式异batch比较允许报告不一致，具体轮次保存在training_stream_audit。
-
-**实验尚未全部结束，表中为阶段性结果，不据此选择最终方案。**
