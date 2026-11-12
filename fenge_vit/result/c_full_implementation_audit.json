@@ -1,0 +1,117 @@
+{
+  "checked_at": "2026-11-12T18:31:38.206245+08:00",
+  "specification_sha256": "cd46393c4aae10877e2f5b0c6cba9719764cb727355639c95458652a27e603eb",
+  "full_model_implemented": true,
+  "corresponding_configuration": "config/c_adapter_masking.json",
+  "core_implementation_changes_required": false,
+  "checks": [
+    {
+      "requirement": "双DINO原始骨干与1024共同输入",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/backbones.py:87",
+        "code/vitseg/model.py:103"
+      ]
+    },
+    {
+      "requirement": "CLS、4个register及RoPE保留",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/backbones.py:104"
+      ]
+    },
+    {
+      "requirement": "四阶段Inject→3层ViT→Extract",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/adapter.py:37",
+        "code/vitseg/backbones.py:112"
+      ]
+    },
+    {
+      "requirement": "ConvNeXt一次执行、1/4细节旁路、三尺度384通道",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/model.py:118",
+        "code/vitseg/adapter.py:27"
+      ]
+    },
+    {
+      "requirement": "6层可变形像素编码、6块掩码解码、32查询",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/decoder.py:85",
+        "code/vitseg/decoder.py:191"
+      ]
+    },
+    {
+      "requirement": "7组Hungarian分类及BCE/Dice监督",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/losses.py:106",
+        "code/vitseg/losses.py:162"
+      ]
+    },
+    {
+      "requirement": "完整图保留监督、同步32像素块10%遮挡、25%更新",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/masking.py:20",
+        "code/train.py:308"
+      ]
+    },
+    {
+      "requirement": "lambda0.5/rho0.2、全隐藏8连通目标仅辅助忽略、未加rho权重分母",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/masking.py:65",
+        "code/vitseg/masking.py:102",
+        "code/train.py:489"
+      ]
+    },
+    {
+      "requirement": "五类证据跨类归一化后NLL",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/model.py:141"
+      ]
+    },
+    {
+      "requirement": "冻结3轮保留Adapter梯度、解冻后启用遮挡",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/backbones.py:118",
+        "code/train.py:452"
+      ]
+    },
+    {
+      "requirement": "六方向混淆、大坑内部及小岩石召回",
+      "implemented": true,
+      "evidence": [
+        "code/vitseg/metrics.py:12",
+        "code/vitseg/diagnostics.py:8"
+      ]
+    }
+  ],
+  "training_completion_distinct_from_implementation": true,
+  "masking_begins_epoch": 4,
+  "not_yet_performed_optional_experiments": [
+    "additional scene/sequence-held-out generalization comparison"
+  ],
+  "four_gpu_training": "being added in independent entry without changing existing active model/train source",
+  "core_source_sha256": {
+    "code/train.py": "94bb978631d61ea77357000787dcdb9767369b80ccaf63f12e209726bda7e0bd",
+    "code/vitseg/__init__.py": "39ac7bbf4636a3a7637a26da818ba5c447617185860319a6b1cdb3f883dd7e84",
+    "code/vitseg/adapter.py": "8b4fb40d17a5f64df23f7e38ddc8a8f9cff104dfeba82551d07a2bf430e62df7",
+    "code/vitseg/backbones.py": "f894b78ebbe564db5d648b5591122e94fe39e656998a31d98c91f0a9aa2c3dde",
+    "code/vitseg/data.py": "d6bf1ab5e74c88f860a917db155253ca7eefef5be0d47d82537a507018bf0d42",
+    "code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "code/vitseg/deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5",
+    "code/vitseg/diagnostics.py": "bce4cf627a5dabcbf9720695a5246f7515ff8c6911e6de8f0435e9416848ff7d",
+    "code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "code/vitseg/masking.py": "166c131cf93b81ae5f1cee7c6c7dd4f126e4b2ea5ac0da082667a5039a619913",
+    "code/vitseg/metrics.py": "582acd2cd0833b2cca0fd79d39744c0d88f827a4b5af5374c783f3ac0d3a196b",
+    "code/vitseg/model.py": "eacd7a9ee96c9ce86519e505e51bd40415edb0b9313392ff23147bf3e72d7722",
+    "code/vitseg/visualization.py": "01539be949ab7e3cf522cf1792ae5930b800109e6f64baee53a025d03995cd4a"
+  }
+}

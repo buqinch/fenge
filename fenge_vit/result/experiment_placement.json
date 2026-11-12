@@ -47,9 +47,38 @@
       "log": "result/c_adapter_masking/train.log",
       "batch_size": 8,
       "accumulation": 1
+    },
+    {
+      "name": "C_103_4GPU",
+      "config": "config/c_adapter_masking_103_4gpu.json",
+      "host": "Server103",
+      "ssh": "fenge103",
+      "physical_gpus": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "working_directory": "/home/lzc/workspace/fenge_vit",
+      "trainer_pids": [
+        355756,
+        355757,
+        355758,
+        355759
+      ],
+      "launcher_pid": 355747,
+      "process_group": 355747,
+      "log": "result/c_adapter_masking_103_4gpu/train.log",
+      "per_rank_batch_size": 2,
+      "accumulation": 1,
+      "world_size": 4,
+      "effective_batch": 8,
+      "initialization": "original_pretrained",
+      "deployment_record": "result/c_full_103_4gpu_deployment.json"
     }
   ],
-  "batch_note": "User explicitly chose all three actual batch8 accumulation1.",
+  "batch_note": "Original A/B/C use actual batch8 accumulation1; new 103 four-GPU C uses per-rank batch2 accumulation1, global8.",
   "storage": {
     "images": "/media/nas/lzc/fenge_result",
     "text": "result on training host and current server",
@@ -125,6 +154,24 @@
     },
     "result_pattern": "result/<run>/periodic_test/epoch_003/test_metrics.json",
     "source_sha256": "6f333448aee30b24d204b2a943db15eb0eea7ad2e98587cf8f7d3046eaf9e275",
-    "runtime_startup_errors": []
+    "runtime_startup_errors": [],
+    "remote103_c_4gpu": {
+      "runs": [
+        "c_adapter_masking_103_4gpu"
+      ],
+      "physical_gpu": 3,
+      "monitor_pid": 356249,
+      "state": "result/periodic_eval_c_103_4gpu/state.json",
+      "shared_gpu_lock_with_a": true
+    }
+  },
+  "source_sha256_equal_scope": "Original single-GPU A/B/C; distributed C adds an independent entry and helper while reusing unchanged model sources.",
+  "remote_text_sync_c_4gpu": {
+    "config": "config/remote103_c_4gpu.json",
+    "interval_seconds": 60,
+    "pid": 1855904,
+    "status": "synced",
+    "state": "result/remote103_c_4gpu/sync_state.json",
+    "local_mirror": "result/c_adapter_masking_103_4gpu"
   }
 }

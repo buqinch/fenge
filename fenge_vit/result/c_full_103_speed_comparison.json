@@ -1,0 +1,93 @@
+{
+  "schema": "vit_c103_training_speed_comparison_v1",
+  "checked_at": "2026-11-12T10:48:23.789104+00:00",
+  "global_effective_batch": 8,
+  "single_gpu_physical": [
+    4
+  ],
+  "four_gpu_physical": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "input_size": 1024,
+  "amp": "bf16",
+  "gradient_checkpointing": true,
+  "initial_model_sha256": "d63b934eff8e1d0cebbddaf9b6a9735608218521cfcc90a72bd353be552fc1c3",
+  "phases": [
+    {
+      "phase": "frozen_full",
+      "single_seconds": 4.113799436498994,
+      "four_seconds": 2.0932077514999037,
+      "speedup": 1.9653087150815391,
+      "four_peak_allocated_gib_per_rank": {
+        "0": 2.657261371612549,
+        "1": 2.657261371612549,
+        "2": 2.657261371612549,
+        "3": 2.657261371612549
+      },
+      "four_peak_reserved_gib_per_rank": {
+        "0": 3.060546875,
+        "1": 3.060546875,
+        "2": 3.060546875,
+        "3": 3.060546875
+      }
+    },
+    {
+      "phase": "joint_full",
+      "single_seconds": 4.412307896499442,
+      "four_seconds": 2.2141882400001123,
+      "speedup": 1.992742900892301,
+      "four_peak_allocated_gib_per_rank": {
+        "0": 3.2216334342956543,
+        "1": 3.2216334342956543,
+        "2": 3.2216334342956543,
+        "3": 3.2216334342956543
+      },
+      "four_peak_reserved_gib_per_rank": {
+        "0": 3.763671875,
+        "1": 3.763671875,
+        "2": 3.76171875,
+        "3": 3.76171875
+      }
+    },
+    {
+      "phase": "joint_full_and_masked",
+      "single_seconds": 8.239863026000421,
+      "four_seconds": 4.155010848000529,
+      "speedup": 1.9831146842770822,
+      "four_peak_allocated_gib_per_rank": {
+        "0": 3.43454647064209,
+        "1": 3.43454647064209,
+        "2": 3.43454647064209,
+        "3": 3.43454647064209
+      },
+      "four_peak_reserved_gib_per_rank": {
+        "0": 3.7890625,
+        "1": 3.791015625,
+        "2": 3.7890625,
+        "3": 3.791015625
+      }
+    }
+  ],
+  "estimated_joint_update_25_percent_masking": {
+    "single_seconds": 5.369196678874687,
+    "four_seconds": 2.6993938920002165,
+    "speedup": 1.989037870607383
+  },
+  "estimated_compute_minutes_per_8000_image_epoch": {
+    "frozen_four": 34.88679585833173,
+    "joint_four": 44.98989820000361
+  },
+  "limitations": [
+    "One warmup and two timed updates per phase on the same eight real images.",
+    "Timing includes synchronized optimizer update and CPU masking support; excludes data loading, validation, checkpoint writes.",
+    "Actual full-epoch time may differ; PCIe communication and CPU work prevent ideal fourfold speedup.",
+    "Single/four-GPU stochastic optimization trajectories need not be bitwise identical."
+  ],
+  "sources": [
+    "result/c_full_103_speed_single.json",
+    "result/c_full_103_speed_four.json"
+  ]
+}

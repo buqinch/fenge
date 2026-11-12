@@ -192,6 +192,44 @@ python code/benchmark_memory.py --variant B --device cuda:2 \
 ```
 
 
+## 103 上完整 C 模型的四卡训练
+
+附件中的完整网络对应 C 组：DINOv3 ViT-S/16＋ConvNeXt-Tiny、四阶段双向 Adapter、完整 Mask2Former，以及解冻后启用的同步块遮挡。C 表示完整方案，训练是否完成需查看各自 `summary.json`；前三轮的遮挡次数为零属于既定冻结训练阶段。
+
+新增独立实验 [c_adapter_masking_103_4gpu.json](config/c_adapter_masking_103_4gpu.json)，从两份原始 DINOv3 预训练权重开始，不继承本机 C 的训练检查点。使用103物理 **GPU 4／5／6／7**，每卡2张、累积1，**全局有效 batch＝8**。相同8000张训练图每轮在四卡各分配2000张，不补齐、不重复；每轮仍为1000次优化器更新。固定1601张验证按401／400／400／400分配，先合并整数混淆矩阵再计算mIoU。
+
+本实验已于 **2026-11-12 18:49（北京时间）** 启动，首批训练日志已确认损失有限。原始完整C初始化模型SHA为`d63b934eff8e1d0cebbddaf9b6a9735608218521cfcc90a72bd353be552fc1c3`。实时进度见[同步训练日志](result/c_adapter_masking_103_4gpu/train.log)；新实验尚未产生完整验证成绩。
+
+独立入口 `code/train_distributed.py` 复用原网络和损失；原单卡入口保持原版本。它采用同步数据并行，在完整图与可选遮挡图依次反向后，以25MiB梯度桶进行NCCL归约。分类损失按全局目标权重之和、BCE／Dice按全局匹配掩码数归约；遮挡NLL按所有卡和累积微批的有效像素数归约。冻结／解冻切换不丢失Adapter梯度，每次保存检查点前核对所有卡的模型SHA一致。
+
+在103运行（正式任务已启动时不要重复执行）：
+
+```bash
+cd /home/lzc/workspace/fenge_vit
+CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=2 \
+  bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python \
+  -m torch.distributed.run --standalone --nnodes=1 --nproc_per_node=4 \
+  code/train_distributed.py --config config/c_adapter_masking_103_4gpu.json
+```
+
+断点续训使用同一命令追加 `--resume result/c_adapter_masking_103_4gpu/last.pt`。检查点保存各卡随机数和DataLoader状态，要求相同卡数与训练配置；rank 0统一写出best／last、history和summary。推理仍使用原 `code/evaluate.py`，不需要四张卡，也不需要去掉权重键名中的包装前缀。GPU多卡运行与单卡不承诺逐位相同的优化轨迹。
+
+本机通过 [remote103_c_4gpu.json](config/remote103_c_4gpu.json) 每60秒同步该实验的文字结果到 `result/c_adapter_masking_103_4gpu/`；权重留在103，图片仍写NAS。每三轮自动测试由 [periodic_eval_c_103_4gpu.json](config/periodic_eval_c_103_4gpu.json) 管理，与A组共享103的空闲GPU3及同一显卡锁，评估完整Moon_2／4／9，使用1024／768等权翻转TTA；测试不参与best选择。部署状态及进程见 `result/c_full_103_4gpu_deployment.json`。
+
+四卡版的验证包括不均匀GT类别数量下的全局损失与梯度、空rank、1601张无重复验证、随机状态恢复，以及真实1024冻结→解冻→遮挡训练。运行检查用少量样本，明确标记partial，不属于新的分割成绩。
+
+[真实四卡与续训检查](result/verification_distributed_runtime.json)中，数据顺序、翻转、遮挡、各卡随机状态及调度器恢复一致，原单卡评估入口严格重载后的混淆矩阵也与四卡验证一致。独立GPU重跑的参数不是逐位相同（最大绝对差约`2.79e-4`，差异在中断前已经出现）；因此这里保证保存并恢复采样和随机状态，不承诺GPU计算逐位复现。
+
+103实测同一完整C模型、1024输入、BF16、梯度检查点、总batch8的优化器更新耗时如下。每阶段预热一次、测量两次，包含梯度通信和参数更新；不含读取数据、验证和保存检查点。四卡每卡2张，单卡8张，累积均为1。
+
+|阶段|单张3090|四张3090|加速比|
+|---|---:|---:|---:|
+|冻结骨干、完整图监督|4.114秒|2.093秒|1.97倍|
+|联合训练、完整图监督|4.412秒|2.214秒|1.99倍|
+|联合训练、完整图＋遮挡图监督|8.240秒|4.155秒|1.98倍|
+
+正式训练只在25%的联合更新中启用遮挡。按本次短测推算，四卡每轮纯训练计算约35分钟（冻结阶段）或45分钟（联合阶段），完整轮次还需加上数据读取、验证与保存时间。各卡峰值PyTorch缓存预留约3.79GiB，不包含NCCL和CUDA上下文。完整原始记录见[单／四卡测速对照](result/c_full_103_speed_comparison.json)。
+
 ## 每三轮的 Moon_2／4／9 测试
 
 A／B／C 每完成第3、6、9…轮完整验证，独立监控就固定该轮结束时由验证集选出的最佳权重，在完整5004张 Moon_2／4／9 上评估。固定使用1024＋768等权水平翻转TTA（4视图），测试batch4，输出逐场景和逐类别指标，以及1:1:2加权分数。测试成绩不参与训练的best选择或早停。

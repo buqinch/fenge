@@ -1,0 +1,125 @@
+{
+  "status": "running",
+  "training_started": true,
+  "updated_at": "2026-11-12T10:51:54.682248+00:00",
+  "host": "Server103",
+  "ssh": "fenge103",
+  "project": "/home/lzc/workspace/fenge_vit",
+  "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+  "run": "c_adapter_masking_103_4gpu",
+  "training_config": "config/c_adapter_masking_103_4gpu.json",
+  "output": "result/c_adapter_masking_103_4gpu",
+  "initialization": "original_pretrained",
+  "trained_checkpoint_loaded": false,
+  "model": "Full C: DINOv3 ViT-S/16 + ConvNeXt-Tiny + four bidirectional adapters + Mask2Former + masked semantic auxiliary supervision",
+  "physical_gpus": [
+    4,
+    5,
+    6,
+    7
+  ],
+  "world_size": 4,
+  "batch_size_per_rank": 2,
+  "accumulation": 1,
+  "effective_global_batch": 8,
+  "training_images": 8000,
+  "validation_images": 1601,
+  "validation_shard_counts": [
+    401,
+    400,
+    400,
+    400
+  ],
+  "maximum_epochs": 30,
+  "freeze_epochs": 3,
+  "masking_begins_epoch": 4,
+  "early_stopping": {
+    "patience": 5,
+    "min_delta": 0.0005,
+    "start_epoch": 4
+  },
+  "periodic_test": {
+    "config": "config/periodic_eval_c_103_4gpu.json",
+    "physical_gpu": 3,
+    "every_epochs": 3,
+    "tta": "1024/768 equal hflip",
+    "shared_gpu_lock_with_a": true,
+    "test_images": 5004,
+    "monitor_pid": 356249,
+    "launcher_pid": 356246,
+    "state": "result/periodic_eval_c_103_4gpu/state.json",
+    "startup_errors": {}
+  },
+  "text_sync": {
+    "config": "config/remote103_c_4gpu.json",
+    "interval_seconds": 60,
+    "pid": 1855904,
+    "status": "synced",
+    "state": "result/remote103_c_4gpu/sync_state.json",
+    "local_mirror": "result/c_adapter_masking_103_4gpu"
+  },
+  "original_single_gpu_jobs_restarted": false,
+  "architecture_audit": "result/c_full_implementation_audit.json",
+  "single_gpu_speed_reference": "result/c_full_103_speed_single.json",
+  "source_sha256": {
+    "code/train_distributed.py": "f61d391fb436322aa2d4ad9c5f9500baca3cfc9b20bedd5a1f253c83e37272c5",
+    "code/distributed_training.py": "fe3d51b87898934a46fc1d7c5970e93e58f4d158f1ff919dac2f635423a53155",
+    "code/train.py": "94bb978631d61ea77357000787dcdb9767369b80ccaf63f12e209726bda7e0bd",
+    "code/vitseg/__init__.py": "39ac7bbf4636a3a7637a26da818ba5c447617185860319a6b1cdb3f883dd7e84",
+    "code/vitseg/adapter.py": "8b4fb40d17a5f64df23f7e38ddc8a8f9cff104dfeba82551d07a2bf430e62df7",
+    "code/vitseg/backbones.py": "f894b78ebbe564db5d648b5591122e94fe39e656998a31d98c91f0a9aa2c3dde",
+    "code/vitseg/data.py": "d6bf1ab5e74c88f860a917db155253ca7eefef5be0d47d82537a507018bf0d42",
+    "code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "code/vitseg/deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5",
+    "code/vitseg/diagnostics.py": "bce4cf627a5dabcbf9720695a5246f7515ff8c6911e6de8f0435e9416848ff7d",
+    "code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "code/vitseg/masking.py": "166c131cf93b81ae5f1cee7c6c7dd4f126e4b2ea5ac0da082667a5039a619913",
+    "code/vitseg/metrics.py": "582acd2cd0833b2cca0fd79d39744c0d88f827a4b5af5374c783f3ac0d3a196b",
+    "code/vitseg/model.py": "eacd7a9ee96c9ce86519e505e51bd40415edb0b9313392ff23147bf3e72d7722",
+    "code/vitseg/visualization.py": "01539be949ab7e3cf522cf1792ae5930b800109e6f64baee53a025d03995cd4a"
+  },
+  "launched_at": "2026-11-12T10:49:24.875586+00:00",
+  "launcher_pid": 355747,
+  "process_group": 355747,
+  "trainer_processes": [
+    {
+      "pid": 355756,
+      "rank": 0,
+      "local_rank": 0,
+      "world_size": 4,
+      "visible_devices": "4,5,6,7"
+    },
+    {
+      "pid": 355757,
+      "rank": 1,
+      "local_rank": 1,
+      "world_size": 4,
+      "visible_devices": "4,5,6,7"
+    },
+    {
+      "pid": 355758,
+      "rank": 2,
+      "local_rank": 2,
+      "world_size": 4,
+      "visible_devices": "4,5,6,7"
+    },
+    {
+      "pid": 355759,
+      "rank": 3,
+      "local_rank": 3,
+      "world_size": 4,
+      "visible_devices": "4,5,6,7"
+    }
+  ],
+  "initial_model_sha256": "d63b934eff8e1d0cebbddaf9b6a9735608218521cfcc90a72bd353be552fc1c3",
+  "startup_check": "result/c_adapter_masking_103_4gpu/startup_check.json",
+  "training_log": "result/c_adapter_masking_103_4gpu/train.log",
+  "source_hashes_verified": true,
+  "verification": {
+    "cpu": "result/verification_distributed_cpu.json",
+    "gpu_and_resume": "result/verification_distributed_runtime.json",
+    "status": "passed_with_gpu_nondeterminism_noted"
+  },
+  "speed_comparison": "result/c_full_103_speed_comparison.json",
+  "initial_completed_epochs": 0
+}

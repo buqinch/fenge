@@ -1,0 +1,340 @@
+{
+  "status": "passed_with_gpu_nondeterminism_noted",
+  "scope": "4 GPU complete C actual 1024 freeze-to-joint and masked update; independent interrupted/resume check, partial 8 train / 5 val",
+  "world_size": 4,
+  "per_rank_batch_size": 2,
+  "global_batch_size": 8,
+  "workers_per_rank": 1,
+  "loader_start_method": "spawn",
+  "epochs": 2,
+  "checkpoint_format": "lusnar_vit_checkpoint_v1",
+  "checkpoint_has_no_ddp_prefix": true,
+  "rank_states_count": 4,
+  "rank_rng_and_loader_states_equal_reference": true,
+  "scheduler_equal": true,
+  "global_updates": [
+    2,
+    2
+  ],
+  "data_hashes_equal": [
+    true,
+    true
+  ],
+  "mask_hashes_equal": [
+    true,
+    true
+  ],
+  "frozen_per_epoch": [
+    true,
+    false
+  ],
+  "masked_updates_per_epoch": [
+    0,
+    1
+  ],
+  "parameter_agreement_each_epoch": [
+    true,
+    true
+  ],
+  "checkpoint_parameter_agreement": true,
+  "model_bitwise_equal": false,
+  "max_model_absolute_difference": 0.0002788687124848366,
+  "largest_parameter_differences": {
+    "decoder.pixel_decoder.layers.5.ffn.2.weight": 0.0002788687124848366,
+    "decoder.pixel_decoder.layers.2.attention.value_proj.weight": 0.0002642301842570305,
+    "decoder.layers.1.ffn.2.weight": 0.0002523884177207947,
+    "decoder.pixel_decoder.layers.4.ffn.0.weight": 0.00024995580315589905,
+    "decoder.layers.0.ffn.0.weight": 0.00022534653544425964,
+    "decoder.pixel_decoder.layers.4.attention.sampling_offsets.weight": 0.00022081405040808022,
+    "decoder.layers.1.self_attention.out_proj.weight": 0.00022027641534805298,
+    "decoder.layers.3.cross_attention.in_proj_weight": 0.00022008642554283142,
+    "decoder.layers.1.ffn.0.weight": 0.000210639089345932,
+    "decoder.layers.0.self_attention.in_proj_bias": 0.00020893789769615978
+  },
+  "validation_confusion_equal": true,
+  "validation_keys": [
+    "miou",
+    "pooled_miou",
+    "miou_definition",
+    "class_iou",
+    "class_precision",
+    "class_recall",
+    "gt_pixels",
+    "predicted_pixels",
+    "pixel_accuracy",
+    "confusion_matrix_gt_rows_pred_cols",
+    "gt_present_classes",
+    "absent_gt_policy",
+    "direction_errors",
+    "tta_mode",
+    "test_time_augmentation",
+    "tta_views",
+    "tta_forward_calls_per_batch",
+    "image_count",
+    "partial",
+    "data_identity",
+    "validation_unique_source_count",
+    "scenes",
+    "model_forward_calls",
+    "loader_passes",
+    "weighted_score",
+    "distributed_validation",
+    "epoch",
+    "selection_scene",
+    "checkpoint_selection_uses_test"
+  ],
+  "reference_validation": {
+    "world_size": 4,
+    "shard_image_counts": [
+      2,
+      1,
+      1,
+      1
+    ],
+    "padding": false,
+    "duplicate_source_count": 0
+  },
+  "resume_validation": {
+    "world_size": 4,
+    "shard_image_counts": [
+      2,
+      1,
+      1,
+      1
+    ],
+    "padding": false,
+    "duplicate_source_count": 0
+  },
+  "sources": {
+    "reference": "result/runtime_check_c_103_ddp_spawn_reference",
+    "resume": "result/runtime_check_c_103_ddp_resume"
+  },
+  "source_sha256": {
+    "code/train_distributed.py": "f61d391fb436322aa2d4ad9c5f9500baca3cfc9b20bedd5a1f253c83e37272c5",
+    "code/distributed_training.py": "fe3d51b87898934a46fc1d7c5970e93e58f4d158f1ff919dac2f635423a53155",
+    "code/verify_distributed.py": "89e1f7eb2478c163eac09bfc4f8d6e57374c395491bf863bf4f355c49c51736e"
+  },
+  "rank_step_check_epoch_1": {
+    "world_size": 4,
+    "epoch": 1,
+    "partial": true,
+    "ranks": [
+      {
+        "rank": 0,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "5d9d096eb585536537189bd6b64b70c125a03af926213eceacd53a0a006d008f",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 338
+              },
+              "backbone": {
+                "parameters_with_gradients": 0,
+                "nonzero_gradient_parameters": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rank": 1,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "5d9d096eb585536537189bd6b64b70c125a03af926213eceacd53a0a006d008f",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 338
+              },
+              "backbone": {
+                "parameters_with_gradients": 0,
+                "nonzero_gradient_parameters": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rank": 2,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "5d9d096eb585536537189bd6b64b70c125a03af926213eceacd53a0a006d008f",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 338
+              },
+              "backbone": {
+                "parameters_with_gradients": 0,
+                "nonzero_gradient_parameters": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rank": 3,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "5d9d096eb585536537189bd6b64b70c125a03af926213eceacd53a0a006d008f",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 338
+              },
+              "backbone": {
+                "parameters_with_gradients": 0,
+                "nonzero_gradient_parameters": 0
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "checkpoint_committed": true,
+    "verification_only": true
+  },
+  "rank_step_check_epoch_2": {
+    "world_size": 4,
+    "epoch": 2,
+    "partial": true,
+    "ranks": [
+      {
+        "rank": 0,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "c712f6c7783152d295237751e8e7c666311d17b27204cdbd68b39bbd7958bb27",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 355
+              },
+              "backbone": {
+                "parameters_with_gradients": 340,
+                "nonzero_gradient_parameters": 340
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rank": 1,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "c712f6c7783152d295237751e8e7c666311d17b27204cdbd68b39bbd7958bb27",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 355
+              },
+              "backbone": {
+                "parameters_with_gradients": 340,
+                "nonzero_gradient_parameters": 340
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rank": 2,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "c712f6c7783152d295237751e8e7c666311d17b27204cdbd68b39bbd7958bb27",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 355
+              },
+              "backbone": {
+                "parameters_with_gradients": 340,
+                "nonzero_gradient_parameters": 340
+              }
+            }
+          }
+        ]
+      },
+      {
+        "rank": 3,
+        "optimizer_steps_observed": [
+          {
+            "parameter_sha256": "c712f6c7783152d295237751e8e7c666311d17b27204cdbd68b39bbd7958bb27",
+            "all_rank_parameters_identical": true,
+            "gradients": {
+              "head": {
+                "parameters_with_gradients": 355,
+                "nonzero_gradient_parameters": 355
+              },
+              "backbone": {
+                "parameters_with_gradients": 340,
+                "nonzero_gradient_parameters": 340
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "checkpoint_committed": true,
+    "verification_only": true
+  },
+  "reference_and_resume_model_hash_equal_each_epoch": [
+    false,
+    false
+  ],
+  "reproducibility": {
+    "data_and_random_state_replay": "exact",
+    "model_bitwise_replay": false,
+    "maximum_parameter_absolute_difference": 0.0002788687124848366,
+    "difference_already_present_before_resume": true,
+    "first_epoch_forward_losses_equal": true,
+    "interpretation": "Independent GPU executions diverged during backward/optimizer updates before any interruption. RNG, data/hflip and masking sequences replay exactly, but GPU computation is not bitwise deterministic. This check does not claim deterministic model replay or measure resume-specific numeric error."
+  },
+  "passed_checks": [
+    "global loss normalization and gradients independently validated on four CPU/Gloo ranks",
+    "real 1024 full C pretrained initialization across four GPUs",
+    "batch 2 per GPU, accumulation 1, global batch 8",
+    "frozen-backbone first epoch then joint backbone update",
+    "full and masked objectives in one joint optimizer update",
+    "exact synchronized model parameters after every optimizer update and epoch",
+    "spawn worker data loading",
+    "non-padded five-image validation shards [2,1,1,1]",
+    "standard weights_only checkpoint read and no distributed prefix",
+    "rank-local RNG and loader state checkpoint restoration",
+    "identical source-order, hflip and mask hashes across interrupted/reference runs",
+    "existing independent evaluate.py strict reload and five-image predictions match distributed confusion matrix exactly"
+  ],
+  "independent_evaluate": {
+    "passed": true,
+    "image_count": 5,
+    "partial": true,
+    "confusion_matrix_matches_distributed": true,
+    "strict_checkpoint_reload": true,
+    "output": "result/runtime_check_c_103_ddp_resume/independent_val_metrics.json"
+  },
+  "completed_at": "2026-11-12T10:48:55.201101+00:00",
+  "cleanup": {
+    "removed_own_partial_checkpoints": [
+      {
+        "path": "result/runtime_check_c_103_ddp_spawn_reference/reference_final.pt",
+        "bytes": 814762012
+      },
+      {
+        "path": "result/runtime_check_c_103_ddp_resume/last.pt",
+        "bytes": 814762204
+      },
+      {
+        "path": "result/runtime_check_c_103_ddp_resume/best_smoke.pt",
+        "bytes": 814779464
+      }
+    ],
+    "reports_and_logs_retained": true,
+    "user_training_checkpoints_modified": false
+  }
+}

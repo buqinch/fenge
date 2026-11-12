@@ -1,0 +1,28 @@
+{
+  "schema": "vit_c103_4gpu_launch_v1",
+  "role": "train",
+  "launched_at": "2026-11-12T10:49:24.875586+00:00",
+  "host": "Server103",
+  "launcher_pid": 355747,
+  "pgid": 355747,
+  "command": [
+    "bash",
+    "code/run_on_103.sh",
+    "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "-u",
+    "-m",
+    "torch.distributed.run",
+    "--standalone",
+    "--nnodes=1",
+    "--nproc_per_node=4",
+    "code/train_distributed.py",
+    "--config",
+    "config/c_adapter_masking_103_4gpu.json"
+  ],
+  "cwd": "/home/lzc/workspace/fenge_vit",
+  "config": "config/c_adapter_masking_103_4gpu.json",
+  "config_sha256": "adf5b0e170c2bf8ee18f6f78cc49639987db58489a409536a6b1f6fd3931163e",
+  "log": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking_103_4gpu/train.log",
+  "cuda_visible_devices": "4,5,6,7",
+  "process_start_ticks": "1519081"
+}
