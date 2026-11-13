@@ -11,7 +11,7 @@ ViT实验独立放在本仓库的 [fenge_vit/](https://github.com/buqinch/fenge/
 <!-- pure-vit-m2f:end -->
 
 <!-- c6000-comparison:start -->
-新增 **完整C：4000＋1000＋1000（6000张）** 对照已于2026-11-12在103的GPU4／5／6／7启动，每卡batch2、总batch8，从原始DINOv3预训练开始。保持原4000张原图、同一1601张验证和5004张测试，增强各抽1000，每5轮测试best。旧8000张四卡C继续运行；新组每轮750更新，旧组1000更新，比较时同时记录实际更新数。见 [ViT实验说明](fenge_vit/README.md#400010001000完整-c-的数据量对照)、[6000张固定清单](result/selections/random80_4000_1000_1000_seed42_20261112.json)、[训练配置](fenge_vit/config/c_adapter_masking_4000_1000_1000_103_4gpu.json)。
+新增 **完整C：4000＋1000＋1000（6000张）** 对照已于2026-11-12在103的GPU4／5／6／7启动，每卡batch2、总batch8，从原始DINOv3预训练开始。保持原4000张原图、同一1601张验证和5004张测试，增强各抽1000，每5轮测试best。旧8000张四卡C已于2026-11-13按用户要求停止，保留第14轮best／last；6000张组继续运行。新组每轮750更新，旧组1000更新，比较时同时记录实际更新数。见 [ViT实验说明](fenge_vit/README.md#400010001000完整-c-的数据量对照)、[6000张固定清单](result/selections/random80_4000_1000_1000_seed42_20261112.json)、[训练配置](fenge_vit/config/c_adapter_masking_4000_1000_1000_103_4gpu.json)。
 <!-- c6000-comparison:end -->
 
 <!-- current-best-tests-20261112:start -->

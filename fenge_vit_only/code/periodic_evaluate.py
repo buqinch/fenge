@@ -161,6 +161,9 @@ def load_config(path):
 
 
 def gpu_available(config):
+    if config.get('remote'):
+        from remote_evaluate import probe_remote
+        return probe_remote(config)
     def query(arguments):
         result = subprocess.run(['nvidia-smi', *arguments], check=True, capture_output=True,
                                 text=True, timeout=15)
@@ -507,11 +510,13 @@ def worker(job, probe=gpu_available):
             return 0
         launch = read_json(job / 'launch.json')
         config, trigger = launch['configuration'], read_json(job / 'trigger.json')
-        gpu_lock = acquire_lock(config['gpu_lock'])
-        if gpu_lock is None:
-            set_status(job, 'queued', waiting_reason='GPU evaluation lock is held')
-            return 0
-        ready, reason, uuid = probe(config)
+        if not config.get('remote'):
+            gpu_lock = acquire_lock(config['gpu_lock'])
+            if gpu_lock is None:
+                set_status(job, 'queued', waiting_reason='GPU evaluation lock is held')
+                return 0
+        # Reconnecting to an existing remote task must work while it owns the GPU.
+        ready, reason, uuid = (True, 'Remote worker checks its shared GPU lock', None) if config.get('remote') else probe(config)
         if not ready:
             set_status(job, 'queued', waiting_reason=reason)
             return 0
@@ -525,6 +530,17 @@ def worker(job, probe=gpu_available):
             raise ValueError('Evaluator source or test manifest changed after queueing')
         set_status(job, 'running', worker_identity=process_identity(os.getpid()),
                    started_at=now(), physical_gpu=config['gpu_index'], gpu_uuid=uuid)
+        if config.get('remote'):
+            from remote_evaluate import run_remote
+            set_status(job, 'running', execution_host=config['remote']['host'])
+            returncode = run_remote(config, job, trigger)
+            if returncode == 75:
+                set_status(job, 'queued', waiting_reason='Remote GPU is occupied; waiting for its shared lock')
+                return 0
+            if returncode:
+                raise RuntimeError(f'Remote evaluator exited with status {returncode}; see remote_execution.json/test.log')
+            complete_job(job, trigger, retain_above_score=config.get('retain_above_score'))
+            return 0
         environment = {**os.environ, 'CUDA_VISIBLE_DEVICES': uuid, 'PYTHONUNBUFFERED': '1'}
         with (job / 'test.log').open('a') as output:
             child = subprocess.Popen(evaluator_command(config, job), cwd=ROOT, env=environment,
@@ -596,7 +612,10 @@ class Monitor:
                             complete_job(job, read_json(job / 'trigger.json'),
                                          retain_above_score=self.config.get('retain_above_score'))
                         except Exception as error:
-                            set_status(job, 'failed', reason='Worker/evaluator disappeared: ' + str(error))
+                            if self.config.get('remote') and (job / 'remote_spec.json').exists():
+                                set_status(job, 'queued', waiting_reason='Reconnect to persistent remote evaluator: ' + str(error))
+                            else:
+                                set_status(job, 'failed', reason='Worker/evaluator disappeared: ' + str(error))
                         state = read_json(path)
                 if state['status'] == 'queued':
                     pending.append(job)
@@ -622,11 +641,14 @@ class Monitor:
         waiting = None
         if pending and not active:
             try:
-                ready, waiting, _ = gpu_available(self.config)
+                reconnect = [job for job in pending if self.config.get('remote') and (job / 'remote_spec.json').exists()]
+                ready, waiting, _ = (True, 'Reconnect to existing remote task', None) if reconnect else gpu_available(self.config)
                 if ready:
-                    job = min(pending, key=lambda p: (read_json(p / 'trigger.json')['trigger_epoch'], str(p)))
+                    job = min(reconnect or pending, key=lambda p: (read_json(p / 'trigger.json')['trigger_epoch'], str(p)))
                     launch = {'created_at': now(), 'configuration': self.config,
                               'command': evaluator_command(self.config, job), 'host': socket.gethostname()}
+                    if self.config.get('remote'):
+                        launch.update(executor='remote', execution_host=self.config['remote']['host'])
                     write_json(job / 'launch.json', launch)
                     set_status(job, 'launching', launch_requested_at=now())
                     with (job / 'worker.log').open('a') as output:

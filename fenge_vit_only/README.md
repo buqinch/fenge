@@ -94,13 +94,13 @@ python code/train.py --config config/vit_only_m2f_8000_1024.json \
   --resume result/vit_only_m2f_8000_1024/last.pt
 ```
 
-周期监控独立运行。配置训练用本机 GPU 0；周期测试与现有 ViT 实验共用 GPU 3 和同一个文件锁，按空闲资源串行执行，避免两个项目同时占用测试卡：
+周期监控在本机独立运行。训练保持本机 GPU 0；2026-11-13起，后续周期测试传送不可变检查点到 **103 的 GPU 3**，与其他 ViT 实验共用显卡锁、串行执行。模型代码、权重及测试清单逐一校验SHA；日志和指标同步回本机原结果目录，`remote_execution.json`记录实际服务器、GPU和运行环境。远端任务可在SSH断开后继续，本机恢复连接时接管同一任务：
 
 ```bash
 python code/periodic_evaluate.py --config config/periodic_eval.json
 ```
 
-测试结果写入 `result/vit_only_m2f_8000_1024/periodic_test/epoch_XXX/`。完整测试加权 **S 严格超过 92%** 时，监控保留对应不可变检查点、SHA 和 `score_milestone.json`。原有 A/B/C 继续使用各自监控。
+测试结果写入 `result/vit_only_m2f_8000_1024/periodic_test/epoch_XXX/`。完整测试加权 **S 严格超过 92%** 时，监控保留对应不可变检查点、SHA 和 `score_milestone.json`。本机新监控状态位于 `result/periodic_eval_remote103_every5/`。超过92%的精确测试权重在本机与103均保留。
 
 ## 评估与可视化
 

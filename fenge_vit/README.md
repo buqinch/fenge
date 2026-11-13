@@ -214,6 +214,8 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=2 \
 
 断点续训使用同一命令追加 `--resume result/c_adapter_masking_103_4gpu/last.pt`。检查点保存各卡随机数和DataLoader状态，要求相同卡数与训练配置；rank 0统一写出best／last、history和summary。推理仍使用原 `code/evaluate.py`，不需要四张卡，也不需要去掉权重键名中的包装前缀。GPU多卡运行与单卡不承诺逐位相同的优化轨迹。
 
+**2026-11-13 12:14（北京时间）按用户要求停止此8000张四卡C组及其专属测试监控。** 已完整提交14轮，best为第14轮，验证mIoU为96.5247%；第15轮未完成部分没有另存检查点。best／last及全部既有结果保留，状态见 [summary](result/c_adapter_masking_103_4gpu/summary.json) 与 [停止记录](result/c_adapter_masking_103_4gpu/user_stop.json)。
+
 本机通过 [remote103_c_4gpu.json](config/remote103_c_4gpu.json) 每60秒同步该实验的文字结果到 `result/c_adapter_masking_103_4gpu/`；权重留在103，图片仍写NAS。每五轮自动测试由 [periodic_eval_c_103_4gpu.json](config/periodic_eval_c_103_4gpu.json) 管理，与A组共享103的空闲GPU3及同一显卡锁，评估完整Moon_2／4／9，使用1024／768等权翻转TTA；测试不参与best选择。部署状态及进程见 `result/c_full_103_4gpu_deployment.json`。
 
 四卡版的验证包括不均匀GT类别数量下的全局损失与梯度、空rank、1601张无重复验证、随机状态恢复，以及真实1024冻结→解冻→遮挡训练。运行检查用少量样本，明确标记partial，不属于新的分割成绩。
@@ -237,7 +239,7 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=2 \
 
 训练为 **6000张＝4000原图＋1000坑增强＋1000山岩增强**。4000原图与8000张实验完全相同；两种增强分别从原2000张中以seed42无放回选1000，完整顺序保存于 `/home/lzc/workspace/fenge/result/selections/random80_4000_1000_1000_seed42_20261112.json`。清单SHA256为 `cc84cca17b89f88ee514918f65dfd88d8682e7c673275ea7db5a45803716cdfd`。同一来源不跨训练和验证；固定1601张验证、Moon_2/4/9的5004张测试身份与顺序均保持一致。核验见 [数据选择验证](result/c6000_selection_verification.json) 和 [103运行前检查](result/c6000_103_preflight.json)。
 
-使用103物理GPU **4／5／6／7**，每卡batch2、累积1、总batch8，`lusnar`环境。从原始预训练重新训练，最多30轮，前3轮冻结骨干，第4轮起启用25%更新的遮挡监督。旧8000张四卡C组继续运行；两组共用四张卡，耗时会受共享算力影响。
+使用103物理GPU **4／5／6／7**，每卡batch2、累积1、总batch8，`lusnar`环境。从原始预训练重新训练，最多30轮，前3轮冻结骨干，第4轮起启用25%更新的遮挡监督。启动时与旧8000张四卡C组共用四张卡；2026-11-13旧8000张组已按用户要求停止，本6000张组继续运行。
 
 **这是相同epoch计划的数据量对照，不是相同更新次数的对照。** 新组每轮750步，30轮最多22500步；旧组每轮1000步，最多30000步。LR仍按各自总更新数衰减，遮挡warmup仍为1000更新。性能变化需结合样本量和实际更新次数解释。
 
@@ -299,9 +301,11 @@ ViT A／B／C单卡已测权重轮次分别为5／5／5，S分别为89.1769%／8
 
 A／B／C及103四卡C每完成第5、10、15…轮完整验证，独立监控就固定该轮结束时由验证集选出的最佳权重，在完整5004张 Moon_2／4／9 上评估。固定使用1024＋768等权水平翻转TTA（4视图），测试batch4，输出逐场景和逐类别指标，以及1:1:2加权分数。测试成绩不参与训练的best选择或早停。
 
-A使用103物理卡3；B／C在当前服务器物理卡3排队测试，训练继续使用各自原卡。GPU被其他计算进程占用时等待。提前停止若落在非5倍数轮次，会补做最终best测试；若同一权重和评估设置已测过，会明确记录复用来源。
+自2026-11-13起，后续测试统一使用103物理GPU3的串行队列：A和6000张四卡C沿用103监控，本机B／C由本机控制器传送不可变best快照到103执行，结果同步回本机原目录。切换时已经启动的本机C第15轮测试继续在原卡完成。GPU被其他计算进程占用时等待，训练保持原来的位置与配置。训练自然完成或早停且不在5倍数轮次时补测最终best；用户明确停止的实验不自动补测。相同权重与设置已测过时记录复用来源。
 
-每次结果单独保存在 `result/<实验>/periodic_test/epoch_005/test_metrics.json` 等目录。`trigger.json`记录触发轮次、实际best轮次及权重SHA256，`status.json`记录排队／运行／完成状态，`test.log`记录测试进度。测试使用不可变快照，成功核对完整场景覆盖和分数后执行保留策略。自2026-11-13起，五组在训ViT的周期配置均设置 `retain_above_score: 0.92`：只有完整5004张测试的比赛加权 `weighted_score > 0.92` 才标记达标，恰好92%不算超过；验证mIoU或单个场景分数不作为触发值。达标任务保留 `periodic_test/<轮次>/best.pt`、`test_metrics.json`、`score_milestone.json`，校验权重SHA与实际测试记录一致；实验根目录的 `score_milestones.json` 汇总全部达标记录。其余任务按原规则清理临时测试权重。已记录的达标权重在监控重启或结果复用时仍保留；训练best继续只由验证集选择。103的文字结果每60秒同步回当前服务器，权重保存在实际执行测试的服务器。
+远端执行使用 `code/remote_evaluate.py`：核对权重、训练源码、评估源码和测试清单SHA后运行，断开SSH后远端任务继续，同一任务重连不会重复启动。所有项目共用103的 `/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock`。`remote_execution.json`记录实际主机、GPU及torch/timm版本；本机监控新状态目录为 `result/periodic_eval_remote103_every5/`。图片按原配置写NAS，日志、指标和达标权重在本机保留，103上的达标快照也保留。
+
+每次结果单独保存在 `result/<实验>/periodic_test/epoch_005/test_metrics.json` 等目录。`trigger.json`记录触发轮次、实际best轮次及权重SHA256，`status.json`记录排队／运行／完成状态，`test.log`记录测试进度。测试使用不可变快照，成功核对完整场景覆盖和分数后执行保留策略。自2026-11-13起，ViT的周期配置设置 `retain_above_score: 0.92`：只有完整5004张测试的比赛加权 `weighted_score > 0.92` 才标记达标，恰好92%不算超过；验证mIoU或单个场景分数不作为触发值。达标任务保留 `periodic_test/<轮次>/best.pt`、`test_metrics.json`、`score_milestone.json`，校验权重SHA与实际测试记录一致；实验根目录的 `score_milestones.json` 汇总全部达标记录。其余任务按原规则清理临时测试权重。已记录的达标权重在监控重启或结果复用时仍保留；训练best继续只由验证集选择。103的文字结果每60秒同步回当前服务器，权重保存在实际执行测试的服务器。
 
 本机监控入口（已运行时会通过锁避免重复启动）：
 
