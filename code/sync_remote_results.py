@@ -76,8 +76,14 @@ def load_config(path, project=PROJECT):
 
     targets = []
     entries = config.get("runs")
-    if not isinstance(entries, list) or {row.get("name") for row in entries} != {"context", "detail"} or len(entries) != 2:
-        raise ValueError("The remote mirror requires exactly the context and detail experiments")
+    if not isinstance(entries, list) or not entries or not all(isinstance(row, dict) for row in entries):
+        raise ValueError("The remote mirror requires a nonempty list of experiment targets")
+    names = [row.get("name") for row in entries]
+    if any(not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name)
+           or name == "runner" for name in names):
+        raise ValueError("Experiment names must be safe directory names; runner is reserved")
+    if len(set(names)) != len(names):
+        raise ValueError("Experiment names must be unique")
     for row in [{"name": "runner", **config.get("runner", {})}, *entries]:
         name, relative = row["name"], row.get("remote")
         if (not isinstance(relative, str) or not relative or PurePosixPath(relative).is_absolute()

@@ -1,0 +1,134 @@
+{
+  "status": "passed",
+  "created_at": "2026-11-13T07:23:39.976871+00:00",
+  "checkpoint_epoch": 18,
+  "checkpoint_sha256": "eb15ac5380183a16366521c5dab4725c48cf1d2eec9741965efd93aa0577e861",
+  "manifest_sha256": "6b971b478e738ad5785964e9ac2fdf9e8a60a3f5ae395687f503e602cfb2f77c",
+  "full_scored_images": 5004,
+  "subset_images": 1500,
+  "selection_quotas": {
+    "Moon_2": 188,
+    "Moon_4": 187,
+    "Moon_9": 1125
+  },
+  "hard_subset_score_weights": {
+    "Moon_2": 1,
+    "Moon_4": 1,
+    "Moon_9": 2
+  },
+  "source_full_weighted_score": 0.9002327675194899,
+  "source_hard_subset_score": 0.8073788305473157,
+  "source_hard_subset_pooled_miou": 0.8452048641531092,
+  "scene_audit": {
+    "Moon_2": {
+      "source_images": 1597,
+      "selected_images": 188,
+      "selected_fraction": 0.11772072636192861,
+      "min_selected_image_miou": 0.6666412299305161,
+      "max_selected_image_miou": 0.8321796745111169,
+      "mean_selected_image_miou_for_difficulty_description_only": 0.7881363337669297,
+      "selected_images_with_class": {
+        "regolith": 188,
+        "rock": 188,
+        "crater": 123,
+        "mountain": 188,
+        "sky": 188
+      },
+      "selected_images_with_1_to_100_class_pixels": {
+        "regolith": 0,
+        "rock": 0,
+        "crater": 7,
+        "mountain": 1,
+        "sky": 0
+      },
+      "source_full_scene_miou": 0.935010731815369,
+      "hard_subset_scene_miou": 0.8275199598890985,
+      "hard_subset_class_iou": {
+        "regolith": 0.9939221002228938,
+        "rock": 0.8960514720566897,
+        "crater": 0.35071393377254695,
+        "mountain": 0.8995421429839059,
+        "sky": 0.9973701504094562
+      }
+    },
+    "Moon_4": {
+      "source_images": 1320,
+      "selected_images": 187,
+      "selected_fraction": 0.14166666666666666,
+      "min_selected_image_miou": 0.6763145889634941,
+      "max_selected_image_miou": 0.7208502089060642,
+      "mean_selected_image_miou_for_difficulty_description_only": 0.7026392713753167,
+      "selected_images_with_class": {
+        "regolith": 187,
+        "rock": 187,
+        "crater": 187,
+        "mountain": 0,
+        "sky": 187
+      },
+      "selected_images_with_1_to_100_class_pixels": {
+        "regolith": 0,
+        "rock": 0,
+        "crater": 38,
+        "mountain": 0,
+        "sky": 0
+      },
+      "source_full_scene_miou": 0.9305319930351699,
+      "hard_subset_scene_miou": 0.7169497872473367,
+      "hard_subset_class_iou": {
+        "regolith": 0.991088377901671,
+        "rock": 0.836174509549175,
+        "crater": 0.043014195107218364,
+        "mountain": null,
+        "sky": 0.9975220664312827
+      }
+    },
+    "Moon_9": {
+      "source_images": 2087,
+      "selected_images": 1125,
+      "selected_fraction": 0.5390512697652132,
+      "min_selected_image_miou": 0.5681564614143999,
+      "max_selected_image_miou": 0.9300660828363101,
+      "mean_selected_image_miou_for_difficulty_description_only": 0.8261012478292707,
+      "selected_images_with_class": {
+        "regolith": 1125,
+        "rock": 1125,
+        "crater": 867,
+        "mountain": 611,
+        "sky": 1125
+      },
+      "selected_images_with_1_to_100_class_pixels": {
+        "regolith": 0,
+        "rock": 0,
+        "crater": 41,
+        "mountain": 7,
+        "sky": 0
+      },
+      "source_full_scene_miou": 0.8676941726137105,
+      "hard_subset_scene_miou": 0.842522787526414,
+      "hard_subset_class_iou": {
+        "regolith": 0.9745790302903882,
+        "rock": 0.7940439289345277,
+        "crater": 0.5821133092767655,
+        "mountain": 0.8676845165866229,
+        "sky": 0.9941931525437661
+      }
+    }
+  },
+  "checks": [
+    "all images share exactly one frozen checkpoint/recipe",
+    "each image has 1024x1024 valid GT pixels",
+    "all per-image source IDs unique and cover full source",
+    "per-image integer matrices sum to full and subset matrices",
+    "selected set exactly equals stable lowest per-image ranking within each scene",
+    "fixed 188/187/1125 quotas",
+    "subset scene score weights remain 1/1/2",
+    "subset has no official weighted_score",
+    "local copied JSONL and full metrics hashes match immutable manifest"
+  ],
+  "limitations": [
+    "This diagnostic set is selected using test labels and one model predictions and must not be used for training or checkpoint selection.",
+    "Per-image GT-present mIoU only orders candidates; reported hard_subset_score accumulates scene matrices first.",
+    "Per-image ranking can be sensitive to absent or very small GT classes; class-support counts are reported.",
+    "Do not compare hard_subset_score to official full 5004-image score or use it for the 92% full-test milestone."
+  ]
+}

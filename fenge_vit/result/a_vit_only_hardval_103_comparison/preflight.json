@@ -1,0 +1,333 @@
+{
+  "schema": "lusnar_architecture_preflight_a_vit_only_v1",
+  "audited_at": "2026-11-13T08:25:24.918986+00:00",
+  "status": "configuration_and_initialization_audit_complete",
+  "scope": "Read-only source/configuration/pretrained verification; CPU model construction only. Formal GPU smoke and launches are handled separately by parent agent.",
+  "host": "103 / 10.134.171.103",
+  "environment": "/home/lzc/miniconda3/envs/lusnar",
+  "configurations": {
+    "A": {
+      "path": "/home/lzc/workspace/fenge_vit/config/a_fusion_pool8002_train6000_hardval1500_103_2gpu.json",
+      "sha256": "29f2bd8b59519eb2d52b5f5c00a5fc035b97d684191395681910142cfcf8f8ab",
+      "planned_physical_gpus": [
+        4,
+        5
+      ]
+    },
+    "vit_only": {
+      "path": "/home/lzc/workspace/fenge_vit_only/config/vit_only_pool8002_train6000_hardval1500_103_2gpu.json",
+      "sha256": "bb42ef67f01581699e49b9d46caacac003ff18716d207c52df971c8e637ba17d",
+      "planned_physical_gpus": [
+        6,
+        7
+      ]
+    }
+  },
+  "remote_local_source_and_config_sha256": {
+    "/home/lzc/workspace/fenge_vit/config/a_fusion_pool8002_train6000_hardval1500_103_2gpu.json": "29f2bd8b59519eb2d52b5f5c00a5fc035b97d684191395681910142cfcf8f8ab",
+    "/home/lzc/workspace/fenge_vit_only/config/vit_only_pool8002_train6000_hardval1500_103_2gpu.json": "bb42ef67f01581699e49b9d46caacac003ff18716d207c52df971c8e637ba17d",
+    "/home/lzc/workspace/fenge/result/selections/pool8002_train6000_hardval1500_seed42_20261113.json": "68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09",
+    "/home/lzc/workspace/fenge_vit/code/vitseg/model.py": "eacd7a9ee96c9ce86519e505e51bd40415edb0b9313392ff23147bf3e72d7722",
+    "/home/lzc/workspace/fenge_vit/code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "/home/lzc/workspace/fenge_vit/code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "/home/lzc/workspace/fenge_vit_only/code/vitseg/model.py": "a8385a0e532a4d208f19d94c51b498ff2c220e0fa729d10314e4c2aebc4cfa0f",
+    "/home/lzc/workspace/fenge_vit_only/code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "/home/lzc/workspace/fenge_vit_only/code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e"
+  },
+  "remote_local_hashes_all_match": true,
+  "config_differences": {
+    "adapter_dim": {
+      "A": 384,
+      "vit_only": null
+    },
+    "adapter_heads": {
+      "A": 6,
+      "vit_only": null
+    },
+    "adapter_points": {
+      "A": 4,
+      "vit_only": null
+    },
+    "output": {
+      "A": "result/a_fusion_pool8002_train6000_hardval1500_103_2gpu",
+      "vit_only": "result/vit_only_pool8002_train6000_hardval1500_103_2gpu"
+    },
+    "variant": {
+      "A": "fusion",
+      "vit_only": "vit_only"
+    }
+  },
+  "identical_training_settings": {
+    "manifest": "/home/lzc/workspace/fenge/result/selections/pool8002_train6000_hardval1500_seed42_20261113.json",
+    "selection_manifest": null,
+    "input_size": 1024,
+    "weight_dir": "model",
+    "epochs": 30,
+    "freeze_epochs": 3,
+    "batch_size": 4,
+    "accumulation": 1,
+    "val_batch_size": 1,
+    "head_lr": 0.0001,
+    "backbone_lr": 5e-06,
+    "weight_decay": 0.01,
+    "poly_power": 0.9,
+    "gradient_clip": 1.0,
+    "workers": 2,
+    "seed": 42,
+    "device": "cuda:0",
+    "amp": "bf16",
+    "horizontal_flip": true,
+    "pretrained": true,
+    "gradient_checkpointing": true,
+    "initial_checkpoint": null,
+    "resume": null,
+    "num_queries": 32,
+    "decoder_layers": 6,
+    "pixel_decoder_layers": 6,
+    "width": 256,
+    "semantic_epsilon": 1e-08,
+    "num_points": 4096,
+    "class_weight": 2.0,
+    "mask_weight": 5.0,
+    "dice_weight": 5.0,
+    "no_object_weight": 0.1,
+    "masking": false,
+    "masking_update_fraction": 0.25,
+    "masking_ratio": 0.1,
+    "masking_block_size": 32,
+    "masking_weight": 0.5,
+    "masking_hidden_weight": 0.2,
+    "masking_warmup_updates": 1000,
+    "masking_seed": 4242,
+    "early_stopping_patience": 5,
+    "early_stopping_min_delta": 0.0005,
+    "early_stopping_start_epoch": 4,
+    "val_tta": "multiscale_hflip",
+    "val_tta_sizes": [
+      1024,
+      768
+    ],
+    "val_tta_weights": [
+      0.5,
+      0.5
+    ],
+    "log_every": 25,
+    "val_progress_every": 50,
+    "protocol": "pool8002_train6000_hard1500_validation_v1",
+    "validation_every": 2
+  },
+  "data": {
+    "manifest": "/home/lzc/workspace/fenge/result/selections/pool8002_train6000_hardval1500_seed42_20261113.json",
+    "sha256": "68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09",
+    "train_original": 4000,
+    "train_crater_augmented": 1000,
+    "train_mountain_rock_augmented": 1000,
+    "train_total": 6000,
+    "validation_total": 1500,
+    "validation_scene_counts": {
+      "Moon_2": 188,
+      "Moon_4": 187,
+      "Moon_9": 1125
+    },
+    "remaining_eval_total": 3504,
+    "validation_is_selected_from_former_test_using_labels": true,
+    "full5004_overlaps_validation": 1500,
+    "immutable_hard_source_manifest_sha256": "6b971b478e738ad5785964e9ac2fdf9e8a60a3f5ae395687f503e602cfb2f77c"
+  },
+  "batch_and_update_budget": {
+    "world_size_each": 2,
+    "per_rank_batch_size": 4,
+    "accumulation": 1,
+    "global_effective_batch": 8,
+    "updates_per_epoch": 750,
+    "planned_epochs": 30,
+    "maximum_planned_updates": 22500,
+    "freeze_epochs": 3,
+    "frozen_updates": 2250,
+    "train_sampler_padding_for_6000_world2": 0
+  },
+  "validation": {
+    "every_epochs": 2,
+    "best_metric": "validation_weighted_score",
+    "formula": "(Moon_2 mIoU + Moon_4 mIoU + 2*Moon_9 mIoU)/4",
+    "scene_metric": "class IoUs from accumulated integer confusion matrices; average only GT-present classes",
+    "tta": "1024 and 768, each original+hflip, equal scale weights",
+    "early_stopping_patience": 5,
+    "early_stopping_patience_unit": "validation_checks",
+    "min_delta": 0.0005,
+    "official_full_test_score": false,
+    "pooled_miou_separate": true
+  },
+  "pretrained": {
+    "vit": {
+      "architecture": "vit_small_patch16_dinov3",
+      "source": "timm/vit_small_patch16_dinov3.lvd1689m",
+      "revision": "3bf4720a82ec2066db88137180ff1f83a675cef0",
+      "sha256": "2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040",
+      "both_remote_projects_file_hash_verified": true,
+      "strict_load_cpu_passed_both": true,
+      "tensor_count": 162
+    },
+    "convnext_A_only": {
+      "architecture": "convnext_tiny",
+      "source": "timm/convnext_tiny.dinov3_lvd1689m",
+      "revision": "7acfec1",
+      "sha256": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f",
+      "remote_file_hash_verified": true,
+      "strict_load_cpu_passed": true,
+      "tensor_count": 180
+    },
+    "initial_checkpoint": null,
+    "resume": null
+  },
+  "architecture": {
+    "A": "DINOv3 ViT-S/16 final patch features + DINOv3 ConvNeXt-Tiny multiscale fusion; no bidirectional Adapter and no RGB masking",
+    "vit_only": "DINOv3 ViT-S/16 normalized block3/6/9/12 patch features + independent384-to256 projections and stride4/8/16/32 reassembly; no CNN encoder",
+    "decoder_source_identical": true,
+    "loss_source_identical": true,
+    "distributed_loss_helper_identical": true,
+    "scheduler_patience_validation_functions_ast_identical": true,
+    "mask2former": {
+      "width": 256,
+      "queries": 32,
+      "pixel_encoder_layers": 6,
+      "query_decoder_blocks": 6,
+      "heads": 8,
+      "query_predictions_including_initial": 7
+    },
+    "semantic_conversion_identical": "class softmax excludes no-object; mask sigmoid and query synthesis at mask-grid resolution; bilinear class-score upsample; explicit five-class normalization before log; argmax after inference/TTA",
+    "decoder_input_channels": {
+      "A": [
+        96,
+        384,
+        384,
+        384
+      ],
+      "vit_only": [
+        256,
+        256,
+        256,
+        256
+      ]
+    }
+  },
+  "cpu_initialization_audit": {
+    "seed": 42,
+    "pretrained": true,
+    "total_parameters": {
+      "A": 65875494,
+      "vit_only": 36984518
+    },
+    "decoder_parameters": {
+      "A": 15060678,
+      "vit_only": 15003334
+    },
+    "decoder_common_state_keys": 235,
+    "equal_tensors": 161,
+    "same_shape_but_different_initial_tensors": 70,
+    "different_shape_tensors": [
+      {
+        "key": "pixel_decoder.detail_lateral.0.weight",
+        "A": [
+          256,
+          96,
+          1,
+          1
+        ],
+        "vit_only": [
+          256,
+          256,
+          1,
+          1
+        ]
+      },
+      {
+        "key": "pixel_decoder.input_projections.0.0.weight",
+        "A": [
+          256,
+          384,
+          1,
+          1
+        ],
+        "vit_only": [
+          256,
+          256,
+          1,
+          1
+        ]
+      },
+      {
+        "key": "pixel_decoder.input_projections.1.0.weight",
+        "A": [
+          256,
+          384,
+          1,
+          1
+        ],
+        "vit_only": [
+          256,
+          256,
+          1,
+          1
+        ]
+      },
+      {
+        "key": "pixel_decoder.input_projections.2.0.weight",
+        "A": [
+          256,
+          384,
+          1,
+          1
+        ],
+        "vit_only": [
+          256,
+          256,
+          1,
+          1
+        ]
+      }
+    ],
+    "equal_tensors_mainly": "constant bias, normalization and deterministic deformable offsets",
+    "different_examples": [
+      "classifier.weight",
+      "layers.0.cross_attention.in_proj_weight",
+      "layers.0.ffn.0.weight",
+      "layers.0.self_attention.in_proj_weight"
+    ],
+    "interpretation": "Same seed and initialization rules do not pair all decoder initial tensors: encoders/projections consume RNG differently and input channel projections differ. Model initialization was inspected, not modified."
+  },
+  "coexistence_snapshot": {
+    "observed_old_run": "c_adapter_masking_4000_1000_1000_103_4gpu",
+    "rank_pids": [
+      703976,
+      703977,
+      703978,
+      703979
+    ],
+    "physical_gpus": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "completed_epochs_at_first_check": 20,
+    "best_epoch_at_first_check": 19,
+    "best_old_validation_miou": 0.9646410984632962,
+    "allocated_process_memory_mib_approx_each": 4400,
+    "old_run_active": true,
+    "gpu_total_memory_mib_each": 24576,
+    "later_observation_during_parent_A_smoke_total_gpu4_5_mib": [
+      9137,
+      9117
+    ],
+    "formal_new_run_launched_by_this_auditor": false,
+    "training_processes_stopped_by_this_auditor": false,
+    "interpretation": "Target GPUs are shared with old C6000. Resident usage alone does not establish combined training/validation peak safety; inspect frozen and unfrozen smoke peaks. Sharing also changes throughput and elapsed time."
+  },
+  "fairness_limits": [
+    "The feature path differs in both CNN fusion and ViT feature reassembly (A final block versus pure intermediate3/6/9/12); interpret as comparison of the two complete encoders/feature paths.",
+    "Decoder code and hyperparameters agree, but four input projections have different shapes and70 common-shaped tensors have different seed42 initial values. This is not a bitwise paired decoder initialization experiment.",
+    "One seed is configured; run-to-run variation or universal architecture superiority is not estimated.",
+    "New validation uses model-selected former test samples and labels. Full5004 test overlaps1500 validation; remaining3504 is already inspected and excludes selected hard examples."
+  ]
+}

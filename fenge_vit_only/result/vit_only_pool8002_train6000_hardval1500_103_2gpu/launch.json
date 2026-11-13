@@ -1,0 +1,32 @@
+{
+  "status": "launched",
+  "created_at": "2026-11-13T08:28:09.914670+00:00",
+  "pid": 2307677,
+  "host": "10.134.171.103",
+  "physical_gpus": [
+    6,
+    7
+  ],
+  "command": [
+    "bash",
+    "/home/lzc/workspace/fenge_vit_only/code/run_on_103.sh",
+    "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "-u",
+    "-m",
+    "torch.distributed.run",
+    "--standalone",
+    "--nnodes=1",
+    "--nproc_per_node=2",
+    "code/train_hardval_distributed.py",
+    "--config",
+    "/home/lzc/workspace/fenge_vit_only/config/vit_only_pool8002_train6000_hardval1500_103_2gpu.json"
+  ],
+  "config_sha256": "bb42ef67f01581699e49b9d46caacac003ff18716d207c52df971c8e637ba17d",
+  "manifest_sha256": "68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09",
+  "per_rank_batch_size": 4,
+  "world_size": 2,
+  "global_effective_batch": 8,
+  "initialization": "original_pretrained",
+  "epochs": 30,
+  "old_C_training_left_running": true
+}

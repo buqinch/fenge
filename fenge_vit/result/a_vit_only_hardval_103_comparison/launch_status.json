@@ -1,0 +1,66 @@
+{
+  "status": "running_verified",
+  "checked_at": "2026-11-13T16:31:11.375827+08:00",
+  "host": "103",
+  "runs": [
+    {
+      "project": "fenge_vit",
+      "run": "a_fusion_pool8002_train6000_hardval1500_103_2gpu",
+      "pid_103": 2304307,
+      "physical_gpus": [
+        4,
+        5
+      ],
+      "status": "training",
+      "observed_epoch": 1,
+      "observed_batch_at_least": 50,
+      "batches_per_epoch": 750,
+      "source_sha256_verified": true,
+      "config": "/home/lzc/workspace/fenge_vit/config/a_fusion_pool8002_train6000_hardval1500_103_2gpu.json",
+      "config_sha256": "7bea3df5120d2f95ea5a83ac2384194f2df8fd34b71af94175bc2b29ff0fe1d6",
+      "data_manifest_sha256": "68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09",
+      "model_config": {
+        "variant": "fusion",
+        "input_size": 1024,
+        "width": 256,
+        "num_queries": 32,
+        "decoder_layers": 6,
+        "pixel_decoder_layers": 6
+      }
+    },
+    {
+      "project": "fenge_vit_only",
+      "run": "vit_only_pool8002_train6000_hardval1500_103_2gpu",
+      "pid_103": 2307677,
+      "physical_gpus": [
+        6,
+        7
+      ],
+      "status": "training",
+      "observed_epoch": 1,
+      "observed_batch_at_least": 25,
+      "batches_per_epoch": 750,
+      "source_sha256_verified": true,
+      "config": "/home/lzc/workspace/fenge_vit_only/config/vit_only_pool8002_train6000_hardval1500_103_2gpu.json",
+      "config_sha256": "35fe64794856eff332aa52314a9294208c0dd3a6d8769ad5710e966fe131f547",
+      "data_manifest_sha256": "68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09",
+      "model_config": {
+        "variant": "vit_only",
+        "input_size": 1024,
+        "width": 256,
+        "num_queries": 32,
+        "decoder_layers": 6,
+        "pixel_decoder_layers": 6
+      }
+    }
+  ],
+  "global_batch_each": 8,
+  "train_images": 6000,
+  "validation_images": 1500,
+  "epochs_budget": 30,
+  "validation_every": 2,
+  "selection_metric": "validation_weighted_score",
+  "final_full_eval_only_after_training": true,
+  "old_C6000_continues_sharing_gpus": true,
+  "current_metrics_are_training_status_not_new_validation_results": true
+}

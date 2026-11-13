@@ -2,7 +2,7 @@
 
 整理日期：2026-11-13。依据四组 CNN 已完成的 30 轮训练，以及各自最终验证 best 的完整 Moon_2／4／9 测试。本文件整理实现和候选实验，未修改模型或启动训练。
 
-**优先保留高分辨率细节注入作为 ViT 的独立候选。** 它在本次 CNN 对照中使加权 S 提高 0.0817 个百分点，但 Moon_9 下降 0.4845 个百分点，收益很小且并不全面。周围关系和当前语义亲和实现的最终 S 均低于对照，不能列为已经验证有效的优化；它们保留为可复核实现。CNN 结果不代表 ViT 已验证收益。
+**优先保留高分辨率细节注入作为 ViT 的独立候选。** 它在本次 CNN 对照中使加权 S 提高 0.0817 个百分点，但 Moon_9 下降 0.4845 个百分点，收益很小且并不全面。周围关系和当前语义亲和实现的最终 S 均低于对照，不能列为已经验证有效的优化；两组训练与评测配置、实验目录及权重已退役，原始配置、最佳验证和完整测试 JSON 已合并到[退役证据](../retired_experiments/summary.json)。共享代码中的兼容实现仅用于解释、加载已有旧检查点，不作为当前可选训练方案。CNN 结果不代表 ViT 已验证收益。
 
 ## 1. 最终检查点的实测结果
 
@@ -49,14 +49,14 @@
 |优先级|模块|当前判断|后续用途|
 |---|---|---|---|
 |1|语义引导的高分辨率细节残差|本次 S 小幅提高，Moon_9 有明显退步；尚无重复种子证据|先做 ViT 独立消融，重点监控山体误检和坑→山体|
-|2|局部与周围关系残差|最终 S 比对照低 0.0964 个百分点|暂不加入主方案；只有 ViT 错例支持上下文不足时再单独试|
-|3|稀疏语义亲和辅助监督|最终 S 比对照低 0.2357 个百分点，Moon_9 坑召回下降|保留诊断和采样实现；当前权重 0.05 不推荐默认迁移|
+|已退役|局部与周围关系残差|最终 S 比对照低 0.0964 个百分点|不保留独立实验入口；兼容实现用于旧检查点|
+|已退役|稀疏语义亲和辅助监督|最终 S 比对照低 0.2357 个百分点，Moon_9 坑召回下降|不保留独立实验入口；负结果见退役证据|
 
 已淘汰的几何实验不重新包装为有效先验，清理依据见 [既有清理记录](pruned_runs_20261112.json)。高分辨率细节、周围关系和亲和不是一组必须同时开启的组件。
 
 ## 3. 已实现的 CNN 接口与参数
 
-以下代码和配置均是实际存在的实现。CNN 相对链接从本目录可直接打开；ViT 链接指向同一 GitHub 仓库的 `fenge_vit/` 源码与配置，实际服务器部署目录为 `/home/lzc/workspace/fenge_vit`。
+细节配置与共享代码仍在；周围关系、亲和的专用配置和结果目录已删除，以下相关描述是历史实现说明，原始内容见退役证据。CNN 相对链接从本目录可直接打开；ViT 链接指向同一 GitHub 仓库的 `fenge_vit/` 源码与配置，实际服务器部署目录为 `/home/lzc/workspace/fenge_vit`。
 
 ### 细节注入：保留完整实现作为首选候选
 
@@ -82,9 +82,9 @@
 
 CNN 输出为 `z = log(p0) + sigmoid(gate_logits) * delta`，由现有语义 CE／Dice 监督，并在预测时转为概率。开关 `refinement="detail"`；默认 `"none"`。修正参数使用 `prior_lr=1e-4`，随原 poly 学习率计划衰减；它没有额外的亲和损失，`prior_warmup_updates` 不控制细节残差幅度。
 
-### 周围关系：实现已具备方向和多尺度，不重复堆叠
+### 已退役的周围关系：保留旧检查点兼容说明
 
-[ContextRefinement / directional_context](../../code/lunarseg/refinement.py)、[周围关系配置](../../config/dual_region_priors_context_1024.json)。
+[ContextRefinement / directional_context 兼容实现](../../code/lunarseg/refinement.py)；历史配置和指标已保存于[退役证据](../retired_experiments/summary.json)的 `local_runs` 与 `local_configs`。
 
 输入接口与共享残差一致，但当前分支不使用原图或初始概率。128 通道掩码特征先投影到 32，在 1/4 网格计算：9×9 局部均值、33×33 方框去掉 9×9 中心的环带均值，以及上／下 12×9、左／右 9×12 对称条带均值；边缘 replicate 填充，FP32 积分图实现。
 
@@ -92,9 +92,9 @@ CNN 输出为 `z = log(p0) + sigmoid(gate_logits) * delta`，由现有语义 CE�
 
 后续 ViT 已有四阶段 Adapter、可变形多尺度 pixel decoder 和 query attention。上下文模块并非明显缺项；若再试该分支，需说明它的局部对应关系补充了什么，不能把相似上下文结构的叠加本身当作收益。
 
-### 语义亲和：训练专用辅助头
+### 已退役的语义亲和：保留历史辅助头说明
 
-[SemanticAffinity](../../code/lunarseg/priors.py)、[训练接入与优化器](../../code/train.py)、[亲和配置](../../config/dual_region_priors_affinity_1024.json)。
+[SemanticAffinity 兼容实现](../../code/lunarseg/priors.py)、[原训练接入与优化器](../../code/train.py)；专用配置已退役，原配置和完整测试见[退役证据](../retired_experiments/summary.json)。
 
 接口 `SemanticAffinity(width=128, projected=32, quota=512, seed=4242)(features, targets, sample_keys, epoch)` 返回辅助损失和采样统计。使用 `model(..., return_features=True)["mask_features"]`；额外权重保存在检查点独立 `affinity` 键，推理不需要该头，也没有亲和传播或预测后平滑。
 
@@ -127,13 +127,12 @@ Mask2FormerHead 目前未返回内部 `mask_features`，迁移时需显式提供
 |1|B 原配置；B＋完整图语义 NLL；B＋相同 NLL＋detail|先分离新增监督收益，再测细节增益|
 |2|C＋相同 NLL；C＋相同 NLL＋detail|在完全一致的遮挡设置下检查细节与遮挡是否互补|
 |3|必要时 A＋相同 NLL；A＋相同 NLL＋detail|检查收益是否依赖 Adapter，而非将 CNN 结论外推|
-|4|有明确错例依据后再独立 context 或 affinity|避免在尚未确认有效的分支上堆叠多项变化|
 
 这是一份后续实验计划，不表示已经运行或安排新任务。具体比较应保持同一主机／GPU、相同每卡 batch 与累积、相同训练清单／验证集、随机种子、冻结阶段、学习率和最大更新预算。各候选从原始 DINOv3 ViT-S/16＋ConvNeXt-Tiny 预训练开始，公共网络初始化一致，新增模块使用独立随机流；不从已经见过更多样本的 CNN 或 ViT best 继续训练来冒充从头对照。
 
 当前四组 CNN 均完成 30 轮、每轮 1000 更新，共 30000 更新，前 3 轮冻结；但对照／亲和是当前服务器实际 batch 4、累积 2，周围／细节是 103 实际 batch 8、累积 1，且后两组开启激活重计算。有效 batch 都为 8，并不消除 MobileNet BN、按微批计算 Dice、设备／软件及训练轨迹差异。本次单种子差异不能归因于模块本身的稳定收益。四组基础网络初始化哈希一致：`48afac5eac0038e6e4a0aa55b6c472a68cde716b0492943b9181c182687a2740`。
 
-后续若用当前 6000 张配比，整套新对照统一用 4000＋1000＋1000，30 轮为 22500 更新；8000 张配比 30 轮为 30000 更新。不要把不同配比／预算与细节开关同时改变后归因为先验收益。固定 1601 张验证集选 best；继续按每 5 轮完整测试 Moon_2／4／9 的既有节奏记录，测试不参与检查点选择。测试集已被查看，后续结果属于同一已查看测试集上的实验对照。
+后续若用当前 6000 张配比，整套新对照统一用 4000＋1000＋1000，30 轮为 22500 更新；8000 张配比 30 轮为 30000 更新。不要把不同配比／预算与细节开关同时改变后归因为先验收益。旧协议仍用固定 1601 张验证集选 best，困难 1500 张每两轮用于诊断；完整 Moon_2／4／9 共 5004 张改为训练结束后评测最终验证 best。新 A／纯 ViT 协议则用同一困难 1500 张每两轮验证并选轮，期末同时报告完整 5004 张与排除验证后的 3504 张。比较细节分支时必须统一所选协议；测试场景已经用于诊断或选轮，不称为未经查看的独立留出集。
 
 判定时同时报告 S、三场景 mIoU、五类 IoU、坑→月壤／坑→山体／月壤→坑、月壤→山体以及山岩双向错分；若要主张细节改善，增加固定定义的小岩石和边界统计。先做零初始化前后概率一致性、真实损失到细化头梯度、1024／768 坐标对齐、四卡归约及严格重载检查，再开始新的正式消融。
 
@@ -143,8 +142,8 @@ Mask2FormerHead 目前未返回内部 `mask_features`，迁移时需显式提供
 |---|---|---|---|
 |对照|[配置](../../config/dual_region_priors_control_1024.json)|[run_config](../dual_region_priors_control_8000_1024/run_config.json)|[第 28 轮指标](../dual_region_priors_control_8000_1024/test_epoch_028_multiscale_hflip_1024_768_metrics.json)|
 |细节注入|[配置](../../config/dual_region_priors_detail_1024.json)|[run_config](../dual_region_priors_detail_8000_1024/run_config.json)|[第 30 轮指标](../dual_region_priors_detail_8000_1024/test_epoch_030_multiscale_hflip_1024_768_metrics.json)|
-|周围关系|[配置](../../config/dual_region_priors_context_1024.json)|[run_config](../dual_region_priors_context_8000_1024/run_config.json)|[第 30 轮指标](../dual_region_priors_context_8000_1024/test_epoch_030_multiscale_hflip_1024_768_metrics.json)|
-|语义亲和|[配置](../../config/dual_region_priors_affinity_1024.json)|[run_config](../dual_region_priors_affinity_8000_1024/run_config.json)|[第 28 轮指标](../dual_region_priors_affinity_8000_1024/test_epoch_028_multiscale_hflip_1024_768_metrics.json)|
+|周围关系（已退役）|已删除专用配置|[内嵌原 run_config](../retired_experiments/summary.json)|[内嵌第 16／30 轮完整指标](../retired_experiments/summary.json)|
+|语义亲和（已退役）|已删除专用配置|[内嵌原 run_config](../retired_experiments/summary.json)|[内嵌第 28 轮完整指标](../retired_experiments/summary.json)|
 
 - [细节第 11 轮历史指标](../dual_region_priors_detail_8000_1024/test_epoch_011_multiscale_hflip_1024_768_metrics.json)
 - [固定 8000 张选择清单](../selections/random80_4000_2000_2000_seed42_20261112.json)；[固定验证来源池](../selections/random80_4000_2000_2000_pool_20261112.json)

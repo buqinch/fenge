@@ -1,0 +1,234 @@
+{
+  "updated_at": "2026-11-13T07:31:32.997383+00:00",
+  "full_test_cadence": "training_end_only",
+  "hard_test_cadence_epochs": 2,
+  "hard_test_sample_counts": {
+    "Moon_2": 188,
+    "Moon_4": 187,
+    "Moon_9": 1125
+  },
+  "hard_test_score_weights": {
+    "Moon_2": 1,
+    "Moon_4": 1,
+    "Moon_9": 2
+  },
+  "training_processes_changed": false,
+  "user_stopped_run_restarted": false,
+  "existing_running_evaluations_preserved": true,
+  "hard_manifest_pending": false,
+  "hard_metrics_trigger_full_test_milestones": false,
+  "configs": {
+    "/home/lzc/workspace/fenge_vit/config/periodic_eval_local.json": {
+      "schema": "vit_periodic_test_v1",
+      "runs": [
+        "result/b_adapter",
+        "result/c_adapter_masking"
+      ],
+      "state_directory": "result/periodic_eval_remote103_final_only",
+      "python": "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+      "gpu_index": 3,
+      "minimum_free_mib": 10000,
+      "every_epochs": 5,
+      "poll_seconds": 10,
+      "final_evaluation": true,
+      "test_manifest": "/media/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+      "retain_above_score": 0.92,
+      "remote": {
+        "host": "fenge103",
+        "project": "/home/lzc/workspace/fenge_vit",
+        "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+        "wrapper": "code/run_on_103.sh",
+        "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+      },
+      "periodic_evaluation": false
+    },
+    "/home/lzc/workspace/fenge_vit/config/periodic_eval_103.json": {
+      "schema": "vit_periodic_test_v1",
+      "runs": [
+        "result/a_fusion"
+      ],
+      "state_directory": "result/periodic_eval_103_final_only",
+      "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "gpu_index": 3,
+      "minimum_free_mib": 10000,
+      "every_epochs": 5,
+      "poll_seconds": 10,
+      "final_evaluation": true,
+      "test_manifest": "/media/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+      "retain_above_score": 0.92,
+      "periodic_evaluation": false
+    },
+    "/home/lzc/workspace/fenge_vit/config/periodic_eval_c_6000_103_4gpu.json": {
+      "schema": "vit_periodic_test_v1",
+      "runs": [
+        "result/c_adapter_masking_4000_1000_1000_103_4gpu"
+      ],
+      "state_directory": "result/periodic_eval_c_6000_103_4gpu_final_only",
+      "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "gpu_index": 3,
+      "minimum_free_mib": 10000,
+      "every_epochs": 5,
+      "poll_seconds": 10,
+      "final_evaluation": true,
+      "test_manifest": "/media/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+      "retain_above_score": 0.92,
+      "periodic_evaluation": false
+    },
+    "/home/lzc/workspace/fenge_vit_only/config/periodic_eval.json": {
+      "schema": "vit_periodic_test_v1",
+      "runs": [
+        "result/vit_only_m2f_8000_1024"
+      ],
+      "state_directory": "result/periodic_eval_remote103_final_only",
+      "python": "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python",
+      "gpu_index": 3,
+      "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock",
+      "minimum_free_mib": 10000,
+      "every_epochs": 5,
+      "poll_seconds": 10,
+      "final_evaluation": true,
+      "test_manifest": "/media/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+      "retain_above_score": 0.92,
+      "remote": {
+        "host": "fenge103",
+        "project": "/home/lzc/workspace/fenge_vit_only",
+        "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+        "wrapper": "code/run_on_103.sh",
+        "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+      },
+      "periodic_evaluation": false
+    },
+    "/home/lzc/workspace/fenge_vit/config/hard_eval_local.json": {
+      "schema": "vit_hard_subset_monitor_v1",
+      "runs": [
+        "result/b_adapter",
+        "result/c_adapter_masking"
+      ],
+      "state_directory": "result/hard_eval_remote103_every2",
+      "hard_manifest": "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/manifest.json",
+      "every_epochs": 2,
+      "poll_seconds": 15,
+      "remote": {
+        "host": "fenge103",
+        "project": "/home/lzc/workspace/fenge_vit",
+        "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+        "wrapper": "code/run_on_103.sh",
+        "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+      }
+    },
+    "/home/lzc/workspace/fenge_vit/config/hard_eval_c_6000_103.json": {
+      "schema": "vit_hard_subset_monitor_v1",
+      "runs": [
+        "result/c_adapter_masking_4000_1000_1000_103_4gpu"
+      ],
+      "state_directory": "result/hard_eval_c_6000_103_every2",
+      "hard_manifest": "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/manifest.json",
+      "every_epochs": 2,
+      "poll_seconds": 15,
+      "remote": {
+        "host": null,
+        "project": "/home/lzc/workspace/fenge_vit",
+        "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+        "wrapper": "code/run_on_103.sh",
+        "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+      }
+    },
+    "/home/lzc/workspace/fenge_vit_only/config/hard_eval.json": {
+      "schema": "vit_hard_subset_monitor_v1",
+      "runs": [
+        "result/vit_only_m2f_8000_1024"
+      ],
+      "state_directory": "result/hard_eval_remote103_every2",
+      "hard_manifest": "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/manifest.json",
+      "every_epochs": 2,
+      "poll_seconds": 15,
+      "remote": {
+        "host": "fenge103",
+        "project": "/home/lzc/workspace/fenge_vit_only",
+        "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+        "wrapper": "code/run_on_103.sh",
+        "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+      }
+    },
+    "/home/lzc/workspace/fenge_vit/config/periodic_eval_visual_holdout_103.json": {
+      "schema": "vit_periodic_test_v1",
+      "runs": [
+        "result/c_adapter_masking_visual_holdout_6000_1500"
+      ],
+      "state_directory": "result/periodic_eval_visual_holdout_final_only",
+      "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "gpu_index": 3,
+      "minimum_free_mib": 10000,
+      "every_epochs": 5,
+      "poll_seconds": 10,
+      "final_evaluation": true,
+      "test_manifest": "/media/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+      "retain_above_score": 0.92,
+      "periodic_evaluation": false
+    },
+    "/home/lzc/workspace/fenge_vit/config/hard_eval_visual_holdout_103.json": {
+      "schema": "vit_hard_subset_monitor_v1",
+      "runs": [
+        "result/c_adapter_masking_visual_holdout_6000_1500"
+      ],
+      "state_directory": "result/hard_eval_visual_holdout_every2",
+      "hard_manifest": "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/manifest.json",
+      "every_epochs": 2,
+      "poll_seconds": 15,
+      "remote": {
+        "host": null,
+        "project": "/home/lzc/workspace/fenge_vit",
+        "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+        "wrapper": "code/run_on_103.sh",
+        "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+      },
+      "start_after_completed_epoch": 0
+    }
+  },
+  "stopped_monitor_pids": {
+    "local": [
+      732754,
+      732755
+    ],
+    "fenge103": [
+      927832,
+      927843
+    ]
+  },
+  "new_full_monitor_pids": {
+    "local": [
+      1445905,
+      1445906
+    ],
+    "fenge103": [
+      2140584,
+      2140585
+    ]
+  },
+  "new_hard_monitor_pids": {
+    "local": [
+      2278359,
+      2278360
+    ],
+    "fenge103": [
+      2205172
+    ]
+  },
+  "hard_manifest_sha256": "6b971b478e738ad5785964e9ac2fdf9e8a60a3f5ae395687f503e602cfb2f77c",
+  "hard_evaluator_sha256": "01fcdeedc22c7a350719751b5a8a081cb86dd89e1d4637f5a306022c7c5f6820",
+  "hard_monitor_sha256": "10983cfaeb7a82dbd859bc96256579867a95da5f792c884595c4927a9e342b9a",
+  "hard_runtime_verification": {
+    "vit_only_epoch006": "running on 103 GPU3, at least 300/1500 images observed",
+    "b_adapter_epoch020": "snapshot transferred, queued on shared GPU3 lock",
+    "native_c_6000": "monitor ready, next subscribed boundary epoch20",
+    "errors": [],
+    "checkpoint_selection_unchanged": true
+  },
+  "future_run": "result/c_adapter_masking_visual_holdout_6000_1500",
+  "future_run_started": false,
+  "future_hard_start_epoch": 2,
+  "verification": {
+    "full_cpu_checks": 25,
+    "hard_cpu_checks": 8
+  }
+}

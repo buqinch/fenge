@@ -1,0 +1,117 @@
+{
+  "status": "passed",
+  "manifest": "/home/lzc/workspace/fenge/result/selections/pool8002_train6000_hardval1500_seed42_20261113.json",
+  "manifest_sha256": "68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09",
+  "schema": "lusnar_all_sources_hardval_v1",
+  "split_protocol": "sampled_original_pool_with_fixed_hard_test_validation",
+  "counts": {
+    "original_pool": 8002,
+    "train_original": 4000,
+    "train_augmented": 2000,
+    "train_total": 6000,
+    "val_original": 1500,
+    "val_total": 1500,
+    "remaining_test": 3504,
+    "full_original_test": 5004,
+    "unselected_original": 4002
+  },
+  "base_seed": 42,
+  "random_streams": {
+    "originals": {
+      "material": "pool8002_train6000_hardval1500:originals:42",
+      "sha256": "4b97e579eba0567adc85abd99699b1ec971ea501154d6be1b1f33d2ff1c70ade",
+      "integer_seed": 34191841337407824618390320226445871947642298290720546356086653088937756003038
+    },
+    "augmentation_crater": {
+      "material": "pool8002_train6000_hardval1500:augmentation_crater:42",
+      "sha256": "0cc47f51f1b0dccff4a223a07c06d07709f5e4f627ee6cccdc646b63f699f563",
+      "integer_seed": 5774934938690501754253647515901886107484728139571546058626510598032695358819
+    },
+    "augmentation_mountain_rock": {
+      "material": "pool8002_train6000_hardval1500:augmentation_mountain_rock:42",
+      "sha256": "2bcdb8ac0d62a0e82e754c37177508edb577c00664f18fe0901b01132e49ca7d",
+      "integer_seed": 19812930697208292922123896184107593014710518031333995912382863308260689693309
+    },
+    "training_order": {
+      "material": "pool8002_train6000_hardval1500:training_order:42",
+      "sha256": "92e32d2931c0a7c0c48c5e4a37530dff57920a41e2c7e12041db04287ea14066",
+      "integer_seed": 66439061866044560953054397179817902580266651557602430264831542849597979312230
+    }
+  },
+  "selected_original_scene_counts": {
+    "Moon_1": 572,
+    "Moon_3": 615,
+    "Moon_5": 799,
+    "Moon_6": 577,
+    "Moon_7": 776,
+    "Moon_8": 661
+  },
+  "original_pool_scene_counts": {
+    "Moon_1": 1094,
+    "Moon_3": 1230,
+    "Moon_5": 1599,
+    "Moon_6": 1102,
+    "Moon_7": 1626,
+    "Moon_8": 1351
+  },
+  "originals_from_previous_1601_validation": 798,
+  "old_validation_augmented_parents": 0,
+  "unique_training_sources": 4766,
+  "augmentation_parents_without_selected_original": 766,
+  "validation_scene_counts": {
+    "Moon_2": 188,
+    "Moon_4": 187,
+    "Moon_9": 1125
+  },
+  "remaining_test_scene_counts": {
+    "Moon_2": 1409,
+    "Moon_4": 1133,
+    "Moon_9": 962
+  },
+  "augmentation_selection": {
+    "crater": {
+      "available": 2372,
+      "requested": 1000,
+      "preferred_available": 1000,
+      "preferred_preserved": 1000,
+      "selected": 1000,
+      "selected_parents_without_selected_original": 360
+    },
+    "mountain_rock": {
+      "available": 2375,
+      "requested": 1000,
+      "preferred_available": 1000,
+      "preferred_preserved": 1000,
+      "selected": 1000,
+      "selected_parents_without_selected_original": 460
+    }
+  },
+  "old_hard_manifest_unchanged_sha256": "6b971b478e738ad5785964e9ac2fdf9e8a60a3f5ae395687f503e602cfb2f77c",
+  "checks": [
+    "8002 original candidates complete and unique",
+    "fresh seed42 no-replacement original sample across full pool",
+    "fixed 1500 validation identities and ordering unchanged",
+    "training source families disjoint from validation and remaining test",
+    "augmentation parent IDs belong to the 8002 training candidate pool",
+    "remaining 3504 exactly complements validation within former 5004",
+    "all selected ID masks legal and paired image sizes equal",
+    "all validation image paths and archive members exist",
+    "input manifests unchanged"
+  ],
+  "protocol_policy": {
+    "test_labels_used_for_validation_selection": true,
+    "former_test_samples_in_validation": 1500,
+    "full_original_test_validation_overlap": 1500,
+    "remaining_test_validation_overlap": 0,
+    "validation_used_for_checkpoint_selection": true,
+    "checkpoint_selection_uses_former_test_labels": true,
+    "validation_selection_model": {
+      "checkpoint_epoch": 18,
+      "checkpoint_sha256": "eb15ac5380183a16366521c5dab4725c48cf1d2eec9741965efd93aa0577e861"
+    },
+    "source_hard_manifest_original_role": "diagnostic_test_only",
+    "current_role_override": "validation_for_new_training_experiments_explicitly_requested_by_user",
+    "requires_fresh_training": true,
+    "reporting_note": "Original 5004-image test now contains 1500 validation images and is no longer independent of best selection; remaining 3504 is already inspected and excludes deliberately selected difficult cases."
+  }
+}

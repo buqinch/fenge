@@ -141,6 +141,10 @@ def load_config(path):
         config.setdefault(key, default)
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError(key + ' must be a positive integer')
+    for key in ('periodic_evaluation', 'final_evaluation'):
+        config.setdefault(key, True)
+        if type(config[key]) is not bool:
+            raise ValueError(key + ' must be a boolean')
     validate_retention_threshold(config.get('retain_above_score'))
     paths = []
     for value in config['runs']:
@@ -152,8 +156,7 @@ def load_config(path):
         raise ValueError('Expected distinct run directories')
     config['runs'] = paths
     config['python'] = str(Path(config.get('python', sys.executable)).resolve())
-    # A shared absolute lock lets independent projects serialize evaluations on
-    # the same physical GPU while keeping their source/provenance separate.
+    # Independent projects evaluating on one physical GPU must share this lock.
     config['gpu_lock'] = str(Path(config.get('gpu_lock', ROOT / 'result' /
                               f'.periodic_gpu_{config["gpu_index"]}.lock')).expanduser().resolve())
     config['evaluation'] = settings(config)
@@ -191,8 +194,10 @@ def committed_run(run):
     if not summary_path.exists():
         return None
     summary, configuration = read_json(summary_path), read_json(run / 'run_config.json')
+    expected_count = summary.get('data_identity', {}).get('val', {}).get('image_count')
     if (summary.get('format') != 'lusnar_vit_run_v1' or summary.get('partial') is not False
-            or summary.get('validation_images') != 1601
+            or type(expected_count) is not int or expected_count < 1
+            or summary.get('validation_images') != expected_count
             or summary.get('checkpoint_selection_uses_test') is not False
             or summary.get('official_test_used_for_selection') is not False):
         raise ValueError('Expected full validation-only ViT training')
@@ -228,9 +233,13 @@ def committed_run(run):
 
 
 def validate_validation(document, epoch, score, identity):
+    expected_count = identity.get('image_count')
+    expected_sources = identity.get('unique_source_count', expected_count)
+    if type(expected_count) is not int or expected_count < 1 or type(expected_sources) is not int or expected_sources < 1:
+        raise ValueError('Validation identity is missing positive coverage counts')
     if (document.get('epoch') != epoch or document.get('partial') is not False
-            or document.get('image_count') != 1601
-            or document.get('validation_unique_source_count') != 1601
+            or document.get('image_count') != expected_count
+            or document.get('validation_unique_source_count') != expected_sources
             or document.get('checkpoint_selection_uses_test') is not False
             or document.get('data_identity') != identity):
         raise ValueError('Full fixed-validation identity/coverage mismatch')
@@ -591,9 +600,10 @@ class Monitor:
                 summary, configuration, rows = committed
                 completed = summary['completed_epochs']
                 interval = self.config['every_epochs']
-                for epoch in range(interval, completed + 1, interval):
-                    prepare_job(run, epoch, summary, configuration, rows, self.config)
-                if (self.config.get('final_evaluation', True) and completed % interval
+                if self.config.get('periodic_evaluation', True):
+                    for epoch in range(interval, completed + 1, interval):
+                        prepare_job(run, epoch, summary, configuration, rows, self.config)
+                if (self.config.get('final_evaluation', True)
                         and summary['status'] in ('complete', 'early_stopped')):
                     prepare_job(run, completed, summary, configuration, rows, self.config, final=True)
             except Exception as error:

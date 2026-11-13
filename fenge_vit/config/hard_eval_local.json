@@ -1,0 +1,18 @@
+{
+  "schema": "vit_hard_subset_monitor_v1",
+  "runs": [
+    "result/b_adapter",
+    "result/c_adapter_masking"
+  ],
+  "state_directory": "result/hard_eval_remote103_every2",
+  "hard_manifest": "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/manifest.json",
+  "every_epochs": 2,
+  "poll_seconds": 15,
+  "remote": {
+    "host": "fenge103",
+    "project": "/home/lzc/workspace/fenge_vit",
+    "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "wrapper": "code/run_on_103.sh",
+    "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+  }
+}

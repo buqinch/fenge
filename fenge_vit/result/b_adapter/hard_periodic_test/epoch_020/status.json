@@ -1,0 +1,59 @@
+{
+  "status": "complete",
+  "updated_at": "2026-11-13T07:44:17.307295+00:00",
+  "checkpoint_epoch": 20,
+  "execution_host": "fenge103",
+  "remote_job": "/home/lzc/workspace/fenge_vit/result/hard_remote/b_adapter/epoch_020",
+  "remote_status": {
+    "status": "running",
+    "updated_at": "2026-11-13T07:35:30.531520+00:00",
+    "waiting_reason": "Shared GPU lock is held",
+    "worker_identity": {
+      "pid": 2219823,
+      "start_ticks": "8995557",
+      "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+    },
+    "started_at": "2026-11-13T07:35:30.529468+00:00",
+    "evaluator_identity": {
+      "pid": 2219865,
+      "start_ticks": "8995646",
+      "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+    },
+    "command": [
+      "/home/lzc/miniconda3/envs/lusnar/bin/python",
+      "-B",
+      "-u",
+      "/home/lzc/workspace/fenge_vit/code/evaluate_hard_subset.py",
+      "--checkpoint",
+      "/home/lzc/workspace/fenge_vit/result/hard_remote/b_adapter/epoch_020/best.pt",
+      "--hard-manifest",
+      "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/manifest.json",
+      "--output",
+      "/home/lzc/workspace/fenge_vit/result/hard_remote/b_adapter/epoch_020/hard_test_metrics.json",
+      "--device",
+      "cuda:0",
+      "--amp",
+      "bf16",
+      "--batch-size",
+      "4",
+      "--workers",
+      "4"
+    ],
+    "checkpoint_present": true,
+    "metrics_present": false
+  },
+  "verified": {
+    "hard_subset_score": 0.8108629418693323,
+    "scene_miou": {
+      "Moon_2": 0.8403034092031099,
+      "Moon_4": 0.7097871408329385,
+      "Moon_9": 0.8466806087206404
+    },
+    "image_count": 1500,
+    "official_full_test": false,
+    "checkpoint_selection_uses_test": false
+  },
+  "completed_at": "2026-11-13T07:44:17.307012+00:00",
+  "official_full_test": false,
+  "score_milestone": null
+}

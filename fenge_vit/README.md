@@ -1,323 +1,197 @@
-# LuSNAR：DINOv3 ViT-S/16＋ConvNeXt-Tiny＋双向 Adapter＋Mask2Former
+# LuSNAR：ViT＋CNN 混合骨干与 Mask2Former
 
-这是独立于 `../fenge` 双 CNN 实验的新项目。两个 DINOv3 骨干都接收完整 **1024×1024** RGB；提供 A／B／C 三组可训练配置、断点续训、固定验证集选模、Moon_2/4/9 评估、TTA 和图片导出。训练入口不会启动或修改旧 CNN 实验。
+DINOv3 ViT-S/16 与 ConvNeXt-Tiny 都接收完整 **1024×1024 RGB**。本目录保留 A 融合、B 双向 Adapter、C 遮挡训练三组实现，与双 CNN 和纯 ViT 源码分开。
+
+[三大框架结果总览](https://github.com/buqinch/fenge/blob/main/README.md) · [完整指标汇总](result/progress_analysis/latest_report_zh.md)
+
+## 保留的较高结果
+
+结果整理日期：**2026-11-13**。下表均完整评估 Moon_2／4／9 的1597／1320／2087张，共5004张，使用1024／768等权水平翻转TTA（4视图）。轮次指实际检查点，可能与测试目录名不同。
+
+|模型／训练配比|权重轮次|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权S|记录|
+|---|---:|---:|---:|---:|---:|---|
+|**A 融合／4000＋2000＋2000**|**14**|93.3239%|92.7107%|88.3082%|**90.6628%**|[历史已测最高](result/a_fusion/periodic_test/epoch_015/test_metrics.json)|
+|C 四卡／4000＋1000＋1000|15|93.4439%|93.2922%|87.8778%|90.6230%|[阶段高分](result/c_adapter_masking_4000_1000_1000_103_4gpu/periodic_test/epoch_015/test_metrics.json)|
+|C 单卡／4000＋2000＋2000|15|92.8829%|93.0022%|87.5667%|90.2547%|[阶段高分](result/c_adapter_masking/periodic_test/epoch_015/test_metrics.json)|
+|B Adapter／4000＋2000＋2000|14|93.0752%|91.7683%|87.6883%|90.0550%|[阶段高分](result/b_adapter/periodic_test/epoch_015/test_metrics.json)|
+|C 四卡6000／最终验证best|23|93.3967%|93.1300%|87.6578%|90.4606%|[期末测试](result/c_adapter_masking_4000_1000_1000_103_4gpu/periodic_test/final_epoch_024/test_metrics.json)|
+|A 融合／最终验证best|21|93.0862%|92.3730%|86.7375%|89.7335%|[期末测试](result/a_fusion/periodic_test/final_epoch_021/test_metrics.json)|
+
+A 第14轮的完整精度为 **90.66277112%**。这是已观察到的测试最高分；A最终按原1601张验证集选出第21轮，不能把历史测试最高轮写成最终验证best。C6000已在第24轮早停，验证best为第23轮，原验证mIoU为96.5054%；该第23轮权重已完成完整5004张期末测试，**S＝90.4606%**，是当前可用最终验证best的结果。
+
+历史阶段测试的临时权重可能已按原“完整S超过92%才额外保留”规则清理。指标、checkpoint SHA和训练记录仍用于核验；重测前需确认对应精确权重仍存在，不能用当前best冒充历史权重。
+
+## 新6000／困难1500实验
+
+新A使用全部8002张候选原图池重新抽取的4000原图，加1000坑增强、1000山岩增强。相同清单的纯ViT对照位于[独立目录](../fenge_vit_only/README.md)。两组都从原始预训练开始、关闭RGB随机遮挡。
+
+|实验|已完成验证权重|困难验证加权分数|对应记录|
+|---|---:|---:|---|
+|A 融合|4|**80.4746%**|[验证](result/a_fusion_pool8002_train6000_hardval1500_103_2gpu/validation_epoch_004.json)|
+|纯ViT|4|75.7125%|[验证](../fenge_vit_only/result/vit_only_pool8002_train6000_hardval1500_103_2gpu/validation_epoch_004.json)|
+|固定困难集来源baseline：C6000|18|80.7379%|[固定基准](result/hard_test_1500_20261113/source_hard_subset_metrics.json)|
+
+这些是困难1500张的分数，不能与上表完整5004张S或原1601张验证mIoU混比。新实验的完整5004张评测安排在训练结束后。
+
+## 文件与环境
 
 ```text
 fenge_vit/
-├── model/   # 两个 DINOv3 原始预训练权重、配置、许可证和 SHA256
-├── code/    # 网络、损失、遮挡、数据、训练、评估、推理、运行验证
-├── config/  # A/B/C 可运行配置
-├── result/  # 检查点、训练日志、验证指标、运行检查
+├── model/   # 原始预训练来源、配置、许可证、SHA256；权重不进Git
+├── code/    # 网络、损失、训练、评估、推理、同步与验证入口
+├── config/  # A/B/C及数据协议配置
+├── result/  # 检查点、训练记录和评测指标
 └── README.md
 ```
 
-仓库发布位置为 `buqinch/fenge` 的 `fenge_vit/` 子目录；当前部署仍使用 `/home/lzc/workspace/fenge_vit` 这一独立工作目录。数据清单固定引用 `/home/lzc/workspace/fenge/result/selections/`，GitHub保存的是代码与文字结果快照。最新阶段判断见 [最新效果报告](result/progress_analysis/latest_report_zh.md)；[此前阶段快照](result/progress_analysis/report_zh.md) 保留用于追溯。
-
-## 网络
-
-```mermaid
-flowchart TD
-    X[1024×1024 RGB] --> C[DINOv3 ConvNeXt-Tiny]
-    X --> V[DINOv3 ViT-S/16 Patch Embedding]
-    C --> C4[1/4 原生细节：96通道]
-    C --> S[1/8、1/16、1/32投影至384通道]
-    V --> T[64×64 patch网格＋CLS＋4个register]
-    S --> A[四阶段：Inject → 3层ViT → Extract]
-    T --> A
-    A --> P[256通道像素解码器：6层多尺度可变形注意力]
-    C4 --> P
-    P --> Q[Mask2Former：32查询、8头、6个掩码注意力块]
-    Q --> M[256×256查询掩码＋5类和no-object]
-    M --> O[连续分数组合、上采样和跨类归一化：1024五类预测]
-```
-
-- ViT 是 **非 plus 的 ViT-S/16**：384 通道、12 个 block；保留预训练模型的 CLS、4 个 register tokens 和 RoPE。只有 patch tokens 参与空间重排和 Adapter，网格始终为 64×64。
-- ConvNeXt 只执行一次，产生 `96/192/384/768` 通道、步长 `4/8/16/32` 的四层特征。后三层投影为384通道并经过四轮交互；1/4原生细节独立送入像素解码器。
-- 每阶段使用真正的多尺度可变形交叉注意力，先向 ViT 注入空间特征，经过3层原始 ViT block，再反向更新三层空间特征。可学习残差系数 `gamma/eta` 初值为 `1e-4`。
-- 像素解码器使用六层256通道、8头、4采样点的多尺度可变形编码；查询解码器有**六个真正的解码块**，按1/32→1/16→1/8循环两次。初始预测和六块之后的预测共七组，最终一组＋六组辅助监督。
-- 掩码注意力使用前一组查询掩码生成 `detach` 的空间屏蔽；整行屏蔽时恢复可访问位置，避免全屏蔽导致 NaN。查询是语义区域查询，不是已知物理实例。
-
-骨干直接调用 `timm` 的 DINOv3 实现。Adapter 和 Mask2Former 的核心机制在独立 PyTorch 模块中实现，无需 Detectron2/MMCV 的编译环境。可变形采样使用可微 FP32 `grid_sample`，按查询分块控制峰值，不是密集普通交叉注意力的替代品；与定制 CUDA 算子的吞吐可能不同。
-
-实现对应 [DINOv3](https://github.com/facebookresearch/dinov3/blob/main/dinov3/models/vision_transformer.py)、[ViT-Adapter](https://github.com/czczup/ViT-Adapter/blob/main/segmentation/mmseg_custom/models/backbones/adapter_modules.py)、[Mask2Former](https://github.com/facebookresearch/Mask2Former/blob/main/mask2former/modeling/transformer_decoder/mask2former_transformer_decoder.py) 的机制，ConvNeXt空间先验及当前通道、查询、层数属于本实验配置；没有声称加载官方已训练的 Mask2Former 分割模型。
-
-## 三组对照
-
-|组|配置|网络|随机遮挡|
-|---|---|---|---|
-|A|[a_fusion.json](config/a_fusion.json)|双DINO最终特征简单多尺度融合＋Mask2Former|关闭|
-|B|[b_adapter.json](config/b_adapter.json)|四阶段双向Adapter＋Mask2Former|关闭|
-|C|[c_adapter_masking.json](config/c_adapter_masking.json)|与B相同|解冻后启用|
-
-三组从相同原始预训练骨干开始；公共投影和 Mask2Former 用相同 seed 初始化，新 Adapter／融合模块使用独立随机流。B／C 初始网络相同，仅训练监督不同。记录公共参数初始化哈希、数据清单哈希和每轮样本／翻转哈希，避免混入旧训练权重。
-
-语义GT仍按每个出现的类别提供一张合并掩码，保留孔洞与不连通部分。Hungarian 分类＋掩码BCE／Dice的权重为 `2/5/5`，`no-object` 为0.1；每层独立匹配，七组预测均有监督。4096个匹配／损失点直接来自原分辨率GT，保证出现类别的正点覆盖，避免缩小标签后抹掉小岩石。
-
-## 遮挡分支
-
-C 每次更新都保留完整图的完整 Mask2Former 监督；解冻后约25%的**优化器更新**追加遮挡语义监督，该次更新中的所有累积微批都执行遮挡分支。不同图像独立采样，同一遮挡图同时送入两个骨干。
-
-块大小32×32，遮挡约10%，填充归一化后的0。默认 `lambda=0.5`，解冻后的前1000次更新线性升至该权重；隐藏有效像素的监督权重 `rho=0.2`。可复现的遮挡随机数由 seed、优化器更新号和样本标识共同确定，与数据读取及损失采样随机流分开。
-
-对被完全遮住的GT岩石、坑或山体8连通区域，仅在遮挡辅助分支忽略该区域；完整图仍正常监督。连通区域是标签定义，不假定为物理实例。
-
-模型先由查询类别概率和查询掩码概率合成五类证据 `S`，再以 FP32 计算
-
-```text
-p = (S + 1e-8) / (sum_class(S) + 5e-8)
-L_masked = (sum_visible NLL + 0.2 * sum_eligible_hidden NLL)
-           / (visible_valid_pixels + eligible_hidden_pixels)
-L = L_Mask2Former(full_image) + lambda * L_masked(masked_image)
-```
-
-分母不按rho加权。训练对整个累积窗口的有效像素数做归约；先完成完整图反向，再执行遮挡图前向与反向，不同时保留两幅完整计算图。遮挡思路参考 [MIC 的GT遮挡监督路径](https://github.com/lhoyer/MIC/blob/master/seg/mmseg/models/uda/masking_consistency_module.py)，这里不使用教师网络。
-
-## 环境与预训练权重
-
-当前服务器使用已有环境：
+GitHub中本项目位于`fenge_vit/`；服务器部署目录为`/home/lzc/workspace/fenge_vit`。数据清单引用`/home/lzc/workspace/fenge/result/selections/`。
 
 ```bash
 conda activate lzc_fenge
 cd /home/lzc/workspace/fenge_vit
-python code/download_weights.py --proxy http://10.134.144.213:9870
+python code/download_weights.py
 ```
 
-103 使用用户指定的 `/home/lzc/miniconda3/envs/lusnar/bin/python`。依赖见 [requirements.txt](code/requirements.txt)，已有匹配的 PyTorch／torchvision 无需升级。当前服务器为 PyTorch2.1.1/timm1.0.30，103为PyTorch2.2.2/timm1.0.22；跨软件及GPU型号不承诺逐位相同的训练轨迹。
+本机Python为`/home/vrlab/miniconda3/envs/lzc_fenge/bin/python`；103使用`/home/lzc/miniconda3/envs/lusnar/bin/python`。依赖见[requirements.txt](code/requirements.txt)。已有环境分别使用PyTorch2.1.1／timm1.0.30和PyTorch2.2.2／timm1.0.22。
 
-ViT权重来自 [timm/vit_small_patch16_dinov3.lvd1689m](https://huggingface.co/timm/vit_small_patch16_dinov3.lvd1689m)，固定revision `3bf4720a82ec2066db88137180ff1f83a675cef0`、SHA256 `2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040`。ConvNeXt使用原DINOv3权重，SHA256 `a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f`。详见 [model/manifest.json](model/manifest.json)。模型只严格加载本地校验过的权重，缺失／不匹配即报错；不会静默随机初始化。
+ViT来自[timm DINOv3 ViT-S/16](https://huggingface.co/timm/vit_small_patch16_dinov3.lvd1689m)，revision为`3bf4720a82ec2066db88137180ff1f83a675cef0`，SHA256为`2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040`。ConvNeXt原始DINOv3权重SHA256为`a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f`。来源和许可证见[权重清单](model/manifest.json)；加载时核对SHA和参数，缺失或不匹配即报错。
 
-## 数据与训练
+## 网络与三组对照
 
-复用已有**同一份数据**，不依赖旧CNN模型源码：
+|组|编码与交互|RGB输入遮挡|配置|
+|---|---|---|---|
+|A|ViT＋ConvNeXt最终特征多尺度融合|关闭|[a_fusion.json](config/a_fusion.json)|
+|B|四阶段双向Adapter|关闭|[b_adapter.json](config/b_adapter.json)|
+|C|与B同一网络|解冻后启用|[c_adapter_masking.json](config/c_adapter_masking.json)|
 
-- 固定训练清单：`/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_seed42_20261112.json`，8000张＝4000原图＋2000坑增强＋2000山岩增强。
-- 来源池及固定验证：`/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_pool_20261112.json`，验证1601张；同一原图来源和其增强不跨集合。
-- Moon_2／4／9 保留测试，分别1597／1320／2087张。类别ID固定：0月壤、1岩石、2撞击坑、3山体、4天空。
-
-```bash
-python code/train.py --config config/a_fusion.json --device cuda:2
-python code/train.py --config config/b_adapter.json --device cuda:2
-python code/train.py --config config/c_adapter_masking.json --device cuda:4
+```mermaid
+flowchart TD
+    X[1024×1024 RGB] --> C[DINOv3 ConvNeXt-Tiny]
+    X --> V[DINOv3 ViT-S/16]
+    C --> D[1/4原生细节：96通道]
+    C --> S[1/8、1/16、1/32投影至384通道]
+    V --> T[64×64 patch网格＋CLS＋4个register]
+    S --> A[B/C：四阶段 Inject → 3层ViT → Extract]
+    T --> A
+    A --> P[256通道像素解码器：6层多尺度可变形注意力]
+    D --> P
+    P --> Q[32查询、8头、6个掩码注意力块]
+    Q --> M[256×256查询掩码＋5类和no-object]
+    M --> O[五类连续分数 → 插值归一化 → argmax]
 ```
 
-以上是三个独立运行入口；并行运行时指定不同空闲GPU。本次实际batch8、累积1、有效batch8，BF16与激活重计算开启，最多30轮。前3轮冻结两骨干，暂不遮挡；随后联合微调，骨干学习率起点5e-6，新层1e-4，按更新次数poly衰减。**冻结ViT参数时不对ViT整体使用no_grad**，插入层的梯度仍穿过冻结block。
+ViT为非plus的ViT-S/16：12层、384通道，保留RoPE、CLS和4个register，只有patch tokens参与空间重排和Adapter。ConvNeXt只执行一次，产生96／192／384／768通道、步长4／8／16／32的特征；后三层参与交互，1/4细节独立送入解码器。
 
-本次指定部署为：A在103的RTX3090（物理卡2，`lusnar`），B／C在当前服务器的RTX4090（物理卡2／4，`lzc_fenge`）。A的命令需在103内通过下文挂载入口执行。已完成完整训练峰值显存实测，并按用户选择以三组实际batch8、累积1启动正式训练。部署记录见 [experiment_placement.json](result/experiment_placement.json)。
+B/C每阶段先用多尺度可变形交叉注意力向ViT注入空间特征，经过3个原始ViT block，再反向更新空间特征。残差系数gamma／eta初值为1e-4。A使用简单融合，没有这些交互Adapter。
 
-每轮完整无TTA验证，按第一次严格最高 mIoU 保存 `best.pt`。从第4轮起，连续5轮未累计提高0.05个百分点则早停；早停和严格最佳选轮分别记录。
+像素编码器为6层、256通道、8头、4采样点；查询解码器6块按1/32→1/16→1/8循环两次。初始预测和6块输出共7组，最后一组及6组辅助输出均监督。前一次掩码产生detach的注意力屏蔽，全屏蔽行恢复可访问位置，避免NaN。
+
+骨干调用timm；Adapter和Mask2Former使用独立PyTorch实现，可变形采样用FP32 `grid_sample`并分块。无需Detectron2/MMCV编译。实现依据：[DINOv3](https://github.com/facebookresearch/dinov3/blob/main/dinov3/models/vision_transformer.py)、[ViT-Adapter](https://github.com/czczup/ViT-Adapter/blob/main/segmentation/mmseg_custom/models/backbones/adapter_modules.py)、[Mask2Former](https://github.com/facebookresearch/Mask2Former/blob/main/mask2former/modeling/transformer_decoder/mask2former_transformer_decoder.py)。本项目的通道、查询及层数不是官方默认配置。
+
+GT中每个出现的类别构成一张union mask，保留孔洞及不连通部分。每组输出独立Hungarian匹配，分类／mask BCE／Dice权重2／5／5，no-object权重0.1；4096匹配与损失点直接采自原分辨率标签，覆盖出现类别的正点。no-object不是天空。
+
+输出沿用A：查询类别softmax与mask sigmoid先合成五类分数，再双线性插值、按类归一化；不能把合成分数当原始logits再套softmax。B/C网络初始化相同；跨A或纯ViT的特征投影与随机数消耗不同，不宣称所有公共张量逐元素相同。
+
+## C组遮挡监督
+
+完整图始终保留全部Mask2Former监督。解冻后约25%的优化器更新追加遮挡分支；同一更新的累积微批都执行遮挡，每图独立采样，两骨干接收同一份遮挡RGB。
+
+块大小32×32，遮挡约10%，填归一化后的0；lambda在解冻后的1000次更新从0升至0.5，隐藏有效像素权重rho为0.2。随机流由seed、更新号、样本ID决定。被完全遮住的GT岩石／坑／山体连通区域仅在遮挡辅助监督中忽略，完整图照常监督。
+
+```text
+p = (S + 1e-8) / (sum_class(S) + 5e-8)
+L_masked = (sum_visible NLL + 0.2 × sum_eligible_hidden NLL)
+           / (visible_valid_pixels + eligible_hidden_pixels)
+L = L_Mask2Former(full_image) + lambda × L_masked(masked_image)
+```
+
+分母不按rho加权，按整个累积窗口有效像素归约；完整图与遮挡图先后反向，控制显存峰值。本实现使用GT监督，无教师网络。
+
+## 数据与选轮协议
+
+类别ID固定为0月壤、1岩石、2撞击坑、3山体、4天空；图像与ID标签均为1024×1024。
+
+|协议|训练来源与配比|验证|选轮与早停|
+|---|---|---|---|
+|旧8000|原6401训练来源中4000原图＋2000坑＋2000山岩|固定1601原图|每轮单1024；汇总mIoU|
+|旧6000|与旧8000同4000原图，增强各抽1000|同一1601原图|同上；每轮750更新|
+|新6000|全8002候选中重新抽4000原图，增强各1000|固定困难1500|每2轮及末轮四视图；场景加权分数|
+
+旧协议的原图及其增强来源不跨训练／验证，Moon_2/4/9不进入训练或选轮。旧6000与旧8000的更新数不同，不能把同epoch解释为相同更新预算。
+
+新清单为`pool8002_train6000_hardval1500_seed42_20261113.json`，SHA256为`68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09`。候选原图来自Moon_1/3/5/6/7/8，增强父图也只来自该池。验证为Moon_2/4/9的188／187／1125张，固定后不随新预测重选；采样1∶1∶6，评分仍1∶1∶2。
+
+新验证字段`validation_weighted_score`用于best，`miou`仍是汇总混淆矩阵mIoU。困难Moon_4无山体GT，该类IoU为null，只平均其余4类。原测试1500被用于新验证，期末分别报告完整5004、验证1500、剩余3504；完整5004包含选轮数据，3504也参与过难度筛选，均不称为未经查看的留出集。
+
+## 训练与断点续训
+
+全部从原始预训练开始，最长30轮，前3轮冻结骨干，之后联合微调。新层LR为1e-4，骨干5e-6，poly调度、BF16及激活重计算；有效batch为8。冻结ViT参数时，B/C仍需让梯度穿过冻结block进入Adapter，不能整体no_grad。
 
 ```bash
+python code/train.py --config config/a_fusion.json --device cuda:0 --output result/a_reproduction
+python code/train.py --config config/b_adapter.json --device cuda:1 --output result/b_reproduction
+python code/train.py --config config/c_adapter_masking.json --device cuda:2 --output result/c_reproduction
 python code/train.py --config config/c_adapter_masking.json \
-  --resume result/c_adapter_masking/last.pt --device cuda:0
+  --resume result/c_adapter_masking/last.pt --device cuda:2
 ```
 
-保存模型、优化器、调度器、AMP scaler、随机状态、DataLoader生成器、数据身份、实现SHA及早停状态，按完整epoch边界续训。改变数据、批次或实现不会被悄悄当作精确续训；部分样本执行检查明确标注 `partial` 并使用 `best_smoke.pt`。
+严格新高保存best；显著提升阈值为0.05个百分点。旧协议从第4轮起连续5轮无显著增长早停，新协议按5次实际验证检查计数，跳过验证的轮次不计耐心。
 
-A的训练日志和JSON文字结果每60秒从103同步到本机同名 `result/a_fusion/`；权重保留在训练主机，图片仍输出到共享NAS。同步配置为 [remote103.json](config/remote103.json)，状态与日志位于 `result/remote103/`。同步工具只读取远端文字，不管理训练进程。
+检查点保存优化器、调度器、AMP、随机流、样本身份、代码SHA、早停状态；按完整epoch边界恢复。数据、批次或实现改变不能静默作为精确续训。不同GPU和CUDA算子不保证逐位相同。
 
-103 的数据挂载入口保留原清单的规范路径；运行任何训练／验证命令可使用：
+103上的旧C6000四卡复现入口（使用新输出目录）：
 
 ```bash
-cd /home/lzc/workspace/fenge_vit
-bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python \
-  code/train.py --config config/a_fusion.json --device cuda:2
+bash code/run_on_103.sh env CUDA_VISIBLE_DEVICES=4,5,6,7 \
+  /home/lzc/miniconda3/envs/lusnar/bin/python -m torch.distributed.run \
+  --standalone --nproc_per_node=4 code/train_distributed.py \
+  --config config/c_adapter_masking_4000_1000_1000_103_4gpu.json \
+  --output result/c6000_reproduction
 ```
 
-## 评估、TTA与导出
+四卡每卡batch2，总batch8。分布式入口按全局匹配目标／有效像素归约损失，以NCCL同步梯度，验证先合并整数混淆矩阵；保存时核对各卡模型SHA。续训要求相同卡数和配置。
+
+新A在103卡4／5，每卡batch4，总batch8；新纯ViT使用卡6／7。A入口为：
 
 ```bash
-python code/evaluate.py --checkpoint result/c_adapter_masking/best.pt --split val
-python code/evaluate.py --checkpoint result/c_adapter_masking/best.pt --split test
+bash code/run_on_103.sh env CUDA_VISIBLE_DEVICES=4,5 \
+  /home/lzc/miniconda3/envs/lusnar/bin/python -m torch.distributed.run \
+  --standalone --nproc_per_node=2 code/train_hardval_distributed.py \
+  --config config/a_fusion_pool8002_train6000_hardval1500_103_2gpu.json
+```
+
+上述正式任务仍在运行时勿重复启动同一目录。103文字结果每60秒同步本机，权重留训练主机；图片输出到NAS。
+
+## 评估、TTA与图片
+
+```bash
+python code/evaluate.py --checkpoint result/c_adapter_masking/best.pt --split val --tta none
 python code/evaluate.py --checkpoint result/c_adapter_masking/best.pt --split test \
-  --tta multiscale_hflip --tta-sizes 1024 768 \
-  --save-images --device cuda:0
+  --tta multiscale_hflip --tta-sizes 1024 768 --tta-weights 0.5 0.5 \
+  --save-images --device cuda:0 --output result/c_adapter_masking/test_manual_metrics.json
 python code/infer.py --checkpoint result/c_adapter_masking/best.pt \
   --input /path/to/images --tta hflip --overlay
 ```
 
-TTA为完整图／水平翻转或多尺度翻转；先还原翻转坐标、统一空间尺寸，再平均归一化五类概率，最后argmax。支持 `--tta-weights 0.75 0.25`，缺省为等权；无需重训。
+TTA先把水平翻转预测翻回原坐标、各尺度连续概率恢复到原尺寸，再平均，最后argmax；更改TTA无需重训。完整场景计分为`weighted_score=(Moon_2 mIoU+Moon_4 mIoU+2×Moon_9 mIoU)/4`，各场景只平均GT出现类别。`miou`／`pooled_miou`合并像素统计，不能冒充比赛S，也不平均单图mIoU。
 
-`miou`／`pooled_miou` 是所有评估像素混淆矩阵汇总后的 mIoU。**完整测试最终分数使用 `weighted_score=(Moon_2+Moon_4+2×Moon_9)/4`**，不把 pooled mIoU 当作比赛分数，也不平均单图 mIoU。每个场景只平均GT中实际出现的类别。数值计算保留完整精度，展示时才四舍五入。
+报告包含五类IoU、精确率、召回率、混淆矩阵和主要错分方向；大坑内部及小岩石统计是条件召回，不是IoU。加`--save-images`后，每个带GT样本仅保留`comparison.jpg`与`metrics.json`，默认位于NAS `/media/nas/lzc/fenge_result/<实验>/<评估模式>/`；文字结果同时保存本项目result。无GT推理不生成虚构IoU。
 
-输出逐场景／逐类别IoU、精确率、召回率、整数混淆矩阵及六个错分方向。评估另提供GT定义的大坑内部召回和小岩石召回：8连通坑区域≥16384像素后向内腐蚀5像素，小岩石区域≤256像素，阈值在1024标签网格上固定。分别记录像素召回和区域平均召回及触边数量；**这些是条件召回，不是IoU，也不等于物理实例检测结果**。
-
-图片默认保存在NAS `/media/nas/lzc/fenge_result/<实验目录>/<评估模式>/`，每张带GT的评估样本仅保存 `comparison.jpg` 和 `metrics.json`。文字指标在本项目 `result` 另存一份；推理无GT时只导出类别ID／彩色图及可选叠加图，不虚构IoU。
-
-## 运行检查与实验范围
-
-```bash
-python code/verify.py --device cuda:0 --size 1024
-```
-
-该入口使用真实原始预训练和真实训练图，检查A／B／C完整1024前向、冻结阶段Adapter梯度、解冻两骨干反向、优化器更新、遮挡视图共享、1024／768 TTA及严格重载。运行验证报告保存在 `result/verification_*.json`，短程训练检查位于 `result/runtime_check_*`。
-
-本项目已完成实现、执行验证并启动三组正式训练；不把短程检查当作新分割成绩。A／B／C需要在相同划分下完成正式训练后才能判断ViT、双向交互与遮挡的收益。既有随机划分与已被查看的Moon_2/4/9成绩不能单独证明跨场景泛化；额外场景或片段隔离对照需建立独立数据清单并从未见过其验证部分的初始化训练。
-
-
-已完成的运行验证：当前服务器通过10项模型、7项解码器／损失及9组训练／续训CPU检查；103的RTX3090、`lusnar`环境通过A／B／C的真实1024完整网络检查。单图检查中PyTorch峰值分配显存约为A 1.53 GiB、B 1.68 GiB、C 1.92 GiB（含冻结／解冻更新及C的遮挡分支；这不是完整训练吞吐或任意batch的显存保证）。
-
-- [模型与可变形算子检查](result/verification_model.json)
-- [Mask2Former和Hungarian损失检查](result/verification_decoder.json)
-- [训练、遮挡、累积与精确续训检查](result/verification_trainer.json)
-- [真实数据划分及三配置检查](result/verification_data.json)
-- [完整1024 GPU检查](result/verification_runtime.json)
-- [真实训练、独立评估与图片导出检查](result/verification_end_to_end.json)
-
-PyTorch2.1的CPU oneDNN多线程BF16存在底层兼容问题；本项目CPU BF16上下文临时关闭oneDNN并在退出时恢复，CUDA BF16路径不受此设置影响。
-
-真实GPU断点恢复检查中，随机状态、样本顺序、遮挡、调度器和验证混淆矩阵完全一致，但续训权重最大绝对差为 `4.4357e-5`；当前不承诺GPU训练逐位复现，具体原因尚未确定。完整记录见 [GPU续训对照](result/verification_resume_gpu.json)。
-
-## 本次批大小显存实测
-
-完整1024、BF16、激活重计算，全部骨干解冻；每个batch独立进程，1次AdamW预热后测2次更新，每次累积2个微批。C每次均实际执行完整图和遮挡图的先后反向。随后按用户选择启动三组正式训练，实际batch8、累积1；本表仍记录测试时的2次微批累积。
-
-下表每格为“峰值实际分配／峰值缓存预留”，单位GiB，取预热及实测的最大值；不包含CUDA上下文及驱动占用。
-
-|实际batch|A：103 RTX3090|B：当前 RTX4090|C：当前 RTX4090|
-|---:|---:|---:|---:|
-|1|2.13／2.47|2.30／2.61|2.30／2.68|
-|2|3.14／3.65|3.46／3.85|3.46／3.95|
-|4|5.24／5.93|5.80／6.57|5.80／6.68|
-|8|9.45／10.52|10.55／11.94|10.55／11.99|
-
-四档全部完成，没有OOM或非有限损失。batch8在本次实测下有余量，已按用户选择写入三组配置并启动，梯度累积为1。未测batch16及以上。C两次反向先后执行，因此峰值接近B，但执行遮挡的更新更慢。
-
-[汇总与来源](result/memory_summary.json)；[A实测](result/memory_A_103.json)、[B实测](result/memory_B_local4090.json)、[C实测](result/memory_C_local4090.json)。
-
-复测入口（在对应主机及其环境内运行，使用新的输出文件）：
-
-```bash
-python code/benchmark_memory.py --variant B --device cuda:2 \
-  --batch-sizes 1 2 4 8 --output result/memory_B_recheck.json
-```
-
-
-## 103 上完整 C 模型的四卡训练
-
-附件中的完整网络对应 C 组：DINOv3 ViT-S/16＋ConvNeXt-Tiny、四阶段双向 Adapter、完整 Mask2Former，以及解冻后启用的同步块遮挡。C 表示完整方案，训练是否完成需查看各自 `summary.json`；前三轮的遮挡次数为零属于既定冻结训练阶段。
-
-新增独立实验 [c_adapter_masking_103_4gpu.json](config/c_adapter_masking_103_4gpu.json)，从两份原始 DINOv3 预训练权重开始，不继承本机 C 的训练检查点。使用103物理 **GPU 4／5／6／7**，每卡2张、累积1，**全局有效 batch＝8**。相同8000张训练图每轮在四卡各分配2000张，不补齐、不重复；每轮仍为1000次优化器更新。固定1601张验证按401／400／400／400分配，先合并整数混淆矩阵再计算mIoU。
-
-本实验已于 **2026-11-12 18:49（北京时间）** 启动，首批训练日志已确认损失有限。原始完整C初始化模型SHA为`d63b934eff8e1d0cebbddaf9b6a9735608218521cfcc90a72bd353be552fc1c3`。实时进度见[同步训练日志](result/c_adapter_masking_103_4gpu/train.log)；启动检查时尚未产生完整验证成绩，后续轮次以该实验的summary和日志为准。
-
-独立入口 `code/train_distributed.py` 复用原网络和损失；原单卡入口保持原版本。它采用同步数据并行，在完整图与可选遮挡图依次反向后，以25MiB梯度桶进行NCCL归约。分类损失按全局目标权重之和、BCE／Dice按全局匹配掩码数归约；遮挡NLL按所有卡和累积微批的有效像素数归约。冻结／解冻切换不丢失Adapter梯度，每次保存检查点前核对所有卡的模型SHA一致。
-
-在103运行（正式任务已启动时不要重复执行）：
-
-```bash
-cd /home/lzc/workspace/fenge_vit
-CUDA_VISIBLE_DEVICES=4,5,6,7 OMP_NUM_THREADS=2 \
-  bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python \
-  -m torch.distributed.run --standalone --nnodes=1 --nproc_per_node=4 \
-  code/train_distributed.py --config config/c_adapter_masking_103_4gpu.json
-```
-
-断点续训使用同一命令追加 `--resume result/c_adapter_masking_103_4gpu/last.pt`。检查点保存各卡随机数和DataLoader状态，要求相同卡数与训练配置；rank 0统一写出best／last、history和summary。推理仍使用原 `code/evaluate.py`，不需要四张卡，也不需要去掉权重键名中的包装前缀。GPU多卡运行与单卡不承诺逐位相同的优化轨迹。
-
-**2026-11-13 12:14（北京时间）按用户要求停止此8000张四卡C组及其专属测试监控。** 已完整提交14轮，best为第14轮，验证mIoU为96.5247%；第15轮未完成部分没有另存检查点。best／last及全部既有结果保留，状态见 [summary](result/c_adapter_masking_103_4gpu/summary.json) 与 [停止记录](result/c_adapter_masking_103_4gpu/user_stop.json)。
-
-本机通过 [remote103_c_4gpu.json](config/remote103_c_4gpu.json) 每60秒同步该实验的文字结果到 `result/c_adapter_masking_103_4gpu/`；权重留在103，图片仍写NAS。每五轮自动测试由 [periodic_eval_c_103_4gpu.json](config/periodic_eval_c_103_4gpu.json) 管理，与A组共享103的空闲GPU3及同一显卡锁，评估完整Moon_2／4／9，使用1024／768等权翻转TTA；测试不参与best选择。部署状态及进程见 `result/c_full_103_4gpu_deployment.json`。
-
-四卡版的验证包括不均匀GT类别数量下的全局损失与梯度、空rank、1601张无重复验证、随机状态恢复，以及真实1024冻结→解冻→遮挡训练。运行检查用少量样本，明确标记partial，不属于新的分割成绩。
-
-[真实四卡与续训检查](result/verification_distributed_runtime.json)中，数据顺序、翻转、遮挡、各卡随机状态及调度器恢复一致，原单卡评估入口严格重载后的混淆矩阵也与四卡验证一致。独立GPU重跑的参数不是逐位相同（最大绝对差约`2.79e-4`，差异在中断前已经出现）；因此这里保证保存并恢复采样和随机状态，不承诺GPU计算逐位复现。
-
-103实测同一完整C模型、1024输入、BF16、梯度检查点、总batch8的优化器更新耗时如下。每阶段预热一次、测量两次，包含梯度通信和参数更新；不含读取数据、验证和保存检查点。四卡每卡2张，单卡8张，累积均为1。
-
-|阶段|单张3090|四张3090|加速比|
-|---|---:|---:|---:|
-|冻结骨干、完整图监督|4.114秒|2.093秒|1.97倍|
-|联合训练、完整图监督|4.412秒|2.214秒|1.99倍|
-|联合训练、完整图＋遮挡图监督|8.240秒|4.155秒|1.98倍|
-
-正式训练只在25%的联合更新中启用遮挡。按本次短测推算，四卡每轮纯训练计算约35分钟（冻结阶段）或45分钟（联合阶段），完整轮次还需加上数据读取、验证与保存时间。各卡峰值PyTorch缓存预留约3.79GiB，不包含NCCL和CUDA上下文。完整原始记录见[单／四卡测速对照](result/c_full_103_speed_comparison.json)。
-
-<!-- c6000-comparison:start -->
-## 4000＋1000＋1000：完整 C 的数据量对照
-
-2026-11-12 在103新增独立四卡实验 [c_adapter_masking_4000_1000_1000_103_4gpu.json](config/c_adapter_masking_4000_1000_1000_103_4gpu.json)。完整C架构、原始DINOv3 ViT-S/16与ConvNeXt-Tiny初始化、训练种子、优化器、学习率、遮挡和早停设置均沿用8000张四卡C组，仅更换训练选择清单和输出目录。初始化模型参数SHA与原8000张四卡组一致。
-
-训练为 **6000张＝4000原图＋1000坑增强＋1000山岩增强**。4000原图与8000张实验完全相同；两种增强分别从原2000张中以seed42无放回选1000，完整顺序保存于 `/home/lzc/workspace/fenge/result/selections/random80_4000_1000_1000_seed42_20261112.json`。清单SHA256为 `cc84cca17b89f88ee514918f65dfd88d8682e7c673275ea7db5a45803716cdfd`。同一来源不跨训练和验证；固定1601张验证、Moon_2/4/9的5004张测试身份与顺序均保持一致。核验见 [数据选择验证](result/c6000_selection_verification.json) 和 [103运行前检查](result/c6000_103_preflight.json)。
-
-使用103物理GPU **4／5／6／7**，每卡batch2、累积1、总batch8，`lusnar`环境。从原始预训练重新训练，最多30轮，前3轮冻结骨干，第4轮起启用25%更新的遮挡监督。启动时与旧8000张四卡C组共用四张卡；2026-11-13旧8000张组已按用户要求停止，本6000张组继续运行。
-
-**这是相同epoch计划的数据量对照，不是相同更新次数的对照。** 新组每轮750步，30轮最多22500步；旧组每轮1000步，最多30000步。LR仍按各自总更新数衰减，遮挡warmup仍为1000更新。性能变化需结合样本量和实际更新次数解释。
-
-训练与启动记录位于 `result/c_adapter_masking_4000_1000_1000_103_4gpu/`，正式进程已启动。复现入口（使用新的输出目录避免重复现有任务）：
-
-```bash
-cd /home/lzc/workspace/fenge_vit
-CUDA_VISIBLE_DEVICES=4,5,6,7 bash code/run_on_103.sh \
-  /home/lzc/miniconda3/envs/lusnar/bin/python -m torch.distributed.run \
-  --standalone --nnodes=1 --nproc_per_node=4 code/train_distributed.py \
-  --config config/c_adapter_masking_4000_1000_1000_103_4gpu.json \
-  --output result/c_adapter_masking_6000_reproduction
-```
-
-[独立测试监控](config/periodic_eval_c_6000_103_4gpu.json)在第5／10／15／20／25／30轮对验证best做完整测试，仍使用1024／768等权水平翻转4视图、batch4及1∶1∶2场景加权S；与其他103测试共享GPU3的串行锁，非5倍数结束时补测。测试不参与选轮和早停。[文字同步配置](config/remote103_c_6000_4gpu.json)每60秒将日志和指标同步到本机同名结果目录。模型权重留在103，图片导出仍使用NAS。此处记录启动与检查结果；最新验证和测试进度见最新发布快照。
-<!-- c6000-comparison:end -->
-
-## 每五轮的 Moon_2／4／9 测试
-
-### 最新发布快照
-
-快照时间：**2026-11-12T23:27:53+08:00**。训练完成与周期测试完成分别统计。
-
-|实验|训练张数|已完成轮数|最佳轮次|最佳验证 mIoU|状态|
-|---|---:|---:|---:|---:|---|
-|ViT A 融合|8000|7|7|96.2807%|训练中|
-|ViT B Adapter|8000|6|6|95.8064%|训练中|
-|ViT C 单卡遮挡|8000|5|5|95.9906%|训练中|
-|ViT C 四卡／8000张|8000|5|5|96.0709%|训练中|
-|ViT C 四卡／6000张|6000|1|1|93.0960%|训练中|
-
-已完成的最新完整测试如下。尚无完整测试：ViT C 四卡／8000张、ViT C 四卡／6000张，不填测试分数。
-
-|模型|已测权重轮次|Moon_2|Moon_4|Moon_9|加权 S|
-|---|---:|---:|---:|---:|---:|
-|ViT A 融合|5|92.2278%|92.1160%|86.1820%|89.1769%|
-|ViT B Adapter|5|92.1541%|92.1666%|85.6290%|88.8947%|
-|ViT C 单卡遮挡|5|92.4636%|92.8613%|86.5011%|89.5818%|
-
-ViT A／B／C单卡已测权重轮次分别为5／5／5，S分别为89.1769%／88.8947%／89.5818%；C比B高0.6871个百分点。C的遮挡从第4轮已实际启用，这仍是单次种子、训练早期结果。A与B／C训练主机和GPU不同，不能把分差全部归因为结构。
-
-周期测试状态：ViT C 四卡／8000张 epoch_005：running
-
-[CNN／ViT全部已完成结果](result/progress_analysis/latest_report_zh.md) · [逐类别测试指标](result/progress_analysis/completed_test_classes.csv)。下方是此前固定检查点测试记录。
-
-<!-- current-best-tests-20261112:start -->
-2026-11-12追加请求固定当时的A第3轮、B／C第2轮验证best，在103的物理GPU3／4／5测试，三组现已全部完成。A复用同检查点已启动的第3轮自动测试；B／C另存不可变快照，结果位于各自的`manual_test_20261112_1907/`。测试覆盖完整5004张，统一1024／768等权翻转4视图、batch4、BF16，启用物体诊断，不保存图片。测试期间GPU4／5与新的四卡C训练共享计算资源，训练未中断。
-
-|模型|检查点轮次|Moon_2|Moon_4|Moon_9|加权 S|
-|---|---:|---:|---:|---:|---:|
-|A 融合|3|91.7701%|91.6158%|84.7219%|88.2074%|
-|B 双向Adapter|2|91.7657%|91.6658%|83.8603%|87.7880%|
-|C Adapter＋遮挡方案|2|91.5374%|92.0891%|84.5501%|88.1817%|
-
-这三份检查点均来自前三轮冻结阶段；C第2轮尚未启用遮挡监督，不能用本次分数推断遮挡训练收益或最终架构上限。测试结果不参与best选择。
-
-[A完整指标](result/a_fusion/periodic_test/epoch_003/test_metrics.json) · [B完整指标](result/b_adapter/manual_test_20261112_1907/test_metrics.json) · [C完整指标](result/c_adapter_masking/manual_test_20261112_1907/test_metrics.json) · [三组来源与计分核验](result/manual_test_20261112_1907_summary.json)
-<!-- current-best-tests-20261112:end -->
-
-A／B／C及103四卡C每完成第5、10、15…轮完整验证，独立监控就固定该轮结束时由验证集选出的最佳权重，在完整5004张 Moon_2／4／9 上评估。固定使用1024＋768等权水平翻转TTA（4视图），测试batch4，输出逐场景和逐类别指标，以及1:1:2加权分数。测试成绩不参与训练的best选择或早停。
-
-自2026-11-13起，后续测试统一使用103物理GPU3的串行队列：A和6000张四卡C沿用103监控，本机B／C由本机控制器传送不可变best快照到103执行，结果同步回本机原目录。切换时已经启动的本机C第15轮测试继续在原卡完成。GPU被其他计算进程占用时等待，训练保持原来的位置与配置。训练自然完成或早停且不在5倍数轮次时补测最终best；用户明确停止的实验不自动补测。相同权重与设置已测过时记录复用来源。
-
-远端执行使用 `code/remote_evaluate.py`：核对权重、训练源码、评估源码和测试清单SHA后运行，断开SSH后远端任务继续，同一任务重连不会重复启动。所有项目共用103的 `/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock`。`remote_execution.json`记录实际主机、GPU及torch/timm版本；本机监控新状态目录为 `result/periodic_eval_remote103_every5/`。图片按原配置写NAS，日志、指标和达标权重在本机保留，103上的达标快照也保留。
-
-每次结果单独保存在 `result/<实验>/periodic_test/epoch_005/test_metrics.json` 等目录。`trigger.json`记录触发轮次、实际best轮次及权重SHA256，`status.json`记录排队／运行／完成状态，`test.log`记录测试进度。测试使用不可变快照，成功核对完整场景覆盖和分数后执行保留策略。自2026-11-13起，ViT的周期配置设置 `retain_above_score: 0.92`：只有完整5004张测试的比赛加权 `weighted_score > 0.92` 才标记达标，恰好92%不算超过；验证mIoU或单个场景分数不作为触发值。达标任务保留 `periodic_test/<轮次>/best.pt`、`test_metrics.json`、`score_milestone.json`，校验权重SHA与实际测试记录一致；实验根目录的 `score_milestones.json` 汇总全部达标记录。其余任务按原规则清理临时测试权重。已记录的达标权重在监控重启或结果复用时仍保留；训练best继续只由验证集选择。103的文字结果每60秒同步回当前服务器，权重保存在实际执行测试的服务器。
-
-本机监控入口（已运行时会通过锁避免重复启动）：
-
-```bash
-python code/periodic_evaluate.py --config config/periodic_eval_local.json
-```
-
-103的监控入口在103内执行：
+旧协议目前每2轮评测固定困难1500，仅诊断、不参与选轮；完整5004只在训练结束后评测最终验证best。新协议直接每2轮验证困难1500，期末控制器一次完整推理同时汇报三种集合，配置为[final_eval_a_hardval1500_103.json](config/final_eval_a_hardval1500_103.json)。
 
 ```bash
 bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python \
-  code/periodic_evaluate.py --config config/periodic_eval_103.json
+  code/final_partition_monitor.py --config config/final_eval_a_hardval1500_103.json
 ```
 
-已于2026-11-12按要求切换为每5轮测试。原第3轮已启动或完成的任务继续保留，之后在第5、10、15…轮触发；新监控继续接管原任务目录，不重复执行旧测试。三个监控状态分别位于 `result/periodic_eval_local_every5/state.json`、`result/periodic_eval_103_every5/state.json`、`result/periodic_eval_c_103_4gpu_every5/state.json`。旧状态目录保留用于追溯，切换只重启监控进程，训练和已运行的评估进程继续运行。[切换记录](result/periodic_cadence_5_20261112.json)保存前后进程身份及配置；[14项调度验证](result/verification_periodic_cadence5.json)覆盖第4轮不触发、第5／10轮触发、末轮补测及保留旧第3轮任务。
+## 实现检查
+
+```bash
+python code/verify.py --device cuda:0 --size 1024
+python code/benchmark_memory.py --variant B --device cuda:0 \
+  --batch-sizes 1 2 4 8 --output result/memory_B_recheck.json
+```
+
+运行检查覆盖真实1024前向、冻结Adapter梯度、解冻双骨干更新、遮挡一致性、四视图TTA及严格重载。batch8实测峰值缓存预留：A在3090为10.52GiB，B/C在4090为11.94／11.99GiB；详见[显存汇总](result/memory_summary.json)。
+
+[四卡真实训练及续训](result/verification_distributed_runtime.json)、[困难验证协议42项检查](result/hardval_protocol_verification.json)、[期末集合划分检查](result/verification_final_partition.json)保留运行证据。小样本检查明确标记partial，不作为分割成绩。训练状态、逐轮结果和完整评测来源见[结果汇总](result/progress_analysis/latest_report_zh.md)。

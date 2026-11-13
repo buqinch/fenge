@@ -1,0 +1,71 @@
+{
+  "status": "passed",
+  "runs": {
+    "runtime_check_visual_holdout": {
+      "partial": true,
+      "global_updates": 2,
+      "epoch": 1,
+      "strict_reload": true,
+      "initialization": "original_pretrained",
+      "complete_model_changed": true,
+      "backbone_changed": true,
+      "parameter_tensors_with_nonzero_optimizer_gradient_moment": {
+        "encoder.vit.": 162,
+        "encoder.convnext.": 178,
+        "decoder.": 235,
+        "adapter.": 108
+      },
+      "masking_selected_updates": 2,
+      "source_hashes_match": true,
+      "checkpoint_sha256": "505e81bae1d62ef0cdf81464a47b172969a42fd44442cf9dce31976e57af9f10",
+      "distributed_world_size": null,
+      "same_configuration_resume_check_passed": true,
+      "completed_checkpoint_unchanged_after_resume": true,
+      "resume_scope": "Reloaded complete epoch-1 checkpoint, optimizer, schedule and RNG; no additional epoch requested"
+    },
+    "runtime_check_visual_holdout/ddp_single_rank": {
+      "partial": true,
+      "global_updates": 2,
+      "epoch": 1,
+      "strict_reload": true,
+      "initialization": "original_pretrained",
+      "complete_model_changed": true,
+      "backbone_changed": true,
+      "parameter_tensors_with_nonzero_optimizer_gradient_moment": {
+        "encoder.vit.": 162,
+        "encoder.convnext.": 178,
+        "decoder.": 235,
+        "adapter.": 108
+      },
+      "masking_selected_updates": 2,
+      "source_hashes_match": true,
+      "checkpoint_sha256": "de8eab6c647f5c9e58ebf6757067d7b11583bbac5adb482eb02ca580b6c997a1",
+      "distributed_world_size": 1,
+      "same_configuration_resume_check_passed": true,
+      "completed_checkpoint_unchanged_after_resume": true,
+      "resume_scope": "Reloaded complete epoch-1 checkpoint, optimizer, schedule and RNG; no additional epoch requested"
+    }
+  },
+  "formal_training_started": false,
+  "four_rank_new_runtime_tested": false,
+  "updated_at_utc": "2026-11-13T07:09:12.971375+00:00",
+  "physical_gpu_used": 3,
+  "legacy_source_inventory_and_hashes_unchanged": true,
+  "reloaded_validation_confusion_and_identity_match": true,
+  "new_validation_full_count": 1500,
+  "new_training_full_count": 6000,
+  "runtime_samples": {
+    "train": 2,
+    "val": 2
+  },
+  "runtime_overrides": {
+    "epochs": 1,
+    "freeze_epochs": 0,
+    "batch_size": 1,
+    "accumulation": 1,
+    "masking_update_fraction": 1.0,
+    "masking_warmup_updates": 0
+  },
+  "formal_config": "config/c_adapter_masking_visual_holdout_6000_1500.json",
+  "compatibility_note": "No existing training/model/evaluation source was changed and no vitseg/*.py source was added; copied opt-in training entrypoints explicitly hash all their executed new source."
+}

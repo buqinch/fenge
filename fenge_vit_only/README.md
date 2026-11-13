@@ -1,21 +1,48 @@
-# LuSNAR：纯 DINOv3 ViT-S/16 + Mask2Former
+# LuSNAR：纯 DINOv3 ViT-S/16＋Mask2Former
 
-这是与 A 组 `a_fusion` 对照的 **V0-M2F** 实验。图像编码器只有一个 DINOv3 ViT-S/16；没有 ConvNeXt、MobileNet、双向 Adapter 或原图 CNN 旁路。patch embedding、通道投影及像素解码器仍使用卷积。
+本目录实现与A融合组对照的 **V0-M2F**：图像编码骨干只有DINOv3 ViT-S/16，不含ConvNeXt、MobileNet、交互Adapter或独立原图CNN旁路。patch embedding、通道投影与像素解码器仍可使用卷积。
 
-2026-11-13 10:37（北京时间）已在本机 RTX 4090 GPU 0 启动正式训练，从原始 ViT 预训练开始，实际 batch 8、累积 1。该启动快照尚无完整验证或测试成绩。[训练日志](result/vit_only_m2f_8000_1024/train.log) · [启动记录](result/vit_only_m2f_8000_1024/launch.json) · [周期测试配置](config/periodic_eval.json)。
+[三大框架结果总览](https://github.com/buqinch/fenge/blob/main/README.md) · [混合骨干说明](../fenge_vit/README.md) · [完整结果汇总](../fenge_vit/result/progress_analysis/latest_report_zh.md)
+
+## 已完成结果与适用范围
+
+结果整理日期：**2026-11-13**。纯ViT旧8000张实验仍在训练，完整Moon_2／4／9测试目前只完成第5轮权重；不能将该分数标为尚未完整评测的后续best成绩。
+
+|协议／权重|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权分数|来源|
+|---|---:|---:|---:|---:|---|
+|旧8000训练，第5轮；完整5004测试|89.8902%|90.0389%|82.9585%|**86.4615%**|[完整指标](result/vit_only_m2f_8000_1024/periodic_test/epoch_005/test_metrics.json)|
+|新6000训练，第4轮；困难1500验证|79.0369%|68.4445%|77.6842%|**75.7125%**|[验证指标](result/vit_only_pool8002_train6000_hardval1500_103_2gpu/validation_epoch_004.json)|
+
+第5轮完整测试精度为 **86.46152667%**，使用1024／768等权水平翻转4视图。本次快照中，旧1601张验证best为第13轮95.6181%；它是单1024验证的汇总mIoU，不能与上表测试S直接相减。
+
+同一新困难1500验证中，A第4轮为80.4746%，纯ViT为75.7125%；固定来源baseline为C6000第18轮80.7379%。新纯ViT第2轮75.4395%，第4轮提高0.2730个百分点；这些早期成绩不代表纯ViT的最终性能上限。
+
+历史阶段评测的临时权重可能按原“完整S超过92%才额外保留”规则清理。指标与checkpoint SHA仍保留；重测前核对精确权重，不能用新的best代替旧轮次。最新训练状态以各实验`summary.json`和[结果报告](../fenge_vit/result/progress_analysis/latest_report_zh.md)为准。
+
+## 文件与环境
 
 ```text
 fenge_vit_only/
-├── model/       # 原始 ViT 预训练及来源、SHA256
-├── code/        # 网络、训练、评估、推理、运行验证、周期测试
-├── result/      # 检查点、逐轮指标、验证报告与测试结果
-├── config/      # 正式训练与周期测试配置
+├── model/   # 原始ViT预训练来源、许可证与SHA256；权重不进Git
+├── code/    # 网络、训练、评估、推理、运行验证、评测监控
+├── config/  # 旧8000／1601及新6000／1500配置
+├── result/  # 检查点、逐轮指标与测试结果
 └── README.md
 ```
 
-独立目录用于保留正在运行的 A/B/C 实验源码及其 SHA 校验。解码器、损失、数据读取、评分、TTA 和目标诊断实现直接复用 A 组；逐文件哈希及配置对照见 [protocol_verification.json](result/protocol_verification.json)。
+GitHub位置为`fenge_vit_only/`，服务器部署位置为`/home/lzc/workspace/fenge_vit_only`。源码独立保存，解码器、损失、评分、TTA和目标诊断与A组采用相同实现；对照见[协议核验](result/protocol_verification.json)。
 
-## 网络
+```bash
+conda activate lzc_fenge
+cd /home/lzc/workspace/fenge_vit_only
+python code/download_weights.py
+```
+
+本机Python为`/home/vrlab/miniconda3/envs/lzc_fenge/bin/python`，103使用`/home/lzc/miniconda3/envs/lusnar/bin/python`。依赖见[requirements.txt](code/requirements.txt)，使用已有环境。
+
+ViT与A同源：[timm DINOv3 ViT-S/16](https://huggingface.co/timm/vit_small_patch16_dinov3.lvd1689m)，固定revision `3bf4720a82ec2066db88137180ff1f83a675cef0`。权重SHA256为`2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040`，来源与许可证见[权重清单](model/manifest.json)。严格加载本地权重，SHA、结构或参数不匹配即报错。
+
+## 网络与特征接口
 
 ```mermaid
 flowchart TD
@@ -29,100 +56,119 @@ flowchart TD
     U --> O[最终argmax]
 ```
 
-| ViT 层（从 1 开始） | 归一化 patch 特征 | 独立投影后操作 | 输出形状（省略 batch） |
+|ViT层（从1开始）|归一化patch特征|投影后尺度操作|输出形状（省略batch）|
 |---|---|---|---|
-| 3 | 384×64×64 | 双线性上采样 4 倍 | 256×256×256，stride 4 |
-| 6 | 384×64×64 | 双线性上采样 2 倍 | 256×128×128，stride 8 |
-| 9 | 384×64×64 | 保持尺寸 | 256×64×64，stride 16 |
-| 12 | 384×64×64 | 2×2 平均池化 | 256×32×32，stride 32 |
+|3|384×64×64|双线性上采样4倍|256×256×256，stride4|
+|6|384×64×64|双线性上采样2倍|256×128×128，stride8|
+|9|384×64×64|保持尺寸|256×64×64，stride16|
+|12|384×64×64|2×2平均池化|256×32×32，stride32|
 
-保留原始 token 准备、RoPE、CLS 和 4 个 register。各选中层单独应用预训练模型的最终归一化，去掉 5 个前缀 token 后按原始坐标重排；归一化输出不反馈给后续 ViT 层。插值统一 `align_corners=False`。尺度重组提供解码接口，不声称恢复了 patch 化之前的细节。
+保留原始token准备、RoPE、CLS和4个register。选中层应用预训练模型最终归一化，去掉5个前缀token后按原坐标重排；归一化输出不反馈给后续ViT层。所有双线性插值使用`align_corners=False`。原始patch网格都是64×64，尺度重组提供解码接口，不保证恢复patch化前丢失的细节。
 
-**输出顺序按用户确认沿用 A 组**：先对查询类别 softmax、mask sigmoid，合成五类分数，再插值到 1024，最后沿类别归一化。没有改成“先上采样 mask logits 再 sigmoid”。`semantic_logits` 保存归一化概率的对数，合成分数不会被误作 logits 再 softmax。TTA 在每个尺度平均原图和水平翻转后对齐的概率，再按尺度权重融合，最后 argmax。
+像素解码器有6层256通道多尺度可变形编码器；查询解码器有32查询、6个真正的掩码注意力块。初始预测与每块输出共7组，保留最后输出和6组辅助监督；Mask2Former掩码注意力与训练时遮RGB是两回事。
 
-区域目标与 A 组一致：每个出现的语义类别构成一张 union mask，允许孔洞及不连通部分。保留类别匹配、mask BCE/Dice、6 个辅助输出；本轮不增加额外语义损失、亲和损失或输入遮挡。
+**输出顺序沿用A**：先查询类别softmax和mask sigmoid、合成五类连续分数，再上采样至1024并沿类别归一化。没有改成先上采样mask logits再sigmoid。`semantic_logits`保存归一化概率的对数，不把合成分数误作原始logits。
 
-全网参数 **36,984,518**。新增投影和解码端使用与 A 相同的模块初始化规则、训练种子 42；不同网络的随机数消费顺序不同，不宣称新解码器随机权重逐元素等于 A，也不加载 A 的训练权重。
+每个出现的GT类别是一张union mask，允许孔洞和不连通部分。每层Hungarian匹配、分类／mask BCE／Dice和辅助监督均与A一致；no-object不是天空。本轮不添加亲和损失、额外语义损失或输入遮挡。
 
-## 环境与权重
+全网参数为 **36,984,518**。投影和解码器采用与A相同的初始化规则和seed42；网络差异导致随机数消耗及输入投影形状不同，不宣称两组解码器逐张量初值相同，也不加载A的训练权重。
 
-```bash
-conda activate lzc_fenge
-cd /home/lzc/workspace/fenge_vit_only
-```
+## 两套数据协议
 
-本机 Python：`/home/vrlab/miniconda3/envs/lzc_fenge/bin/python`。依赖见 `code/requirements.txt`，使用现有环境。
+类别ID：0月壤、1岩石、2撞击坑、3山体、4天空。训练图和标签均为完整1024×1024，不做224中心裁剪。
 
-ViT 预训练与 A 同源：[timm DINOv3 ViT-S/16](https://huggingface.co/timm/vit_small_patch16_dinov3.lvd1689m)，固定 revision `3bf4720a82ec2066db88137180ff1f83a675cef0`。权重 SHA256：`2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040`。本机已复用原始文件；来源与许可证见 [model/manifest.json](model/manifest.json)。训练只读本地文件，SHA、架构或严格加载失败会报错。
+|项目|旧8000／原1601|新6000／困难1500|
+|---|---|---|
+|训练原图|旧6401训练来源池抽4000张|Moon_1/3/5/6/7/8全部8002候选重新抽4000张|
+|增强|2000坑＋2000山岩|1000坑＋1000山岩|
+|验证|固定1601张原图|Moon_2/4/9困难188／187／1125张|
+|验证频率|每轮|每2轮及计划末轮|
+|验证推理|单1024、无TTA|1024／768等权翻转4视图|
+|选轮指标|汇总混淆矩阵mIoU|场景1∶1∶2加权分数|
+|完整5004评测|训练结束后，对最终验证best|训练结束后，同时报告1500及剩余3504|
 
-新机器可下载：
+旧协议使用[vit_only_m2f_8000_1024.json](config/vit_only_m2f_8000_1024.json)。与原A/B/C相同8000清单、同1601验证，原图及增强来源不跨集合，Moon_2/4/9不用于选轮。每轮1000更新，最多30轮。
 
-```bash
-python code/download_weights.py
-```
+新协议使用[vit_only_pool8002_train6000_hardval1500_103_2gpu.json](config/vit_only_pool8002_train6000_hardval1500_103_2gpu.json)，与新A使用同一清单，SHA256为`68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09`。增强父图只来自8002候选池，不要求父图同时被抽中4000原图。训练每轮750更新。
 
-## 固定训练协议
+困难1500固定后不随当前模型重新挑选。`validation_weighted_score`用于新best；`miou`仍为合并混淆矩阵结果。采样1∶1∶6不改变评分1∶1∶2。困难Moon_4无山体GT，按其余4类计算。
 
-正式配置：[vit_only_m2f_8000_1024.json](config/vit_only_m2f_8000_1024.json)。
+新协议使用了原测试中的1500张作验证。期末完整5004张包含选轮数据；剩余3504张也参与过难度筛选，并非未经查看的独立测试。旧1601验证、困难1500和完整5004三个指标不能混排。
 
-| 项目 | 设置 |
-|---|---|
-| 训练集 | 4000 原图＋2000 坑增强＋2000 山岩增强，共 8000 |
-| 验证集 | 原有固定 1601 张原图，来源与训练隔离 |
-| 测试集 | Moon_2/4/9，共 5004 张；不用于选轮 |
-| 初始化 | 原始 DINOv3 ViT 预训练；投影、解码端新初始化 |
-| 输入与标签 | 完整 1024×1024；类别 ID 0～4 |
-| batch | 实际 8，梯度累积 1，有效 8 |
-| 训练预算 | 最长 30 轮，每轮 1000 次更新 |
-| 冻结计划 | 前 3 轮冻结 ViT，随后全部联合微调 |
-| 学习率 | 解码端 `1e-4`，ViT `5e-6`，同 A 的 polynomial 调度 |
-| 精度 | BF16＋激活重计算 |
-| 验证与选轮 | 单尺度 1024，按固定验证集汇总 mIoU 保存 best |
-| 早停 | 第 4 轮起，连续 5 轮无至少 0.05 个百分点明显增长 |
-| 周期测试 | 每 5 轮及训练结束后，验证选出的 best；1024/768 等权水平翻转 |
+## 训练、续训与分布式运行
 
-训练清单与 A 完全相同，路径保存在配置和 `run_config.json` 中。每次保存训练/验证数据身份、代码 SHA、随机状态、优化器和调度器状态。原始图像与其增强不会跨训练/验证划分。
+两套协议都从原始ViT预训练开始，前3轮冻结骨干，随后联合微调；有效batch8、BF16、激活重计算。新层学习率1e-4，ViT为5e-6，沿用A的poly调度。冻结时没有插入ViT内部的训练模块，可对骨干使用no_grad；解冻后恢复梯度。
 
-```bash
-python code/train.py --config config/vit_only_m2f_8000_1024.json
-```
+严格新高保存best；显著提升阈值0.05个百分点，从第4轮起计算。旧协议连续5轮未显著提升早停，新协议连续5次实际验证未显著提升早停，跳过验证的轮次不计耐心。训练预算最长30轮。
 
-续训使用原配置、原目录和原计划：
+本机旧8000实验使用单张RTX4090卡0，batch8、累积1。复现时使用新输出目录：
 
 ```bash
 python code/train.py --config config/vit_only_m2f_8000_1024.json \
-  --resume result/vit_only_m2f_8000_1024/last.pt
+  --device cuda:0 --output result/vit_only_reproduction
 ```
 
-周期监控在本机独立运行。训练保持本机 GPU 0；2026-11-13起，后续周期测试传送不可变检查点到 **103 的 GPU 3**，与其他 ViT 实验共用显卡锁、串行执行。模型代码、权重及测试清单逐一校验SHA；日志和指标同步回本机原结果目录，`remote_execution.json`记录实际服务器、GPU和运行环境。远端任务可在SSH断开后继续，本机恢复连接时接管同一任务：
+已有实验续训使用原配置和原计划：
+
+```bash
+python code/train.py --config config/vit_only_m2f_8000_1024.json \
+  --resume result/vit_only_m2f_8000_1024/last.pt --device cuda:0
+```
+
+103新实验使用GPU6／7，每卡batch4、累积1、全局batch8；与新A的数据、损失、调度和更新预算一致。入口为：
+
+```bash
+cd /home/lzc/workspace/fenge_vit_only
+bash code/run_on_103.sh env CUDA_VISIBLE_DEVICES=6,7 \
+  /home/lzc/miniconda3/envs/lusnar/bin/python -m torch.distributed.run \
+  --standalone --nproc_per_node=2 code/train_hardval_distributed.py \
+  --config config/vit_only_pool8002_train6000_hardval1500_103_2gpu.json
+```
+
+正式任务运行时勿重复启动同一输出目录。按完整epoch边界保存和恢复模型、AdamW、调度器、随机状态、每卡数据流及早停状态；同时核对数据清单和实现SHA。改变卡数、数据或代码不能静默作为精确续训。
+
+[双卡完整训练与恢复核验](result/hardval_2gpu_runtime_verification.json)覆盖1024冻结／解冻、梯度同步和续训。训练及验证文字每60秒同步本机，权重保留103，图片写NAS。
+
+## 自动评测计划
+
+旧8000模型仍由1601验证集选轮；固定困难1500每2轮评测，仅用于诊断，`hard_subset_score`不参与best或早停。完整5004仅在训练完成或早停后评测验证best，之前已经完成的阶段测试仍保留。
 
 ```bash
 python code/periodic_evaluate.py --config config/periodic_eval.json
+python code/hard_subset_monitor.py --config config/hard_eval.json
 ```
 
-测试结果写入 `result/vit_only_m2f_8000_1024/periodic_test/epoch_XXX/`。完整测试加权 **S 严格超过 92%** 时，监控保留对应不可变检查点、SHA 和 `score_milestone.json`。本机新监控状态位于 `result/periodic_eval_remote103_every5/`。超过92%的精确测试权重在本机与103均保留。
+推理调度到103，共享评测锁串行执行。完整结果写入`periodic_test/final_epoch_XXX/`，困难诊断写入`hard_periodic_test/epoch_XXX/`。测试检查权重、源码和数据SHA；完整S严格超过92%时额外保留精确权重和`score_milestone.json`，困难子集不触发该里程碑。
 
-## 评估与可视化
+新6000直接在训练入口进行困难验证，不再额外重复诊断；期末由以下控制器一次完整5004推理同时报告验证1500和其余3504：
+
+```bash
+bash code/run_on_103.sh /home/lzc/miniconda3/envs/lusnar/bin/python \
+  code/final_partition_monitor.py --config config/final_eval_vit_only_hardval1500_103.json
+```
+
+[期末配置](config/final_eval_vit_only_hardval1500_103.json)及[文字同步配置](config/remote103_vit_only_hardval1500.json)只管理新纯ViT实验，和A共用评测锁。
+
+## 手动评估与图片导出
 
 ```bash
 python code/evaluate.py --checkpoint result/vit_only_m2f_8000_1024/best.pt \
-  --split val --device cuda:1 --tta none
-
+  --split val --device cuda:0 --tta none
 python code/evaluate.py --checkpoint result/vit_only_m2f_8000_1024/best.pt \
-  --split test --device cuda:1 --tta multiscale_hflip \
-  --tta-sizes 1024 768 --tta-weights 0.5 0.5
-```
-
-测试按每个场景的整数混淆矩阵累计，计分类别由该场景 GT 中实际存在的类别决定。排名分数为 `weighted_score = (Moon_2 mIoU + Moon_4 mIoU + 2×Moon_9 mIoU)/4`；`miou` 是合并像素后的指标，二者不混用。
-
-默认报告五类 IoU、精确率/召回率、错分去向以及大坑内部、小岩石诊断。对象条件召回不称为 IoU。加 `--save-images` 后，每张样本保存三联图和 IoU；图像默认放在 NAS `/media/nas/lzc/fenge_result/`，文字结果同时留在本机。无标签图片可用：
-
-```bash
+  --split test --device cuda:0 --tta multiscale_hflip \
+  --tta-sizes 1024 768 --tta-weights 0.5 0.5 \
+  --save-images --output result/vit_only_m2f_8000_1024/test_manual_metrics.json
 python code/infer.py --checkpoint result/vit_only_m2f_8000_1024/best.pt \
-  --input /path/to/images --device cuda:1 --tta multiscale_hflip --tta-sizes 1024 768
+  --input /path/to/images --device cuda:0 --tta hflip --overlay
 ```
 
-## 实现检查
+每个尺度内部平均原图和水平翻转预测，翻转结果先恢复坐标；尺度概率对齐到原尺寸后按权重融合，最后argmax。更改TTA不需要重新训练。完整测试分数为`weighted_score=(Moon_2 mIoU+Moon_4 mIoU+2×Moon_9 mIoU)/4`，每个场景只平均GT确实出现的类别。
+
+`miou`是合并像素混淆矩阵的mIoU，与场景加权S不同。逐类别IoU、精确率、召回率及错分去向都保留；大坑内部和小岩石诊断属于条件召回，不称IoU。
+
+加`--save-images`后，每张带GT样本只保存`comparison.jpg`三联图和`metrics.json`，默认位于NAS `/media/nas/lzc/fenge_result/`；文字结果同时保存在本项目result。无GT推理只导出类别图和可选叠加图，不虚构IoU。
+
+## 实现验收与性能记录
 
 ```bash
 python code/verify.py --device cuda:0
@@ -130,10 +176,10 @@ python code/benchmark_memory.py --device cuda:0 --batch-size 8 --accumulation 1
 python code/verify_training.py --device cuda:0
 ```
 
-运行检查使用真实 1024 样本，核对原生 timm 中间特征、四尺度坐标、冻结/解冻梯度、完整更新、模型和优化器重载、实际训练入口续训，以及 1024/768 TTA。显存基准包括解冻后的完整 AdamW 更新和优化器状态。运行检查与小样本 `runtime_check_training` 不作为分割成绩。
+已核验真实1024样本、原生timm中间特征、token坐标及四尺度、冻结／解冻梯度、优化器更新、保存重载、训练入口续训和1024／768 TTA。见[模型检查](result/verification_model.json)、[训练检查](result/verification_training.json)、[周期测试锁检查](result/verification_periodic.json)。小样本运行验证不代表分割成绩。
 
-本机 RTX 4090、`lzc_fenge` 的上述检查已通过：[模型检查](result/verification_model.json)、[训练入口与续训检查](result/verification_training.json)、[数据与协议对照](result/protocol_verification.json)、[周期测试锁检查](result/verification_periodic.json)。batch 8、累积 1、全解冻 BF16 的实测峰值为 **7.91 GiB allocated / 9.12 GiB reserved**，两次完整更新耗时中位数 **2.464 秒**，详见 [显存报告](result/memory_batch8.json)。这是预热后的训练步骤耗时，不含完整轮次的数据等待、验证和测试。
+RTX4090、batch8、累积1、全解冻BF16的峰值为 **7.91GiB allocated／9.12GiB reserved**；两次预热后完整更新耗时中位数2.464秒，含AdamW状态，不含完整轮次数据等待、验证和测试。记录见[显存报告](result/memory_batch8.json)。
 
-重载时模型参数、Adam 状态和随机状态严格核对；CUDA `grid_sample` 反向包含非确定性运算，因此固定种子和恢复状态不保证后续 BF16 参数更新逐位一致。运行报告单独记录这项限制。
+随机状态、数据顺序、优化器和调度器均保存；CUDA `grid_sample`反向存在非确定性，固定种子或恢复状态不保证后续BF16更新逐位一致。软件及GPU型号差异也需在比较中记录。
 
-依据：[DINOv3 官方 ViT](https://github.com/facebookresearch/dinov3/blob/main/dinov3/models/vision_transformer.py)、[DPT 多层表示重组](https://arxiv.org/abs/2103.13413)、[Mask2Former 官方配置](https://github.com/facebookresearch/Mask2Former/blob/main/configs/ade20k/semantic-segmentation/maskformer2_R50_bs16_160k.yaml)。本实现的 32 查询、6 查询块沿用本项目 A 组，重组借鉴 DPT，不宣称复现完整 DPT 或官方默认配置。
+实现依据：[DINOv3官方ViT](https://github.com/facebookresearch/dinov3/blob/main/dinov3/models/vision_transformer.py)、[DPT多层重组](https://arxiv.org/abs/2103.13413)、[Mask2Former](https://github.com/facebookresearch/Mask2Former/blob/main/configs/ade20k/semantic-segmentation/maskformer2_R50_bs16_160k.yaml)。本项目保留A组32查询、6查询块；重组借鉴DPT，不宣称完整复现DPT或官方默认配置。

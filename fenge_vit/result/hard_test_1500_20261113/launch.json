@@ -1,0 +1,40 @@
+{
+  "started_at": "2026-11-13T06:55:19.173328+00:00",
+  "pid": 2153797,
+  "physical_gpu": 2,
+  "command": [
+    "flock",
+    "-n",
+    "/home/lzc/workspace/fenge_vit/result/.hard_subset_gpu_2.lock",
+    "bash",
+    "code/run_on_103.sh",
+    "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "-u",
+    "code/evaluate_hard_subset.py",
+    "--checkpoint",
+    "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/source_best.pt",
+    "--build-hard-manifest",
+    "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/manifest.json",
+    "--output",
+    "/home/lzc/workspace/fenge_vit/result/hard_test_1500_20261113/full_scan_metrics.json",
+    "--batch-size",
+    "4",
+    "--workers",
+    "4",
+    "--device",
+    "cuda:0",
+    "--amp",
+    "bf16"
+  ],
+  "checkpoint_sha256": "eb15ac5380183a16366521c5dab4725c48cf1d2eec9741965efd93aa0577e861",
+  "checkpoint_epoch": 18,
+  "script_sha256": "b07c71c72922ae777ff6bf1ac280c6331db09d14d8fd1bb22102073db2fbbc02",
+  "full_scan_required_for_fixed_subset_construction": true,
+  "expected_full_scan_images": 5004,
+  "final_subset_images": 1500,
+  "expected_quotas": {
+    "Moon_2": 188,
+    "Moon_4": 187,
+    "Moon_9": 1125
+  }
+}

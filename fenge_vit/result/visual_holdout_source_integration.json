@@ -1,0 +1,41 @@
+{
+  "baseline_training_run": "result/c_adapter_masking_4000_1000_1000_103_4gpu/run_config.json",
+  "baseline_sha256": {
+    "train.py": "94bb978631d61ea77357000787dcdb9767369b80ccaf63f12e209726bda7e0bd",
+    "train_distributed.py": "f61d391fb436322aa2d4ad9c5f9500baca3cfc9b20bedd5a1f253c83e37272c5",
+    "evaluate.py": "edcb9f56dc973038fdbbde87e438b03c9e15c0fa22a6d67fc7dce7952fd1982e",
+    "vitseg/data.py": "d6bf1ab5e74c88f860a917db155253ca7eefef5be0d47d82537a507018bf0d42"
+  },
+  "changes": {
+    "train_visual_holdout.py": "--- train.py\n+++ train_visual_holdout.py\n@@ -1,5 +1,9 @@\n #!/usr/bin/env python3\n-\"\"\"Train the independent DINOv3 ViT/ConvNeXt Mask2Former experiments.\"\"\"\n+\"\"\"Train the fixed visual holdout with the unchanged ViT/ConvNeXt training loop.\n+\n+This opt-in copy preserves existing experiment source hashes and resume paths.\n+Only the dataset adapter/defaults and this run's source inventory differ.\n+\"\"\"\n from __future__ import annotations\n \n import argparse\n@@ -16,7 +20,8 @@\n import torch\n from torch.utils.data import DataLoader\n \n-from vitseg.data import LunarDataset, sha256_file\n+from vitseg.data import sha256_file\n+from visual_holdout_data import VisualHoldoutDataset as LunarDataset\n from vitseg.losses import Mask2FormerCriterion\n from vitseg.masking import (apply_block_mask, make_block_masks, masked_semantic_nll,\n                             update_is_masked, warmup_factor, prepare_masked_support)\n@@ -25,8 +30,8 @@\n \n ROOT = Path(__file__).resolve().parents[1]\n DATA_ROOT = Path('/home/lzc/workspace/fenge/result/selections')\n-DEFAULT_MANIFEST = DATA_ROOT / 'random80_4000_2000_2000_pool_20261112.json'\n-DEFAULT_SELECTION = DATA_ROOT / 'random80_4000_2000_2000_seed42_20261112.json'\n+DEFAULT_MANIFEST = DATA_ROOT / 'visual_holdout_6000_1500_seed42_20261113.json'\n+DEFAULT_SELECTION = None\n \n \n def write_json(path, value):\n@@ -145,8 +150,8 @@\n     parser = argparse.ArgumentParser(description=__doc__)\n     parser.add_argument('--config', type=Path)\n     parser.add_argument('--manifest', default=str(DEFAULT_MANIFEST))\n-    parser.add_argument('--selection-manifest', default=str(DEFAULT_SELECTION))\n-    parser.add_argument('--output', default='result/b_adapter')\n+    parser.add_argument('--selection-manifest', default=DEFAULT_SELECTION)\n+    parser.add_argument('--output', default='result/c_adapter_masking_visual_holdout_6000_1500')\n     parser.add_argument('--weight-dir', default='model')\n     parser.add_argument('--variant', choices=['fusion', 'adapter'], default='adapter')\n     parser.add_argument('--input-size', type=int, default=1024)\n@@ -370,7 +375,8 @@\n             raise ValueError('Initial checkpoint model configuration differs')\n         model.load_state_dict(initial['model'], strict=True)\n     configuration = _training_config(args)\n-    source_files = [Path(__file__), *(Path(__file__).parent / 'vitseg').glob('*.py')]\n+    source_files = [Path(__file__), Path(__file__).with_name('visual_holdout_data.py'),\n+                    Path(__file__).with_name('train.py'), *(Path(__file__).parent / 'vitseg').glob('*.py')]\n     configuration['source_sha256'] = {str(path.relative_to(ROOT)): sha256_file(path) for path in sorted(source_files)}\n     if saved:\n         _check_resume(saved, configuration, model_config, identities)\n",
+    "train_visual_holdout_distributed.py": "--- train_distributed.py\n+++ train_visual_holdout_distributed.py\n@@ -19,11 +19,12 @@\n import torch.distributed as dist\n from torch.utils.data import DataLoader\n \n-import train as base\n+import train_visual_holdout as base\n from distributed_training import (NoPaddingShardSampler, assert_all_finite, broadcast_model,\n     broadcast_object, distributed_evaluate, distributed_masked_loss, distributed_set_loss,\n     gather_objects, reduce_sum, synchronize_gradients, world_info)\n-from vitseg.data import LunarDataset, sha256_file\n+from vitseg.data import sha256_file\n+from visual_holdout_data import VisualHoldoutDataset as LunarDataset\n from vitseg.losses import Mask2FormerCriterion\n from vitseg.masking import (apply_block_mask, make_block_masks, masked_semantic_nll,\n     prepare_masked_support, update_is_masked, warmup_factor)\n@@ -160,7 +161,9 @@\n         del initial\n     configuration = base._training_config(args)\n     source_files = [Path(__file__), Path(__file__).with_name('distributed_training.py'),\n-                    Path(__file__).with_name('train.py'), *(Path(__file__).parent / 'vitseg').glob('*.py')]\n+                    Path(__file__).with_name('train.py'), Path(__file__).with_name('train_distributed.py'),\n+                    Path(__file__).with_name('train_visual_holdout.py'), Path(__file__).with_name('visual_holdout_data.py'),\n+                    *(Path(__file__).parent / 'vitseg').glob('*.py')]\n     configuration['source_sha256'] = {str(p.relative_to(ROOT)): sha256_file(p) for p in sorted(source_files)}\n     distributed = {'strategy': 'synchronous_bucket_gradient_allreduce', 'world_size': world,\n         'per_rank_batch_size': args.batch_size, 'accumulation': args.accumulation,\n",
+    "evaluate_visual_holdout.py": "--- evaluate.py\n+++ evaluate_visual_holdout.py\n@@ -8,6 +8,7 @@\n import torch\n from torch.utils.data import DataLoader\n from vitseg.data import LunarDataset, DEFAULT_TEST_MANIFEST, sha256_file\n+from visual_holdout_data import VisualHoldoutDataset\n from vitseg.model import ModelConfig, build_model\n from vitseg.metrics import evaluate_loader\n from vitseg.diagnostics import TerrainDiagnostics\n@@ -52,7 +53,8 @@\n     training=saved.get('train_config',saved.get('run_config'))\n     if not isinstance(training,dict):raise ValueError('Checkpoint is missing its training configuration')\n     manifest=training['manifest'] if args.split=='val' else args.test_manifest\n-    dataset=LunarDataset(manifest,args.split,model_config.input_size,horizontal_flip=False,max_samples=args.max_samples)\n+    dataset_type=VisualHoldoutDataset if args.split=='val' else LunarDataset\n+    dataset=dataset_type(manifest,args.split,model_config.input_size,horizontal_flip=False,max_samples=args.max_samples)\n     expected=saved.get('data_identity',{}).get('val')\n     if args.split=='val' and args.max_samples is None:\n         if expected is None or dataset.identity!=expected:\n"
+  },
+  "configuration_changes": {
+    "manifest": {
+      "original": "/home/lzc/workspace/fenge/result/selections/random80_4000_2000_2000_pool_20261112.json",
+      "new": "/home/lzc/workspace/fenge/result/selections/visual_holdout_6000_1500_seed42_20261113.json"
+    },
+    "selection_manifest": {
+      "original": "/home/lzc/workspace/fenge/result/selections/random80_4000_1000_1000_seed42_20261112.json",
+      "new": null
+    },
+    "weight_dir": {
+      "original": "/home/lzc/workspace/fenge_vit/model",
+      "new": "model"
+    },
+    "output": {
+      "original": "/home/lzc/workspace/fenge_vit/result/c_adapter_masking_4000_1000_1000_103_4gpu",
+      "new": "result/c_adapter_masking_visual_holdout_6000_1500"
+    }
+  },
+  "compatibility_choice": "Opt-in code-level entrypoint copies preserve the old vitseg/*.py source inventory; all new training entrypoints and the new loader are explicitly hashed.",
+  "formal_training_launched": false,
+  "legacy_source_inventory_and_hashes_unchanged": true,
+  "new_source_sha256": {
+    "code/visual_holdout_data.py": "4b535373317b3af2868f541a8cde907cbc74d47915a34dd492873db639412e67",
+    "code/train_visual_holdout.py": "808fa4e69ce447bc0fc24f11ebd1a0562de450db4ed9d0d7089ef9a1980459d9",
+    "code/train_visual_holdout_distributed.py": "530ac3368c3e1fc4a86e81689eb9b55fbec40c7d11f797dcb880b71751d1b716",
+    "code/evaluate_visual_holdout.py": "0ca8a10d9b76a5c619653e5d5059c0dd20291d10ac9f9ba2f8a286160ce196c1"
+  }
+}

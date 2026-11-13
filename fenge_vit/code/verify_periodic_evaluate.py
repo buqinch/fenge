@@ -449,6 +449,50 @@ class PeriodicFixtures(unittest.TestCase):
         self.assertEqual(m.read_json(old_job / 'status.json')['status'], 'running')
         self.assertEqual(list((run / 'periodic_test').iterdir()), [old_job])
 
+    def test_final_only_skips_all_boundaries_and_includes_exact_multiple(self):
+        self.config.update(every_epochs=5, periodic_evaluation=False)
+        run = self.publish(scores=tuple(.5 + .01 * i for i in range(10)))
+        monitor = m.Monitor(self.config)
+        with patch.object(m, 'gpu_available', return_value=(False, 'fixture busy', 'fixture')):
+            monitor.tick()
+            self.assertFalse((run / 'periodic_test').exists())
+            summary = m.read_json(run / 'summary.json')
+            summary['status'] = 'early_stopped'
+            m.write_json(run / 'summary.json', summary)
+            monitor.tick()
+            final = run / 'periodic_test/final_epoch_010'
+            self.assertEqual(m.read_json(final / 'trigger.json')['checkpoint_epoch'], 10)
+            self.assertEqual(m.read_json(final / 'trigger.json')['trigger_kind'], 'final')
+            self.assertEqual(list((run / 'periodic_test').iterdir()), [final])
+            monitor.tick()
+            self.assertEqual(list((run / 'periodic_test').iterdir()), [final])
+
+    def test_final_only_preserves_active_worker_and_user_stopped_exclusion(self):
+        run = self.publish()
+        old_job = self.prepare(run)
+        m.set_status(old_job, 'running', worker_identity=m.process_identity(os.getpid()))
+        other = self.publish(name='c', scores=(.5, .6, .7, .8, .9))
+        summary = m.read_json(other / 'summary.json')
+        summary['status'] = 'user_stopped'
+        m.write_json(other / 'summary.json', summary)
+        self.config.update(periodic_evaluation=False)
+        with patch.object(m, 'gpu_available', side_effect=AssertionError('Active worker continues')):
+            report = m.Monitor(self.config).tick()
+        self.assertEqual(report['active_jobs'], [str(old_job)])
+        self.assertFalse((other / 'periodic_test').exists())
+
+    def test_schedule_config_boolean_and_shared_lock(self):
+        config_path = self.root / 'config.json'
+        custom_lock = str(self.root / 'shared_gpu.lock')
+        m.write_json(config_path, {**self.config, 'periodic_evaluation': False, 'gpu_lock': custom_lock})
+        loaded = m.load_config(config_path)
+        self.assertFalse(loaded['periodic_evaluation'])
+        self.assertEqual(loaded['gpu_lock'], custom_lock)
+        for key in ('periodic_evaluation', 'final_evaluation'):
+            m.write_json(config_path, {**self.config, key: 'false'})
+            with self.assertRaises(ValueError):
+                m.load_config(config_path)
+
 
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(PeriodicFixtures)

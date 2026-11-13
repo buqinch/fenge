@@ -1,0 +1,113 @@
+{
+  "status": "passed",
+  "created_at_utc": "2026-11-13T08:29:13.004740+00:00",
+  "checks": {
+    "active_source_unchanged": true,
+    "variant_vit_only": true,
+    "original_pretrained": true,
+    "correct_batch": true,
+    "no_input_masking": true,
+    "four_view_validation": true,
+    "budget_cadence": true,
+    "unchanged_model_config": true,
+    "unchanged_optimizer": true,
+    "unchanged_training_math": true,
+    "runtime_sources_match_deployment": true,
+    "only_vit_pretrained_loaded": true,
+    "fresh_original_initialization": true,
+    "same_fixed_6000_1500_manifest": true,
+    "partial_training_not_performance_claim": true,
+    "global_batch8": true,
+    "first_epoch_unvalidated": true,
+    "second_epoch_validated": true,
+    "freeze_then_joint": true,
+    "frozen_backbone_zero_gradient": true,
+    "joint_backbone_and_head_gradient": true,
+    "all_rank_model_tensors_equal": true,
+    "resume_complete_from_odd_checkpoint": true,
+    "resume_follows_same_source_order": true,
+    "no_skipped_validation_patience_increment": true,
+    "validation_four_views": true,
+    "validation_partial_score_marked_proxy": true,
+    "checkpoint_selection_metadata_explicit": true
+  },
+  "source_sha256": {
+    "code/hardval_data.py": "56eff5afe607518d58e8bd6502eca5be67bb0ece2a123c5686bf7321563e66f6",
+    "code/hardval_distributed_training.py": "fe3d51b87898934a46fc1d7c5970e93e58f4d158f1ff919dac2f635423a53155",
+    "code/train.py": "72a9ffd7a9bfbeab8aecf12806a439afac630258cf2c673accaf0406cd646882",
+    "code/train_hardval.py": "ecb0125ecf9421fe24efcaa0332ac88f1846fcbec547bd0cc05d99639d437b9b",
+    "code/train_hardval_distributed.py": "d862adf9ab05743a88fe1cda651bfffd582654a83717a4b52cfe803c03b26bb4",
+    "code/vitseg/__init__.py": "68ba2b9f06917029800ab8f9e41636e8fa29da597587208b7253b251f8d4ce2a",
+    "code/vitseg/backbones.py": "93af1b882c0bd38ef294ea317d2d7956b539b3731e973727d0a3cacb03cbafc1",
+    "code/vitseg/data.py": "d6bf1ab5e74c88f860a917db155253ca7eefef5be0d47d82537a507018bf0d42",
+    "code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "code/vitseg/deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5",
+    "code/vitseg/diagnostics.py": "bce4cf627a5dabcbf9720695a5246f7515ff8c6911e6de8f0435e9416848ff7d",
+    "code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "code/vitseg/masking.py": "166c131cf93b81ae5f1cee7c6c7dd4f126e4b2ea5ac0da082667a5039a619913",
+    "code/vitseg/metrics.py": "582acd2cd0833b2cca0fd79d39744c0d88f827a4b5af5374c783f3ac0d3a196b",
+    "code/vitseg/model.py": "a8385a0e532a4d208f19d94c51b498ff2c220e0fa729d10314e4c2aebc4cfa0f",
+    "code/vitseg/visualization.py": "01539be949ab7e3cf522cf1792ae5930b800109e6f64baee53a025d03995cd4a"
+  },
+  "formal_config": "config/vit_only_pool8002_train6000_hardval1500_103_2gpu.json",
+  "gpu_hardware": "103 RTX3090",
+  "verification_gpus": [
+    0,
+    1
+  ],
+  "per_rank_batch_size": 4,
+  "world_size": 2,
+  "global_batch": 8,
+  "input_size": 1024,
+  "training_peak_allocated_gib": 4.026632785797119,
+  "training_peak_reserved_gib": 4.740234375,
+  "uninterrupted_joint_seconds_per_update": [
+    2.2823710309894523,
+    2.282002691004891
+  ],
+  "timing_limit": "One optimizer update per phase, excludes long-run I/O variation and target-GPU co-tenancy. Not a training completion forecast.",
+  "resume_process_peak_including_validation": [
+    {
+      "status": "complete",
+      "rank": 0,
+      "device": 0,
+      "cuda_visible_devices": "0,1",
+      "per_rank_batch_size": 4,
+      "input_size": 1024,
+      "peak_allocated_bytes": 4323215872,
+      "peak_reserved_bytes": 5005901824,
+      "scope": "entire partial training process including validation and optimizer state",
+      "other_process_memory_included": false
+    },
+    {
+      "status": "complete",
+      "rank": 1,
+      "device": 1,
+      "cuda_visible_devices": "0,1",
+      "per_rank_batch_size": 4,
+      "input_size": 1024,
+      "peak_allocated_bytes": 4323215872,
+      "peak_reserved_bytes": 5007998976,
+      "scope": "entire partial training process including validation and optimizer state",
+      "other_process_memory_included": false
+    }
+  ],
+  "independent_runs_model_bitwise_equal": false,
+  "first_epoch_models_differ_before_resume": true,
+  "determinism_limit": "CUDA deterministic algorithms are not enabled. Independent first-epoch losses/order agree but updated tensor hashes differ before the injected interruption; bitwise equality across independently repeated runs is not claimed.",
+  "formal_training_started_by_this_agent": false,
+  "pretrained_report": {
+    "vit": {
+      "loaded": true,
+      "path": "/home/lzc/workspace/fenge_vit_only/model/dinov3_vit_small/model.safetensors",
+      "sha256": "2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040",
+      "config_sha256": "8eb1eeb3a94a3faddfcdd9ae693607a9cd9c8b91c34381578f7f0a48ce454eef",
+      "architecture": "vit_small_patch16_dinov3",
+      "tensor_count": 162,
+      "strict": true,
+      "format": "timm_safetensors"
+    }
+  },
+  "direct_runtime": "/home/lzc/workspace/fenge_vit_only/result/runtime_check_hardval_2gpu",
+  "resumed_runtime": "/home/lzc/workspace/fenge_vit_only/result/runtime_check_hardval_2gpu_resume"
+}
