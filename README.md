@@ -1,8 +1,28 @@
 # LuSNAR：双CNN、ViT＋CNN与纯ViT语义分割
 
-结果更新：**2026-11-13 20:55（北京时间）**。本仓库保留三大框架的源码、训练配置、较高结果与最佳结果。类别固定为 `0 月壤、1 岩石、2 撞击坑、3 山体、4 天空`。
+## 当前 ViT-L 三组实际结果（2026-11-15）
 
-## 三大框架与目前已测最高分
+**目前完整测试最高为 B-L 第10轮 93.3075%，C-L 第5轮为93.2656%。** 本次结果快照覆盖A的第5／10／15轮、B的第5／10轮、C的第5／10／15轮；A第20轮评测仍在进行，不使用未完成分数。
+
+完整Moon_2／4／9各1597／1320／2087张，共5004张；每组使用一个固定检查点评测三个场景。均采用1024＋768等权水平翻转TTA（4视图），按各场景整数混淆矩阵重算类别IoU，再计算 `S=(Moon_2 mIoU+Moon_4 mIoU+2×Moon_9 mIoU)/4`。`miou`是合并像素后的指标，排名使用`weighted_score`。
+
+|模型|最佳轮次|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权S|
+|---|---:|---:|---:|---:|---:|
+|[B-L](fenge_vit/result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/periodic_test/epoch_010/test_metrics.json)|10|94.2910%|94.5132%|92.2129%|**93.3075%**|
+|[C-L](fenge_vit/result/c_adapter_masking_vit_large_pool8002_train6000_hardval1500_2gpu/periodic_test/epoch_005/test_metrics.json)|5|94.1251%|94.2988%|92.3193%|**93.2656%**|
+|[A-L](fenge_vit/result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/periodic_test/epoch_005/test_metrics.json)|5|93.7111%|93.6431%|90.8608%|**92.2690%**|
+
+三组都从原始DINOv3 ViT-L/16＋ConvNeXt-Tiny初始化，使用同一Mask2Former解码端。A-L用最终ViT特征与CNN拼接；B-L加入四阶段双向Adapter；C-L在B-L同一网络上追加RGB遮挡视图监督。训练均为4000原图＋1000坑增强＋1000山岩增强，1024整图、有效batch 8。
+
+当前已按用户指定关闭早停，最多训练30轮，每5轮评测当轮权重；每组保留完整测试S最高的`best_full_test.pt`及最终`final.pt`，训练中`last.pt`用于断点恢复。初期困难1500验证已停用。完整2／4／9成绩直接参与选模，因此这些是本地开发集成绩，不作为未参与模型选择的独立留出结果。
+
+[三组结构、五类IoU、精确率／召回率及逐轮趋势](fenge_vit/result/vitl_analysis_20261115/report_zh.md) · [混合网络README与运行配置](fenge_vit/README.md)
+
+C-L完整S在第5／10／15轮依次为93.2656%／93.2179%／93.0041%；Moon_9坑IoU从81.4345%下降至78.0437%，主要表现为召回下降。后续候选为B/C概率融合、较低解冻学习率与EMA独立对照，均尚未产生新成绩。B-L与C-L最高分仅差0.0419个百分点，不能据单次运行判定遮挡训练必然有益或有害。
+
+以下历史快照保留旧实验的原始记录，其中“训练中”仅表示当时状态；旧数据划分与选轮协议不同，不用于单独归因当前提升。
+
+## 历史三大框架对照（2026-11-13快照）
 
 下表只比较完整 Moon_2／4／9 共 **5004张**的测试，统一使用 **1024＋768等权水平翻转TTA（4视图）**。最高分是历史已测结果；最终权重仍由各自验证规则选出。
 
@@ -12,7 +32,7 @@
 |混合|DINOv3 ViT-S/16＋ConvNeXt-Tiny＋Mask2Former|[A：直接融合](fenge_vit/result/a_fusion/periodic_test/epoch_015/test_metrics.json)|14|**90.6628%**|
 |纯ViT|DINOv3 ViT-S/16＋四层特征重组＋Mask2Former|[ViT-S/16＋特征重组](fenge_vit_only/result/vit_only_m2f_8000_1024/periodic_test/epoch_005/test_metrics.json)|5|**86.4615%**|
 
-**纯ViT仍在训练**，当前只有第5轮的完整5004张测试，86.4615%不代表其最终上限。混合A的90.6628%属于第14轮历史检查点；A最终验证best是第21轮，其完整测试为89.7335%。
+**历史快照时纯ViT仍在训练**，当前只有第5轮的完整5004张测试，86.4615%不代表其最终上限。混合A的90.6628%属于第14轮历史检查点；A最终验证best是第21轮，其完整测试为89.7335%。
 
 GitHub布局：根目录为双CNN；[fenge_vit/](fenge_vit/README.md)为混合框架A／B／C；[fenge_vit_only/](fenge_vit_only/README.md)为纯ViT。A是双骨干直接融合；B加入四阶段双向Adapter；C在B基础上增加随机RGB遮挡训练。
 
@@ -154,3 +174,7 @@ python code/evaluate.py --config config/evaluate_detail_epoch030_multiscale.json
 必要的负结果、原始指标、配置及来源SHA保存在[退役证据](result/retired_experiments/summary.json)。较高结果、对照、正在训练的实验、共用数据清单和模型加载兼容代码继续保留。0.75／0.25尺度加权曾提高验证表现，仍保留其验证及测试记录，不列为确定无效。
 
 [最新运行进度](fenge_vit/result/progress_analysis/latest_report_zh.md) · [CNN运行检查](result/verification.json) · [混合运行检查](fenge_vit/result/verification_model.json) · [纯ViT运行检查](fenge_vit_only/result/protocol_verification.json)
+
+## 本地工作区清理（2026-11-14）
+
+旧低分运行、调试权重、重复快照及其专用启动配置已清理；较好结果、必要对照、运行中的任务、数据和预训练权重保留。旧指标与配置见[清理记录](result/retired_experiments/cleanup_20261114/README.md)。

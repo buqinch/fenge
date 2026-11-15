@@ -143,7 +143,7 @@ def _run(args, device, rank, world):
         num_workers=args.workers, pin_memory=device.type == 'cuda', worker_init_fn=base.seed_worker,
         generator=val_generator, drop_last=False,
         multiprocessing_context='spawn' if args.workers else None)
-    model_config = ModelConfig(variant=args.variant, input_size=args.input_size, num_queries=args.num_queries,
+    model_config = ModelConfig(variant=args.variant, vit_size=args.vit_size, input_size=args.input_size, num_queries=args.num_queries,
         decoder_layers=args.decoder_layers, pixel_decoder_layers=args.pixel_decoder_layers, width=args.width,
         adapter_dim=args.adapter_dim, adapter_heads=args.adapter_heads, adapter_points=args.adapter_points,
         gradient_checkpointing=args.gradient_checkpointing, weight_dir=args.weight_dir,

@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCENES = {'Moon_2': 1597, 'Moon_4': 1320, 'Moon_9': 2087}
 CLASSES = ('regolith', 'rock', 'crater', 'mountain', 'sky')
 DONE = {'complete', 'reused', 'failed', 'missed'}
+HARD_PROTOCOL = 'pool8002_train6000_hard1500_validation_v1'
 
 
 def now():
@@ -118,7 +119,9 @@ def acquire_lock(path):
 
 def settings(config):
     return {'split': 'test', 'tta': 'multiscale_hflip', 'tta_sizes': [1024, 768],
-            'tta_weights': [0.5, 0.5], 'amp': 'bf16', 'batch_size': 4, 'workers': 4,
+            'tta_weights': [0.5, 0.5], 'amp': 'bf16',
+            'batch_size': config.get('evaluation_batch_size', 4),
+            'workers': config.get('evaluation_workers', 4),
             'test_manifest': config['test_manifest'],
             'test_manifest_sha256': sha256(config['test_manifest']),
             'evaluate_sha256': sha256(ROOT / 'code/evaluate.py'), 'save_images': False}
@@ -146,6 +149,11 @@ def load_config(path):
         if type(config[key]) is not bool:
             raise ValueError(key + ' must be a boolean')
     validate_retention_threshold(config.get('retain_above_score'))
+    if (type(config.get('evaluation_batch_size', 4)) is not int
+            or config.get('evaluation_batch_size', 4) < 1
+            or type(config.get('evaluation_workers', 4)) is not int
+            or config.get('evaluation_workers', 4) < 0):
+        raise ValueError('Invalid evaluation batch size or worker count')
     paths = []
     for value in config['runs']:
         run = (ROOT / value).resolve()
@@ -194,6 +202,10 @@ def committed_run(run):
     if not summary_path.exists():
         return None
     summary, configuration = read_json(summary_path), read_json(run / 'run_config.json')
+    if configuration.get('selection_policy') == 'full_test_every5':
+        return committed_fulltest_run(run, summary, configuration)
+    if configuration.get('protocol') == HARD_PROTOCOL:
+        return committed_hard_run(run, summary, configuration)
     expected_count = summary.get('data_identity', {}).get('val', {}).get('image_count')
     if (summary.get('format') != 'lusnar_vit_run_v1' or summary.get('partial') is not False
             or type(expected_count) is not int or expected_count < 1
@@ -232,28 +244,138 @@ def committed_run(run):
     return summary, configuration, rows
 
 
+def committed_fulltest_run(run, summary, configuration):
+    if (configuration.get('protocol') != HARD_PROTOCOL
+            or configuration.get('early_stopping_patience') != 0
+            or summary.get('format') != 'lusnar_vit_run_v1' or summary.get('partial') is not False
+            or summary.get('train_images') != 6000
+            or summary.get('data_identity', {}).get('train', {}).get('image_count') != 6000
+            or summary.get('data_identity', {}).get('val', {}).get('image_count') != 1500):
+        raise ValueError('Expected full-budget training with explicit full-test selection')
+    completed = summary.get('completed_epochs')
+    if type(completed) is not int or not 1 <= completed <= configuration['epochs']:
+        raise ValueError('Invalid completed epoch for full-test policy')
+    rows = {}
+    for line in (run / 'history.jsonl').read_text().splitlines(keepends=True):
+        if not line.endswith('\n'): break
+        row = json.loads(line)
+        if row['epoch'] <= completed:
+            if row['epoch'] in rows: raise ValueError('Duplicate committed epoch')
+            rows[row['epoch']] = row
+    if set(rows) != set(range(1, completed + 1)):
+        raise ValueError('Incomplete committed full-test history')
+    if summary.get('status') == 'early_stopped':
+        raise ValueError('Early stopping is disabled under full-test policy')
+    return summary, configuration, rows
+
+
+def committed_hard_run(run, summary, configuration):
+    """Validate the published prefix; odd training epochs need no new validation."""
+    identity = summary.get('data_identity', {}).get('val', {})
+    if (summary.get('format') != 'lusnar_vit_run_v1' or summary.get('partial') is not False
+            or configuration.get('validation_every') != 2
+            or summary.get('train_images') != 6000 or summary.get('validation_images') != 1500
+            or summary.get('data_identity', {}).get('train', {}).get('image_count') != 6000
+            or identity.get('image_count') != 1500 or identity.get('unique_source_count') != 1500
+            or identity.get('selection_metric') != 'validation_weighted_score'
+            or identity.get('validation_scene_counts') != {'Moon_2': 188, 'Moon_4': 187, 'Moon_9': 1125}
+            or not identity.get('hard_manifest_sha256')
+            or summary.get('best_metric') != 'validation_weighted_score'
+            or summary.get('checkpoint_selection_uses_test') is not True
+            or summary.get('official_test_used_for_selection') is not True):
+        raise ValueError('Expected explicit complete hard1500 validation selection protocol')
+    completed = summary.get('completed_epochs')
+    if type(completed) is not int or not 1 <= completed <= configuration['epochs']:
+        raise ValueError('Invalid completed_epochs')
+    rows = {}
+    for line in (run / 'history.jsonl').read_text().splitlines(keepends=True):
+        if not line.endswith('\n'): break
+        row = json.loads(line)
+        if row['epoch'] <= completed:
+            if row['epoch'] in rows: raise ValueError('Duplicate committed history epoch')
+            rows[row['epoch']] = row
+    if set(rows) != set(range(1, completed + 1)):
+        raise ValueError('Committed hard-validation summary/history are incomplete')
+    best, best_epoch = None, None
+    for epoch, row in sorted(rows.items()):
+        validates = epoch % 2 == 0 or epoch == configuration['epochs']
+        if (row.get('validation_performed') is not validates or row.get('partial') is not False
+                or row.get('checkpoint_selection_uses_test') is not True):
+            raise ValueError('Hard-validation cadence or selection provenance changed')
+        score = row.get('validation_weighted_score')
+        if validates:
+            if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score):
+                raise ValueError('Missing finite hard-validation weighted score')
+            document = read_json(run / f'validation_epoch_{epoch:03d}.json')
+            validate_validation(document, epoch, score, identity)
+            assert_close(document['miou'], row.get('validation_miou'), 'Pooled validation mIoU differs')
+            if best is None or score > best: best, best_epoch = score, epoch
+        elif score is not None or row.get('validation_miou') is not None:
+            raise ValueError('Skipped validation must not invent a measured score')
+        if row.get('best_epoch') != best_epoch or row.get('best_miou') != best:
+            raise ValueError('Hard best must be the first strict weighted validation maximum')
+    if summary.get('best_epoch') != best_epoch or summary.get('best_miou') != best:
+        raise ValueError('Hard-validation summary best differs from committed history')
+    if summary.get('status') in ('complete', 'early_stopped') and not rows[completed]['validation_performed']:
+        raise ValueError('Terminal training must have a measured final validation')
+    return summary, configuration, rows
+
+
 def validate_validation(document, epoch, score, identity):
     expected_count = identity.get('image_count')
     expected_sources = identity.get('unique_source_count', expected_count)
     if type(expected_count) is not int or expected_count < 1 or type(expected_sources) is not int or expected_sources < 1:
         raise ValueError('Validation identity is missing positive coverage counts')
+    hard = identity.get('selection_metric') == 'validation_weighted_score'
     if (document.get('epoch') != epoch or document.get('partial') is not False
             or document.get('image_count') != expected_count
             or document.get('validation_unique_source_count') != expected_sources
-            or document.get('checkpoint_selection_uses_test') is not False
+            or document.get('checkpoint_selection_uses_test') is not hard
             or document.get('data_identity') != identity):
         raise ValueError('Full fixed-validation identity/coverage mismatch')
-    assert_close(document.get('miou'), score, 'Validation score differs from history')
+    if hard and document.get('official_test_used_for_selection') is not True:
+        raise ValueError('Hard validation must disclose test use for selection')
+    assert_close(document.get('validation_weighted_score' if hard else 'miou'), score,
+                 'Validation selection score differs from history')
 
 
-def check_sources(configuration):
+def check_sources(configuration, source_root=None):
     sources = configuration.get('source_sha256')
     if not sources or 'code/train.py' not in sources:
         raise ValueError('Training source hashes missing')
+    source_root = ROOT if source_root is None else Path(source_root).resolve()
     for relative, expected in sources.items():
-        path = (ROOT / relative).resolve()
-        if not path.is_relative_to(ROOT / 'code') or sha256(path) != expected:
+        path = (source_root / relative).resolve()
+        if not path.is_relative_to(source_root / 'code') or sha256(path) != expected:
             raise ValueError('Training/evaluation source changed: ' + relative)
+    # An archived trainer is allowed, but actual inference must still use the
+    # exact model/data/loss implementation recorded by that trainer.
+    if source_root != ROOT:
+        actual = {str(p.relative_to(ROOT)): sha256(p) for p in (ROOT / 'code/vitseg').glob('*.py')}
+        expected = {p: digest for p, digest in sources.items()
+                    if Path(p).parent == Path('code/vitseg') and p.endswith('.py')}
+        if not actual or actual != expected:
+            raise ValueError('Actual evaluator vitseg sources differ from the checkpoint training sources')
+
+
+def job_training_configuration(job, trigger):
+    """Read an immutable per-job configuration, with legacy live-file fallback."""
+    job = Path(job)
+    pinned = job / 'training_configuration.json'
+    configuration = read_json(pinned if pinned.exists() else Path(trigger['run']) / 'run_config.json')
+    if fingerprint(configuration) != trigger['configuration_sha256']:
+        raise ValueError('Training configuration changed after snapshot selection')
+    source_root = trigger.get('training_source_root')
+    if source_root is not None:
+        run, requested = Path(trigger['run']).resolve(), Path(source_root)
+        if (not requested.is_absolute() or requested not in {run / 'runtime', run / 'runtime_fulltest'}
+                or not requested.is_dir() or not requested.resolve().is_relative_to(run)):
+            raise ValueError('training_source_root must be this run runtime or runtime_fulltest')
+    check_sources(configuration, source_root=source_root)
+    saved = checkpoint_metadata(job / 'best.pt')
+    if fingerprint(saved.get('train_config')) != trigger['configuration_sha256']:
+        raise ValueError('Snapshot training configuration differs from its pinned configuration')
+    return configuration
 
 
 def snapshot(source, destination):
@@ -276,25 +398,48 @@ def checkpoint_metadata(path):
             'partial', 'metrics', 'data_identity', 'train_config', 'model_config')}
 
 
+def recovered_pretransition_snapshot(trigger, configuration):
+    return (trigger.get('recovered_pretransition_current_epoch') is True
+            and configuration.get('selection_policy', 'hard_validation_best') == 'hard_validation_best'
+            and trigger.get('checkpoint_choice') == 'current_epoch'
+            and trigger.get('training_source_root') == str(Path(trigger['run']).resolve() / 'runtime'))
+
+
 def validate_snapshot(saved, trigger, configuration, summary):
+    current_epoch = trigger.get('selection_policy') == 'full_test_every5'
     if (saved.get('format') != 'lusnar_vit_checkpoint_v1' or saved.get('partial') is not False
             or saved.get('epoch') != trigger['checkpoint_epoch']
-            or saved.get('best_epoch') != trigger['checkpoint_epoch']
+            or (not current_epoch and saved.get('best_epoch') != trigger['checkpoint_epoch'])
             or saved.get('train_config') != configuration
             or saved.get('data_identity') != summary['data_identity']
             or saved.get('model_config') != summary['model_config']):
         raise ValueError('Checkpoint metadata/configuration/data identity mismatch')
+    if current_epoch:
+        if (configuration.get('selection_policy') != 'full_test_every5'
+                and not recovered_pretransition_snapshot(trigger, configuration)):
+            raise ValueError('Current-epoch selection requires the explicit full-test training policy')
+        return
     assert_close(saved['best_miou'], trigger['validation_best_miou'], 'Checkpoint best score mismatch')
     validate_validation(saved['metrics'], trigger['checkpoint_epoch'],
                         trigger['validation_best_miou'], summary['data_identity']['val'])
 
 
 def validate_metrics(document, trigger):
+    hard = trigger.get('checkpoint_selection_uses_test') is True
+    if hard:
+        if (trigger.get('protocol') != HARD_PROTOCOL
+                or document.get('protocol') != HARD_PROTOCOL
+                or document.get('checkpoint_selection_uses_test') is not True
+                or document.get('official_test_used_for_selection') is not True
+                or document.get('independent_holdout') is not False
+                or document.get('validation_images_included') != 1500
+                or document.get('full_test_coverage') is not True):
+            raise ValueError('Full hard-validation test must disclose checkpoint selection overlap')
     if (document.get('partial') is not False or document.get('checkpoint_partial_training') is not False
             or document.get('split') != 'test' or document.get('image_count') != 5004
             or document.get('validation_unique_source_count') != 5004
-            or document.get('official_test_scope') is not True
-            or document.get('test_scope') != 'complete_official_test'
+            or document.get('official_test_scope') is not (not hard)
+            or document.get('test_scope') != ('full5004_including_selection_validation' if hard else 'complete_official_test')
             or document.get('checkpoint_sha256') != trigger['checkpoint_sha256']
             or document.get('checkpoint_epoch') != trigger['checkpoint_epoch']):
         raise ValueError('Incomplete test or wrong checkpoint provenance')
@@ -384,6 +529,8 @@ def validate_retention_threshold(value):
 
 def finalize_checkpoint(job, trigger, verified, retain_above_score=None, reused_from=None):
     """Protect an exact tested checkpoint before normal temporary-file cleanup."""
+    if trigger.get('selection_policy') == 'full_test_every5':
+        return retain_fulltest_best(job, trigger, verified, reused_from)
     threshold = validate_retention_threshold(retain_above_score if retain_above_score is not None
                                             else trigger.get('retain_above_score'))
     checkpoint, marker = job / 'best.pt', job / 'score_milestone.json'
@@ -415,13 +562,90 @@ def finalize_checkpoint(job, trigger, verified, retain_above_score=None, reused_
                 'checkpoint_sha256': trigger['checkpoint_sha256'],
                 'checkpoint': str(checkpoint), 'metrics': str(job / 'test_metrics.json'),
                 'metrics_sha256': sha256(job / 'test_metrics.json'),
-                'checkpoint_selection_uses_test': False, 'training_process_management': False}
+                'checkpoint_selection_uses_test': trigger.get('checkpoint_selection_uses_test', False),
+                'training_process_management': False}
     write_json(marker, recorded)
     return recorded
 
 
+def retain_fulltest_best(job, trigger, verified, reused_from=None):
+    """Keep one exact highest full-test checkpoint, independently of final.pt."""
+    run = Path(trigger['run'])
+    lock = acquire_lock(run / '.best_full_test.lock')
+    if lock is None: raise RuntimeError('Full-test best update is already in progress')
+    try:
+        marker, best_path = run / 'best_full_test.json', run / 'best_full_test.pt'
+        previous = read_json(marker) if marker.exists() else None
+        if previous and (not best_path.exists() or sha256(best_path) != previous['checkpoint_sha256']):
+            raise ValueError('Previously retained full-test best is missing or changed')
+        is_new = previous is None or verified['weighted_score'] > previous['weighted_score']
+        if is_new:
+            candidates = [job / 'best.pt', run / 'full_test_checkpoints' / f"epoch_{trigger['checkpoint_epoch']:03d}.pt",
+                          run / 'final.pt', run / 'last.pt']
+            if reused_from: candidates.append(Path(reused_from) / 'best.pt')
+            source = next((p for p in candidates if p.exists() and sha256(p) == trigger['checkpoint_sha256']), None)
+            if source is None: raise ValueError('Winning full-test checkpoint bytes are unavailable')
+            snapshot(source, best_path)
+            previous = {'schema': 'lusnar_best_full_test_v1', 'updated_at': now(),
+                        'selection_policy': 'full_test_every5', 'selection_metric': 'weighted_score',
+                        'checkpoint_epoch': trigger['checkpoint_epoch'],
+                        'checkpoint_sha256': trigger['checkpoint_sha256'], 'checkpoint': str(best_path),
+                        'metrics': str(job / 'test_metrics.json'), 'metrics_sha256': sha256(job / 'test_metrics.json'),
+                        'checkpoint_selection_uses_test': True, 'independent_holdout': False, **verified}
+            write_json(marker, previous)
+        # Publish completion proof before deleting the immutable training candidate.
+        receipt_path = run / 'full_test_checkpoints' / f"epoch_{trigger['checkpoint_epoch']:03d}.json"
+        if receipt_path.exists():
+            receipt = read_json(receipt_path)
+            if receipt.get('checkpoint_sha256') != trigger['checkpoint_sha256']:
+                raise ValueError('Training candidate receipt differs from evaluated checkpoint')
+            receipt['evaluation'] = {'status': 'complete', 'completed_at': now(),
+                                     'checkpoint_sha256': trigger['checkpoint_sha256'],
+                                     'metrics_path': str(job / 'test_metrics.json'),
+                                     'metrics_sha256': sha256(job / 'test_metrics.json'),
+                                     'weighted_score': verified['weighted_score']}
+            write_json(receipt_path, receipt)
+        # These are evaluation-owned temporary files, never trainer last/final.
+        temporary = [job / 'best.pt', run / 'full_test_checkpoints' / f"epoch_{trigger['checkpoint_epoch']:03d}.pt"]
+        for p in temporary:
+            if p.exists():
+                if sha256(p) != trigger['checkpoint_sha256']:
+                    raise ValueError('Temporary checkpoint changed before cleanup')
+                p.unlink()
+        return previous
+    finally:
+        lock.close()
+
+
 def complete_job(job, trigger, reused_from=None, retain_above_score=None):
-    verified = validate_metrics(read_json(job / 'test_metrics.json'), trigger)
+    document = read_json(job / 'test_metrics.json')
+    verified = validate_metrics(document, trigger)
+    if (trigger.get('recovered_pretransition_current_epoch') is True
+            and document.get('checkpoint_choice') != 'current_epoch'):
+        configuration = job_training_configuration(job, trigger)
+        if not recovered_pretransition_snapshot(trigger, configuration):
+            raise ValueError('Invalid pre-transition current-epoch recovery binding')
+        if sha256(job / 'best.pt') != trigger['checkpoint_sha256']:
+            raise ValueError('Recovered snapshot changed before metadata correction')
+        saved = checkpoint_metadata(job / 'best.pt')
+        if saved['epoch'] != trigger['checkpoint_epoch']:
+            raise ValueError('Recovered snapshot epoch differs before metadata correction')
+        original_sha = sha256(job / 'test_metrics.json')
+        archive = job / 'test_metrics_before_metadata_correction.json'
+        if archive.exists() and sha256(archive) != original_sha:
+            raise ValueError('Existing uncorrected metrics archive differs')
+        if not archive.exists():
+            shutil.copyfile(job / 'test_metrics.json', archive)
+        document.update(reported_checkpoint_choice=document.get('checkpoint_choice'),
+            checkpoint_choice='current_epoch', metadata_correction={
+                'kind': 'recovered_pretransition_current_epoch',
+                'reason': 'Legacy evaluator inferred validation-best selection from the old training policy; '
+                          'this explicitly pinned checkpoint is the current epoch.',
+                'original_metrics_sha256': original_sha,
+                'checkpoint_epoch': saved['epoch'], 'legacy_validation_best_epoch': saved.get('best_epoch'),
+                'scores_and_confusion_matrices_unchanged': True})
+        write_json(job / 'test_metrics.json', document)
+        verified = validate_metrics(document, trigger)
     milestone = finalize_checkpoint(job, trigger, verified, retain_above_score, reused_from)
     state = set_status(job, 'reused' if reused_from else 'complete', verified=verified,
                        completed_at=now(), reused_from=reused_from,
@@ -436,11 +660,16 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
         return job
     job.mkdir(parents=True, exist_ok=True)
     row = rows[boundary]
-    expected_epoch, expected_score = row['best_epoch'], row['best_miou']
-    validate_validation(read_json(run / f'validation_epoch_{boundary:03d}.json'), boundary,
-                        row['validation_miou'], summary['data_identity']['val'])
-    validate_validation(read_json(run / f'validation_epoch_{expected_epoch:03d}.json'), expected_epoch,
-                        expected_score, summary['data_identity']['val'])
+    current_epoch = configuration.get('selection_policy') == 'full_test_every5'
+    expected_epoch, expected_score = (boundary, None) if current_epoch else (row['best_epoch'], row['best_miou'])
+    hard = configuration.get('protocol') == HARD_PROTOCOL
+    if not current_epoch and (not hard or row['validation_performed']):
+        validate_validation(read_json(run / f'validation_epoch_{boundary:03d}.json'), boundary,
+                            row['validation_weighted_score' if hard else 'validation_miou'],
+                            summary['data_identity']['val'])
+    if not current_epoch:
+        validate_validation(read_json(run / f'validation_epoch_{expected_epoch:03d}.json'), expected_epoch,
+                            expected_score, summary['data_identity']['val'])
     check_sources(configuration)
     trigger = {'schema': 'vit_periodic_trigger_v1', 'run': str(run), 'trigger_epoch': boundary,
                'trigger_kind': ('final' if final else 'every_three_epochs' if config['every_epochs'] == 3
@@ -449,11 +678,20 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
                'checkpoint_epoch': expected_epoch, 'validation_best_miou': expected_score,
                'configuration_sha256': fingerprint(configuration),
                'validation_identity': summary['data_identity']['val'],
-               'evaluation': config['evaluation'], 'checkpoint_selection_uses_test': False}
+               'evaluation': config['evaluation'], 'checkpoint_selection_uses_test': hard}
+    if hard:
+        trigger.update(protocol=HARD_PROTOCOL, best_metric='validation_weighted_score',
+                       validation_best_score=expected_score, official_test_used_for_selection=True,
+                       independent_holdout=False)
+    if current_epoch:
+        trigger.update(selection_policy='full_test_every5', checkpoint_choice='current_epoch',
+                       best_metric='weighted_score', validation_best_score=None,
+                       retention_policy='best_full_test_and_final_per_run')
     if config.get('retain_above_score') is not None:
         trigger['retain_above_score'] = validate_retention_threshold(config['retain_above_score'])
     # A retained older snapshot can recover a boundary after best.pt advances.
-    candidates = [run / 'best.pt', run / 'last.pt']
+    candidates = ([run / 'full_test_checkpoints' / f'epoch_{boundary:03d}.pt', run / 'final.pt', run / 'last.pt']
+                  if current_epoch else [run / 'best.pt', run / 'last.pt'])
     for earlier in sorted((run / 'periodic_test').glob('*/trigger.json')):
         if earlier.parent == job:
             continue
@@ -466,6 +704,7 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
         if other_state['status'] in ('complete', 'reused'):
             trigger['checkpoint_sha256'] = other['checkpoint_sha256']
             validate_metrics(read_json(earlier.parent / 'test_metrics.json'), trigger)
+            write_json(job / 'training_configuration.json', configuration)
             write_json(job / 'trigger.json', trigger)
             shutil.copyfile(earlier.parent / 'test_metrics.json', job / 'test_metrics.json')
             complete_job(job, trigger, reused_from=str(earlier.parent))
@@ -485,6 +724,7 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
         validate_snapshot(saved, trigger, configuration, summary)
         trigger['checkpoint_sha256'] = sha256(job / 'best.pt')
         trigger['snapshot_source'] = str(candidate)
+        write_json(job / 'training_configuration.json', configuration)
         write_json(job / 'trigger.json', trigger)
         set_status(job, 'queued', queued_at=now(), checkpoint_epoch=expected_epoch)
         return job
@@ -502,7 +742,8 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
 def evaluator_command(config, job):
     return [config['python'], '-u', str(ROOT / 'code/evaluate.py'), '--checkpoint', str(job / 'best.pt'),
             '--split', 'test', '--test-manifest', config['test_manifest'], '--device', 'cuda:0',
-            '--amp', 'bf16', '--batch-size', '4', '--workers', '4', '--tta', 'multiscale_hflip',
+            '--amp', 'bf16', '--batch-size', str(config.get('evaluation_batch_size', 4)),
+            '--workers', str(config.get('evaluation_workers', 4)), '--tta', 'multiscale_hflip',
             '--tta-sizes', '1024', '768', '--tta-weights', '0.5', '0.5',
             '--output', str(job / 'test_metrics.json')]
 
@@ -531,10 +772,7 @@ def worker(job, probe=gpu_available):
             return 0
         if sha256(job / 'best.pt') != trigger['checkpoint_sha256']:
             raise ValueError('Snapshot SHA changed before evaluation')
-        training_configuration = read_json(Path(trigger['run']) / 'run_config.json')
-        if fingerprint(training_configuration) != trigger['configuration_sha256']:
-            raise ValueError('Training configuration changed after snapshot selection')
-        check_sources(training_configuration)
+        job_training_configuration(job, trigger)
         if settings(config) != trigger['evaluation']:
             raise ValueError('Evaluator source or test manifest changed after queueing')
         set_status(job, 'running', worker_identity=process_identity(os.getpid()),
@@ -598,6 +836,9 @@ class Monitor:
                 if committed is None:
                     continue
                 summary, configuration, rows = committed
+                if (self.config.get('required_selection_policy') is not None
+                        and configuration.get('selection_policy') != self.config['required_selection_policy']):
+                    continue  # A scheduled epoch-boundary policy transition has not completed yet.
                 completed = summary['completed_epochs']
                 interval = self.config['every_epochs']
                 if self.config.get('periodic_evaluation', True):
@@ -633,8 +874,12 @@ class Monitor:
                     try:
                         trigger = read_json(job / 'trigger.json')
                         verified = validate_metrics(read_json(job / 'test_metrics.json'), trigger)
-                        milestone = finalize_checkpoint(job, trigger, verified,
-                            self.config.get('retain_above_score'), state.get('reused_from'))
+                        # Full-test winners may be replaced by a later epoch. Their
+                        # per-job completion record is historical, not another request
+                        # to restore the old winner or hash gigabytes on every poll.
+                        milestone = (None if trigger.get('selection_policy') == 'full_test_every5' else
+                            finalize_checkpoint(job, trigger, verified,
+                                self.config.get('retain_above_score'), state.get('reused_from')))
                         if milestone:
                             milestones.append(milestone)
                             if state.get('score_milestone') != milestone:

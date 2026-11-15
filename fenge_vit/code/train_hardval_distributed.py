@@ -104,7 +104,7 @@ def _prepare_output(output, args):
         raise ValueError('Resume must retain the original output directory')
 
 
-def _validate_history(output, saved, partial):
+def _validate_history(output, saved, partial, selection_policy=base.LEGACY_POLICY):
     """Recover only the durable checkpoint prefix and repair its best snapshot."""
     history = output / 'history.jsonl'
     raw = history.read_bytes() if history.exists() else b''
@@ -123,6 +123,8 @@ def _validate_history(output, saved, partial):
         temporary = history.with_name('history.jsonl.tmp')
         temporary.write_bytes(b''.join(lines[:epoch]))
         temporary.replace(history)
+    if selection_policy == base.FULL_TEST_POLICY:
+        return
     best_epoch = saved.get('best_epoch')
     if best_epoch is None:
         if saved.get('best_miou') is not None:
@@ -201,7 +203,7 @@ def _run(args, device, rank, world):
         num_workers=args.workers, pin_memory=device.type == 'cuda', worker_init_fn=base.seed_worker,
         generator=val_generator, drop_last=False,
         multiprocessing_context='spawn' if args.workers else None)
-    model_config = ModelConfig(variant=args.variant, input_size=args.input_size, num_queries=args.num_queries,
+    model_config = ModelConfig(variant=args.variant, vit_size=args.vit_size, input_size=args.input_size, num_queries=args.num_queries,
         decoder_layers=args.decoder_layers, pixel_decoder_layers=args.pixel_decoder_layers, width=args.width,
         adapter_dim=args.adapter_dim, adapter_heads=args.adapter_heads, adapter_points=args.adapter_points,
         gradient_checkpointing=args.gradient_checkpointing, weight_dir=args.weight_dir,
@@ -220,6 +222,7 @@ def _run(args, device, rank, world):
     source_files = [Path(__file__), Path(__file__).with_name('distributed_training.py'),
                     Path(__file__).with_name('train.py'), Path(__file__).with_name('train_distributed.py'),
                     Path(__file__).with_name('train_hardval.py'), Path(__file__).with_name('hardval_data.py'),
+                    Path(__file__).with_name('fulltest_policy.py'),
                     *(Path(__file__).parent / 'vitseg').glob('*.py')]
     configuration['source_sha256'] = {str(p.relative_to(ROOT)): sha256_file(p) for p in sorted(source_files)}
     distributed = {'strategy': 'synchronous_bucket_gradient_allreduce', 'world_size': world,
@@ -236,8 +239,10 @@ def _run(args, device, rank, world):
         'gradient_bucket_bytes': 25 * 1024 * 1024, 'loader_worker_start_method': 'spawn' if args.workers else None,
         'training_rng_seeds': [args.seed + 7919 * (i + 1) for i in range(world)]}
     configuration['distributed'] = distributed
+    transition, migration = None, None
     if saved:
-        base._check_resume(saved, configuration, model_config, identities)
+        migration = base._check_resume(saved, configuration, model_config, identities)
+        transition = migration or saved.get('policy_transition')
         if saved.get('distributed', {}).get('world_size') != world:
             raise ValueError('Distributed resume requires the original world size')
         states = saved.get('rank_states')
@@ -283,11 +288,13 @@ def _run(args, device, rank, world):
         optimizer.load_state_dict(saved['optimizer'])
         schedule.load_state_dict(saved['scheduler'])
         scaler.load_state_dict(saved['scaler'])
-        tracker.load_state_dict(saved['early_stopping'])
+        if not migration:
+            tracker.load_state_dict(saved['early_stopping'])
         global_update, start_epoch = saved['global_update'], saved['epoch'] + 1
         if global_update != schedule.completed_updates:
             raise ValueError('Checkpoint update counters disagree')
-        best, best_epoch = saved['best_miou'], saved['best_epoch']
+        if not base.full_test_enabled(args):
+            best, best_epoch = saved['best_miou'], saved['best_epoch']
         state = saved['rank_states'][rank]
         if state.get('sampler_epoch') != saved['epoch']:
             raise ValueError('Checkpoint sampler epoch differs')
@@ -295,7 +302,10 @@ def _run(args, device, rank, world):
         val_generator.set_state(state['val_generator'])
         base.restore_rng(state['rng'], device)
         saved['_resume_path'] = args.resume
-        _rank_zero_action(lambda: _validate_history(output, saved, partial))
+        _rank_zero_action(lambda: _validate_history(output, saved, partial, args.selection_policy))
+        _rank_zero_action(lambda: base.persist_transition_audit(output, migration, saved['train_config'], base.write_json))
+        _rank_zero_action(lambda: base.recover_policy_outputs(
+            output, saved, args, configuration, transition, tracker.state_dict(), base.atomic_checkpoint))
         del saved
     else:
         base.seed_all(distributed['training_rng_seeds'][rank], device)
@@ -460,6 +470,7 @@ def _run(args, device, rank, world):
             'distributed': {**distributed, 'train_images_per_rank': [p['images'] for p in payloads],
                             'epoch_seconds_per_rank': [p['seconds'] for p in payloads],
                             'model_tensor_sha256_per_rank': parameter_hashes, 'model_tensors_identical': True}}
+        record.update(base.policy_metadata(args, epoch, transition))
         rank_states = gather_objects({'rank': rank, 'rng': base.rng_state(device),
             'loader_generator': loader_generator.get_state(), 'val_generator': val_generator.get_state(),
             'sampler_epoch': epoch})
@@ -484,7 +495,9 @@ def _run(args, device, rank, world):
                 'rank_states': rank_states, 'distributed': distributed,
                 'model_tensor_sha256_per_rank': parameter_hashes, 'early_stopping': tracker.state_dict(),
                 'status': status, 'stop_reason': stop_reason, 'partial': partial}
+            checkpoint.update(base.policy_metadata(args, epoch, transition))
             base.atomic_checkpoint(output / 'last.pt', checkpoint)
+            base.publish_checkpoints(output, checkpoint, args.epochs, base.atomic_checkpoint)
             if decision['improved']:
                 base.atomic_checkpoint(output / ('best_smoke.pt' if partial else 'best.pt'), checkpoint)
             summary = {'format': 'lusnar_vit_run_v1', 'status': status, 'stop_reason': stop_reason,
@@ -500,6 +513,7 @@ def _run(args, device, rank, world):
                 'model_config': model_config.to_dict(), 'data_identity': identities,
                 'initial_model_sha256': configuration['initial_model_sha256'], 'distributed': distributed,
                 'model_tensor_sha256_per_rank': parameter_hashes}
+            summary.update(base.policy_metadata(args, epoch, transition))
             base.write_json(output / 'summary.json', summary)
             print(json.dumps({'epoch': epoch, 'validation_weighted_score': score, 'best_epoch': best_epoch, 'best_miou': best,
                 'status': status, 'seconds': record['seconds'], 'global_update': global_update}, ensure_ascii=False), flush=True)

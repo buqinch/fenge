@@ -1,0 +1,21 @@
+{
+  "schema": "vit_periodic_test_v1",
+  "gpu_index": 3,
+  "minimum_free_mib": 10000,
+  "every_epochs": 5,
+  "poll_seconds": 15,
+  "periodic_evaluation": true,
+  "final_evaluation": true,
+  "required_selection_policy": "full_test_every5",
+  "evaluation_batch_size": 2,
+  "evaluation_workers": 4,
+  "test_manifest": "/media/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+  "retain_above_score": null,
+  "runs": [
+    "result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu",
+    "result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu"
+  ],
+  "state_directory": "result/periodic_eval_vitl_103_every5",
+  "python": "/home/lzc/miniconda3/envs/lusnar/bin/python",
+  "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock"
+}

@@ -494,8 +494,617 @@ class PeriodicFixtures(unittest.TestCase):
                 m.load_config(config_path)
 
 
+class HardValidationFixtures(unittest.TestCase):
+    """Sparse hard-validation history with deliberately different pooled mIoU."""
+
+    setUp = PeriodicFixtures.setUp
+    tearDown = PeriodicFixtures.tearDown
+
+    def publish_hard(self, name='b', scores=None, completed=5, committed=None, status='training'):
+        if scores is None:
+            scores = {2: 0.70, 4: 0.80}
+        self.config['every_epochs'] = 5
+        self.configuration.update(protocol='pool8002_train6000_hard1500_validation_v1',
+                                  validation_every=2, pretrained=True)
+        counts = {'Moon_2': 188, 'Moon_4': 187, 'Moon_9': 1125}
+        weights = {'Moon_2': 1, 'Moon_4': 1, 'Moon_9': 2}
+        self.identity = {
+            'train': {'split': 'train', 'image_count': 6000, 'partial': False},
+            'val': {'split': 'val', 'image_count': 1500, 'unique_source_count': 1500,
+                    'partial': False, 'selection_metric': 'validation_weighted_score',
+                    'hard_manifest_sha256': 'fixed-fixture-hard1500',
+                    'ordered_samples_sha256': 'fixed-fixture-validation',
+                    'validation_image_count': 1500, 'validation_scene_counts': counts,
+                    'sample_scene_counts': counts, 'validation_weights': weights,
+                    'checkpoint_selection_uses_test': True, 'official_test_used_for_selection': True,
+                    'full_original_test_overlaps_validation': True}}
+        run = self.root / 'result' / name
+        run.mkdir(parents=True, exist_ok=True)
+        m.write_json(run / 'run_config.json', self.configuration)
+        rows, documents, best, best_epoch = [], {}, None, None
+        for epoch in range(1, completed + 1):
+            score = scores.get(epoch)
+            pooled = 0.95 - epoch * 0.001 if score is not None else None
+            if score is not None:
+                if best is None or score > best:
+                    best, best_epoch = score, epoch
+                validation = {
+                    'epoch': epoch, 'image_count': 1500, 'validation_unique_source_count': 1500,
+                    'partial': False, 'checkpoint_selection_uses_test': True,
+                    'official_test_used_for_selection': True, 'official_test_scope': False,
+                    'test_scope': 'fixed_hard_validation', 'best_metric': 'validation_weighted_score',
+                    'data_identity': self.identity['val'], 'miou': pooled, 'weighted_score': None,
+                    'validation_weighted_score': score, 'validation_weighted_score_weights': weights,
+                    'scenes': {scene: {'image_count': count, 'miou': score}
+                               for scene, count in counts.items()}}
+                documents[epoch] = validation
+                m.write_json(run / f'validation_epoch_{epoch:03d}.json', validation)
+            rows.append({'epoch': epoch, 'validation_miou': pooled, 'miou': pooled,
+                         'validation_weighted_score': score, 'validation_performed': score is not None,
+                         'best_epoch': best_epoch, 'best_miou': best, 'best_validation_score': best,
+                         'best_metric': 'validation_weighted_score', 'partial': False,
+                         'checkpoint_selection_uses_test': True})
+        (run / 'history.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in rows))
+        durable = completed if committed is None else committed
+        row = rows[durable - 1]
+        summary = {'format': 'lusnar_vit_run_v1', 'status': status, 'completed_epochs': durable,
+                   'best_epoch': row['best_epoch'], 'best_miou': row['best_miou'],
+                   'best_validation_score': row['best_miou'], 'best_metric': 'validation_weighted_score',
+                   'partial': False, 'train_images': 6000, 'validation_images': 1500,
+                   'validation_interval': 2, 'checkpoint_selection_uses_test': True,
+                   'official_test_used_for_selection': True, 'data_identity': self.identity,
+                   'model_config': {'variant': 'fixture'}}
+        m.write_json(run / 'summary.json', summary)
+        if best_epoch is not None:
+            checkpoint = {'format': 'lusnar_vit_checkpoint_v1', 'epoch': best_epoch,
+                          'best_epoch': best_epoch, 'best_miou': best, 'partial': False,
+                          'train_config': self.configuration, 'data_identity': self.identity,
+                          'model_config': summary['model_config'], 'metrics': documents[best_epoch],
+                          'model': {'fixture': torch.tensor([best_epoch])}}
+            temporary = run / 'best.tmp'
+            torch.save(checkpoint, temporary)
+            temporary.replace(run / 'best.pt')
+        return run
+
+    def prepare(self, run, boundary=5):
+        summary, configuration, rows = m.committed_run(run)
+        return m.prepare_job(run, boundary, summary, configuration, rows, self.config)
+
+    def metrics(self, trigger):
+        document = PeriodicFixtures.metrics(self, trigger)
+        document.update(protocol='pool8002_train6000_hard1500_validation_v1',
+                        test_scope='full5004_including_selection_validation',
+                        official_test_scope=False, official_full_test=False,
+                        checkpoint_selection_uses_test=True, official_test_used_for_selection=True,
+                        independent_holdout=False, validation_images_included=1500,
+                        full_test_coverage=True)
+        return document
+
+    def test_epoch_five_uses_best_four_without_validation_five(self):
+        run = self.publish_hard()
+        self.assertFalse((run / 'validation_epoch_005.json').exists())
+        summary, _, rows = m.committed_run(run)
+        self.assertEqual(summary['best_epoch'], 4)
+        self.assertGreater(rows[2]['validation_miou'], rows[4]['validation_miou'])
+        job = self.prepare(run)
+        trigger = m.read_json(job / 'trigger.json')
+        self.assertEqual(trigger['trigger_epoch'], 5)
+        self.assertEqual(trigger['checkpoint_epoch'], 4)
+        self.assertEqual(trigger['validation_best_miou'], 0.80)
+        self.assertEqual(trigger['best_metric'], 'validation_weighted_score')
+        self.assertTrue(trigger['checkpoint_selection_uses_test'])
+        self.assertEqual(trigger['protocol'], self.configuration['protocol'])
+        self.assertEqual(m.checkpoint_metadata(job / 'best.pt')['epoch'], 4)
+
+    def test_five_epoch_monitor_accepts_sparse_history(self):
+        run = self.publish_hard()
+        with patch.object(m, 'gpu_available', return_value=(False, 'fixture busy', 'fixture')):
+            report = m.Monitor(self.config).tick()
+        self.assertEqual(report['errors'], {})
+        self.assertTrue((run / 'periodic_test/epoch_005/best.pt').exists())
+        self.assertFalse((run / 'periodic_test/epoch_004').exists())
+
+    def test_sparse_history_rejects_wrong_schedule_flags_and_metric(self):
+        cases = ('odd_marked_validated', 'even_not_validated', 'odd_has_score',
+                 'selection_false', 'official_false', 'pooled_best_metric', 'history_selection_false')
+        for case in cases:
+            with self.subTest(case=case):
+                run = self.publish_hard(name=case)
+                summary = m.read_json(run / 'summary.json')
+                rows = [json.loads(line) for line in (run / 'history.jsonl').read_text().splitlines()]
+                if case == 'odd_marked_validated': rows[2]['validation_performed'] = True
+                elif case == 'even_not_validated':
+                    rows[3].update(validation_weighted_score=None, validation_miou=None,
+                                   validation_performed=False)
+                elif case == 'odd_has_score': rows[2]['validation_weighted_score'] = 0.75
+                elif case == 'selection_false': summary['checkpoint_selection_uses_test'] = False
+                elif case == 'official_false': summary['official_test_used_for_selection'] = False
+                elif case == 'pooled_best_metric': summary['best_metric'] = 'miou'
+                elif case == 'history_selection_false': rows[3]['checkpoint_selection_uses_test'] = False
+                m.write_json(run / 'summary.json', summary)
+                (run / 'history.jsonl').write_text(''.join(json.dumps(row) + '\n' for row in rows))
+                with self.assertRaises(ValueError): m.committed_run(run)
+
+    def test_missing_even_validation_document_and_bad_identity_rejected(self):
+        run = self.publish_hard()
+        (run / 'validation_epoch_004.json').unlink()
+        with self.assertRaises((ValueError, FileNotFoundError)): self.prepare(run)
+        for field, value in (('checkpoint_selection_uses_test', False), ('image_count', 1499),
+                             ('validation_weighted_score', 0.946), ('validation_unique_source_count', 1499)):
+            with self.subTest(field=field):
+                run = self.publish_hard(name='invalid_' + field)
+                document = m.read_json(run / 'validation_epoch_004.json')
+                document[field] = value
+                m.write_json(run / 'validation_epoch_004.json', document)
+                with self.assertRaises(ValueError): self.prepare(run)
+
+    def test_odd_terminal_requires_its_final_validation(self):
+        run = self.publish_hard(status='early_stopped')
+        with self.assertRaises(ValueError): m.committed_run(run)
+        self.configuration['epochs'] = 5
+        run = self.publish_hard(name='final_validated', scores={2: .70, 4: .80, 5: .81},
+                                status='complete')
+        summary, configuration, rows = m.committed_run(run)
+        job = m.prepare_job(run, 5, summary, configuration, rows, self.config, final=True)
+        self.assertEqual(m.read_json(job / 'trigger.json')['checkpoint_epoch'], 5)
+
+    def test_same_best_is_reused_at_epoch_ten(self):
+        run = self.publish_hard()
+        first = self.prepare(run)
+        trigger = m.read_json(first / 'trigger.json')
+        m.write_json(first / 'test_metrics.json', self.metrics(trigger))
+        m.complete_job(first, trigger)
+        self.assertFalse((first / 'best.pt').exists())
+        self.publish_hard(completed=10, scores={2: .70, 4: .80, 6: .78, 8: .80, 10: .79})
+        later = self.prepare(run, 10)
+        state = m.read_json(later / 'status.json')
+        self.assertEqual(state['status'], 'reused')
+        self.assertEqual(state['reused_from'], str(first))
+        self.assertEqual(state['checkpoint_sha256'], trigger['checkpoint_sha256'])
+        self.assertEqual(state['checkpoint_epoch'], 4)
+
+    def test_snapshot_stays_fixed_when_best_advances(self):
+        run = self.publish_hard()
+        job = self.prepare(run)
+        original = m.sha256(job / 'best.pt')
+        self.publish_hard(completed=6, scores={2: .70, 4: .80, 6: .85})
+        self.assertEqual(m.sha256(job / 'best.pt'), original)
+        self.assertNotEqual(m.sha256(run / 'best.pt'), original)
+        self.assertEqual(m.checkpoint_metadata(job / 'best.pt')['epoch'], 4)
+
+    def test_newer_checkpoint_cannot_replace_missed_boundary(self):
+        run = self.publish_hard(completed=6, committed=5, scores={2: .70, 4: .80, 6: .85})
+        job = self.prepare(run)
+        self.assertFalse((job / 'status.json').exists())
+        self.publish_hard(completed=6, scores={2: .70, 4: .80, 6: .85})
+        self.prepare(run)
+        self.assertEqual(m.read_json(job / 'status.json')['status'], 'missed')
+        self.assertFalse((job / 'best.pt').exists())
+
+    def test_full_metrics_reject_false_independence_and_changed_identity(self):
+        trigger = m.read_json(self.prepare(self.publish_hard()) / 'trigger.json')
+        valid = self.metrics(trigger)
+        self.assertEqual(m.validate_metrics(valid, trigger)['weighted_score'], 1.0)
+        for field, value in (('protocol', 'different-protocol'), ('official_test_scope', True),
+                             ('test_scope', 'complete_official_test'),
+                             ('checkpoint_selection_uses_test', False),
+                             ('official_test_used_for_selection', False), ('independent_holdout', True),
+                             ('validation_images_included', 0), ('full_test_coverage', False),
+                             ('checkpoint_sha256', 'different-checkpoint'), ('checkpoint_epoch', 6),
+                             ('image_count', 5003), ('partial', True), ('weighted_score', .99)):
+            with self.subTest(field=field):
+                document = copy.deepcopy(valid)
+                document[field] = value
+                with self.assertRaises(ValueError): m.validate_metrics(document, trigger)
+
+    def test_retained_hard_protocol_snapshot_requires_exact_bytes(self):
+        self.config['retain_above_score'] = .92
+        job = self.prepare(self.publish_hard())
+        trigger = m.read_json(job / 'trigger.json')
+        m.write_json(job / 'test_metrics.json', self.metrics(trigger))
+        replacement = job / 'wrong.tmp'
+        replacement.write_bytes(b'not-the-tested-checkpoint')
+        replacement.replace(job / 'best.pt')
+        with self.assertRaises(ValueError): m.complete_job(job, trigger)
+        self.assertFalse((job / 'score_milestone.json').exists())
+
+
+class FullTestPolicyFixtures(unittest.TestCase):
+    """Every-five-epoch selection uses exact current weights and full-test scores."""
+
+    setUp = PeriodicFixtures.setUp
+    tearDown = PeriodicFixtures.tearDown
+    prepare = HardValidationFixtures.prepare
+
+    def publish_full(self, name='b', completed=5, committed=None, status='training',
+                     retain_candidate=True):
+        self.configuration.update(selection_policy='full_test_every5',
+                                  early_stopping_patience=0)
+        run = HardValidationFixtures.publish_hard(
+            self, name=name, completed=completed, committed=committed, status=status)
+        saved = torch.load(run / 'best.pt', map_location='cpu', weights_only=True)
+        # Keep best_epoch=4 deliberately: this is the old diagnostic-validation
+        # best, while the model tensor and epoch identify the current weights.
+        saved.update(epoch=completed, metrics=None,
+                     model={'fixture': torch.tensor([completed])})
+        temporary = run / 'last.tmp'
+        torch.save(saved, temporary)
+        temporary.replace(run / 'last.pt')
+        if retain_candidate:
+            directory = run / 'full_test_checkpoints'
+            directory.mkdir(exist_ok=True)
+            candidate = directory / f'epoch_{completed:03d}.pt'
+            m.snapshot(run / 'last.pt', candidate)
+            m.write_json(candidate.with_suffix('.json'), {
+                'schema': 'lusnar_full_test_candidate_receipt_v1',
+                'checkpoint_epoch': completed, 'checkpoint_path': str(candidate),
+                'checkpoint_sha256': m.sha256(candidate)})
+        return run
+
+    def metrics(self, trigger, correct_tenths=8):
+        document = HardValidationFixtures.metrics(self, trigger)
+
+        def measures(matrix):
+            ious = {name: matrix[i][i] /
+                    (sum(matrix[i]) + sum(row[i] for row in matrix) - matrix[i][i])
+                    for i, name in enumerate(m.CLASSES)}
+            return ious, sum(ious.values()) / len(ious)
+
+        for scene in document['scenes'].values():
+            matrix = scene['confusion_matrix_gt_rows_pred_cols']
+            for i, row in enumerate(matrix):
+                gt = sum(row)
+                row[:] = [0] * 5
+                row[i] = gt * correct_tenths // 10
+                row[(i + 1) % 5] = gt - row[i]
+            scene['class_iou'], scene['miou'] = measures(matrix)
+        pooled = [[sum(scene['confusion_matrix_gt_rows_pred_cols'][i][j]
+                       for scene in document['scenes'].values())
+                   for j in range(5)] for i in range(5)]
+        document['confusion_matrix_gt_rows_pred_cols'] = pooled
+        document['class_iou'], document['miou'] = measures(pooled)
+        document['pooled_miou'] = document['miou']
+        scene = document['scenes']
+        document['weighted_score'] = (scene['Moon_2']['miou'] + scene['Moon_4']['miou']
+                                      + 2 * scene['Moon_9']['miou']) / 4
+        return document
+
+    def finish(self, job, correct_tenths=8):
+        trigger = m.read_json(job / 'trigger.json')
+        metrics = self.metrics(trigger, correct_tenths)
+        m.write_json(job / 'test_metrics.json', metrics)
+        state = m.complete_job(job, trigger)
+        self.assertEqual(state['status'], 'complete')
+        return trigger, metrics
+
+    def test_epoch_five_uses_current_five_and_needs_no_validation_five(self):
+        run = self.publish_full()
+        self.assertEqual(m.checkpoint_metadata(run / 'best.pt')['epoch'], 4)
+        self.assertFalse((run / 'validation_epoch_005.json').exists())
+        job = self.prepare(run)
+        trigger = m.read_json(job / 'trigger.json')
+        self.assertEqual(trigger['checkpoint_epoch'], 5)
+        self.assertEqual(trigger['checkpoint_choice'], 'current_epoch')
+        self.assertEqual(trigger['best_metric'], 'weighted_score')
+        self.assertIsNone(trigger['validation_best_miou'])
+        saved = m.checkpoint_metadata(job / 'best.pt')
+        self.assertEqual(saved['epoch'], 5)
+        self.assertEqual(saved['best_epoch'], 4)
+        self.assertIsNone(saved['metrics'])
+
+    def test_current_snapshot_sha_survives_later_training(self):
+        run = self.publish_full()
+        job = self.prepare(run)
+        digest = m.sha256(job / 'best.pt')
+        self.publish_full(completed=6)
+        self.assertNotEqual(m.sha256(run / 'last.pt'), digest)
+        self.assertEqual(m.sha256(job / 'best.pt'), digest)
+        self.assertEqual(m.read_json(job / 'trigger.json')['checkpoint_sha256'], digest)
+        self.assertEqual(m.checkpoint_metadata(job / 'best.pt')['epoch'], 5)
+
+    def test_epoch_six_never_substitutes_for_missing_five(self):
+        run = self.publish_full(completed=6, committed=5, retain_candidate=False)
+        job = self.prepare(run)
+        self.assertFalse((job / 'status.json').exists())
+        self.assertFalse((job / 'best.pt').exists())
+        self.publish_full(completed=6, retain_candidate=False)
+        self.prepare(run)
+        state = m.read_json(job / 'status.json')
+        self.assertEqual(state['status'], 'missed')
+        self.assertEqual(state['expected_checkpoint_epoch'], 5)
+        self.assertIn(6, state['observed_checkpoint_epochs'])
+        self.assertFalse((job / 'best.pt').exists())
+
+    def test_exact_last_is_accepted_without_pending_candidate(self):
+        run = self.publish_full(retain_candidate=False)
+        digest = m.sha256(run / 'last.pt')
+        job = self.prepare(run)
+        self.assertEqual(m.sha256(job / 'best.pt'), digest)
+        self.assertEqual(m.read_json(job / 'trigger.json')['snapshot_source'], str(run / 'last.pt'))
+
+    def test_best_full_updates_only_on_strict_improvement(self):
+        winning_epoch, winning_digest, winning_score = None, None, -1.0
+        for epoch, accuracy in ((5, 7), (10, 8), (15, 6), (20, 8)):
+            with self.subTest(epoch=epoch):
+                run = self.publish_full(completed=epoch)
+                job = self.prepare(run, epoch)
+                digest = m.sha256(job / 'best.pt')
+                legacy_digest = m.sha256(run / 'best.pt')
+                last_digest = m.sha256(run / 'last.pt')
+                _, metrics = self.finish(job, accuracy)
+                if metrics['weighted_score'] > winning_score:
+                    winning_epoch, winning_digest = epoch, digest
+                    winning_score = metrics['weighted_score']
+                marker = m.read_json(run / 'best_full_test.json')
+                self.assertEqual(marker['checkpoint_epoch'], winning_epoch)
+                self.assertEqual(marker['checkpoint_sha256'], winning_digest)
+                self.assertEqual(marker['weighted_score'], winning_score)
+                self.assertEqual(m.sha256(run / 'best_full_test.pt'), winning_digest)
+                self.assertEqual(m.sha256(run / 'best.pt'), legacy_digest)
+                self.assertEqual(m.sha256(run / 'last.pt'), last_digest)
+                self.assertFalse((job / 'best.pt').exists())
+                self.assertFalse((run / 'full_test_checkpoints' / f'epoch_{epoch:03d}.pt').exists())
+        self.assertEqual(winning_epoch, 10)
+
+    def test_only_completed_candidate_is_cleaned_other_pending_kept(self):
+        run = self.publish_full()
+        first = self.prepare(run)
+        self.publish_full(completed=10)
+        later = self.prepare(run, 10)
+        later_digest = m.sha256(later / 'best.pt')
+        self.finish(first)
+        self.assertFalse((run / 'full_test_checkpoints/epoch_005.pt').exists())
+        self.assertFalse((first / 'best.pt').exists())
+        self.assertEqual(m.sha256(run / 'full_test_checkpoints/epoch_010.pt'), later_digest)
+        self.assertEqual(m.sha256(later / 'best.pt'), later_digest)
+        self.assertEqual(m.read_json(later / 'status.json')['status'], 'queued')
+
+    def test_completion_receipt_binds_metrics_before_candidate_cleanup(self):
+        run = self.publish_full()
+        job = self.prepare(run)
+        trigger = m.read_json(job / 'trigger.json')
+        metrics_path = job / 'test_metrics.json'
+        receipt_path = run / 'full_test_checkpoints/epoch_005.json'
+        candidate = receipt_path.with_suffix('.pt')
+        metrics = self.metrics(trigger)
+        m.write_json(metrics_path, metrics)
+        digest = m.sha256(metrics_path)
+        temporary = {candidate, job / 'best.pt'}
+        cleanup_order = []
+        original_unlink = Path.unlink
+
+        def checked_unlink(path, *args, **kwargs):
+            if path in temporary:
+                proof = m.read_json(receipt_path)['evaluation']
+                self.assertEqual(proof['status'], 'complete')
+                self.assertEqual(proof['checkpoint_sha256'], trigger['checkpoint_sha256'])
+                self.assertEqual(proof['metrics_path'], str(metrics_path))
+                self.assertEqual(proof['metrics_sha256'], digest)
+                self.assertEqual(m.sha256(Path(proof['metrics_path'])), proof['metrics_sha256'])
+                self.assertEqual(proof['weighted_score'], metrics['weighted_score'])
+                self.assertTrue(proof['completed_at'])
+                cleanup_order.append(path)
+            return original_unlink(path, *args, **kwargs)
+
+        with patch.object(Path, 'unlink', new=checked_unlink):
+            state = m.complete_job(job, trigger)
+        self.assertEqual(state['status'], 'complete')
+        self.assertEqual(set(cleanup_order), temporary)
+        self.assertEqual(len(cleanup_order), 2)
+        self.assertTrue(receipt_path.exists())
+        self.assertTrue(metrics_path.exists())
+        self.assertFalse(candidate.exists())
+        self.assertFalse((job / 'best.pt').exists())
+
+    def test_wrong_candidate_receipt_sha_prevents_checkpoint_cleanup(self):
+        run = self.publish_full()
+        job = self.prepare(run)
+        trigger = m.read_json(job / 'trigger.json')
+        metrics_path = job / 'test_metrics.json'
+        m.write_json(metrics_path, self.metrics(trigger))
+        receipt_path = run / 'full_test_checkpoints/epoch_005.json'
+        candidate = receipt_path.with_suffix('.pt')
+        receipt = m.read_json(receipt_path)
+        receipt['checkpoint_sha256'] = '0' * 64
+        m.write_json(receipt_path, receipt)
+        candidate_digest = m.sha256(candidate)
+        job_digest = m.sha256(job / 'best.pt')
+        with self.assertRaisesRegex(ValueError, 'candidate receipt differs'):
+            m.complete_job(job, trigger)
+        self.assertEqual(m.sha256(candidate), candidate_digest)
+        self.assertEqual(m.sha256(job / 'best.pt'), job_digest)
+        self.assertEqual(m.read_json(receipt_path), receipt)
+        self.assertNotEqual(m.read_json(job / 'status.json')['status'], 'complete')
+
+    def test_final_and_legacy_best_survive_lower_final_score(self):
+        run = self.publish_full()
+        self.finish(self.prepare(run), 9)
+        winning_digest = m.sha256(run / 'best_full_test.pt')
+        self.publish_full(completed=30, status='complete')
+        m.snapshot(run / 'last.pt', run / 'final.pt')
+        final_digest, legacy_digest = m.sha256(run / 'final.pt'), m.sha256(run / 'best.pt')
+        summary, configuration, rows = m.committed_run(run)
+        job = m.prepare_job(run, 30, summary, configuration, rows, self.config, final=True)
+        self.assertEqual(m.read_json(job / 'trigger.json')['checkpoint_epoch'], 30)
+        self.finish(job, 7)
+        self.assertEqual(m.sha256(run / 'final.pt'), final_digest)
+        self.assertEqual(m.checkpoint_metadata(run / 'final.pt')['epoch'], 30)
+        self.assertEqual(m.sha256(run / 'best.pt'), legacy_digest)
+        self.assertEqual(m.sha256(run / 'best_full_test.pt'), winning_digest)
+        self.assertFalse((run / 'full_test_checkpoints/epoch_030.pt').exists())
+
+    def test_invalid_metrics_never_replace_best_or_clean_candidates(self):
+        run = self.publish_full()
+        first = self.prepare(run)
+        self.finish(first)
+        previous_digest = m.sha256(run / 'best_full_test.pt')
+        self.publish_full(completed=10)
+        later = self.prepare(run, 10)
+        trigger = m.read_json(later / 'trigger.json')
+        invalid = self.metrics(trigger, 9)
+        invalid['weighted_score'] = 0.999
+        m.write_json(later / 'test_metrics.json', invalid)
+        with self.assertRaises(ValueError):
+            m.complete_job(later, trigger)
+        self.assertEqual(m.sha256(run / 'best_full_test.pt'), previous_digest)
+        self.assertTrue((later / 'best.pt').exists())
+        self.assertTrue((run / 'full_test_checkpoints/epoch_010.pt').exists())
+
+    def test_noearlystop_config_rejects_positive_patience(self):
+        run = self.publish_full()
+        configuration = m.read_json(run / 'run_config.json')
+        configuration['early_stopping_patience'] = 5
+        m.write_json(run / 'run_config.json', configuration)
+        with self.assertRaises(ValueError):
+            m.committed_run(run)
+
+    def test_disabled_early_stopping_rejects_early_stopped_summary(self):
+        run = self.publish_full(status='early_stopped')
+        with self.assertRaises(ValueError):
+            m.committed_run(run)
+
+
+class PinnedConfigurationFixtures(unittest.TestCase):
+    """Queued snapshots remain bound when a trainer changes policy/source root."""
+
+    setUp = PeriodicFixtures.setUp
+    tearDown = PeriodicFixtures.tearDown
+    publish = PeriodicFixtures.publish
+    prepare = PeriodicFixtures.prepare
+    metrics = PeriodicFixtures.metrics
+
+    def archive_trainer(self, run, job, name='runtime'):
+        archived = run / name
+        for relative in self.configuration['source_sha256']:
+            target = archived / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((self.root / relative).read_bytes())
+        trigger = m.read_json(job / 'trigger.json')
+        trigger['training_source_root'] = str(archived)
+        m.write_json(job / 'trigger.json', trigger)
+        return archived, trigger
+
+    def run_worker(self, job):
+        trigger = m.read_json(job / 'trigger.json')
+        m.write_json(job / 'fixture_metrics.json', self.metrics(trigger))
+        m.write_json(job / 'launch.json', {'configuration': self.config})
+        return m.worker(job, probe=lambda _: (True, 'fixture only', 'GPU-fixture'))
+
+    def test_prepare_pins_exact_configuration(self):
+        run = self.publish(); job = self.prepare(run)
+        pinned, trigger = m.read_json(job / 'training_configuration.json'), m.read_json(job / 'trigger.json')
+        self.assertEqual(pinned, self.configuration)
+        self.assertEqual(m.fingerprint(pinned), trigger['configuration_sha256'])
+
+    def test_pinned_worker_survives_live_configuration_policy_change(self):
+        run = self.publish(); job = self.prepare(run)
+        m.write_json(run / 'run_config.json', {**self.configuration, 'selection_policy': 'full_test_every5'})
+        self.assertEqual(self.run_worker(job), 0)
+        self.assertEqual(m.read_json(job / 'status.json')['status'], 'complete')
+
+    def test_legacy_job_without_pinned_configuration_keeps_live_guard(self):
+        run = self.publish(); job = self.prepare(run)
+        (job / 'training_configuration.json').unlink()
+        m.write_json(run / 'run_config.json', {**self.configuration, 'epochs': 31})
+        with self.assertRaisesRegex(ValueError, 'Training configuration changed'):
+            m.job_training_configuration(job, m.read_json(job / 'trigger.json'))
+
+    def test_pinned_configuration_tampering_is_rejected(self):
+        run = self.publish(); job = self.prepare(run)
+        m.write_json(job / 'training_configuration.json', {**self.configuration, 'variant': 'wrong'})
+        with self.assertRaisesRegex(ValueError, 'Training configuration changed'):
+            m.job_training_configuration(job, m.read_json(job / 'trigger.json'))
+
+    def test_snapshot_train_configuration_must_match_binding(self):
+        run = self.publish(); job = self.prepare(run)
+        saved = torch.load(job / 'best.pt', map_location='cpu', weights_only=True)
+        saved['train_config'] = {**self.configuration, 'variant': 'changed'}
+        temporary = job / 'changed.tmp'; torch.save(saved, temporary); temporary.replace(job / 'best.pt')
+        trigger = m.read_json(job / 'trigger.json')
+        trigger['checkpoint_sha256'] = m.sha256(job / 'best.pt')
+        with self.assertRaisesRegex(ValueError, 'Snapshot training configuration differs'):
+            m.job_training_configuration(job, trigger)
+
+    def test_archived_trainer_allows_main_trainer_change_not_model_change(self):
+        for runtime in ('runtime', 'runtime_fulltest'):
+            with self.subTest(runtime=runtime):
+                run = self.publish(name=runtime); job = self.prepare(run)
+                self.archive_trainer(run, job, runtime)
+                (self.root / 'code/train.py').write_text('# next training policy\n')
+                m.write_json(run / 'run_config.json', {**self.configuration, 'selection_policy': 'full_test_every5'})
+                self.assertEqual(self.run_worker(job), 0)
+                (self.root / 'code/train.py').write_text('# fixture source only\n')
+
+    def test_archived_trainer_does_not_bypass_actual_model_source_hash(self):
+        run = self.publish(); job = self.prepare(run)
+        _, trigger = self.archive_trainer(run, job)
+        (self.root / 'code/vitseg/data.py').write_text('# changed actual inference implementation\n')
+        with self.assertRaisesRegex(ValueError, 'Actual evaluator vitseg sources differ'):
+            m.job_training_configuration(job, trigger)
+
+    def test_archived_training_source_hash_still_checked(self):
+        run = self.publish(); job = self.prepare(run)
+        archived, trigger = self.archive_trainer(run, job)
+        (archived / 'code/train.py').write_text('# changed archived trainer\n')
+        with self.assertRaisesRegex(ValueError, 'Training/evaluation source changed'):
+            m.job_training_configuration(job, trigger)
+
+    def test_source_root_is_limited_to_same_run_runtime_directories(self):
+        run = self.publish(); job = self.prepare(run)
+        for invalid in (self.root, self.root / 'result/other/runtime', run / 'runtime/code'):
+            with self.subTest(invalid=invalid):
+                invalid.mkdir(parents=True, exist_ok=True)
+                trigger = m.read_json(job / 'trigger.json'); trigger['training_source_root'] = str(invalid)
+                with self.assertRaisesRegex(ValueError, 'training_source_root must'):
+                    m.job_training_configuration(job, trigger)
+
+    def test_actual_evaluator_sha_still_checked_with_archived_trainer(self):
+        run = self.publish(); job = self.prepare(run)
+        self.archive_trainer(run, job)
+        with (self.root / 'code/evaluate.py').open('a') as stream:
+            stream.write('# changed actual evaluator\n')
+        self.assertEqual(self.run_worker(job), 1)
+        self.assertIn('Evaluator source or test manifest changed', m.read_json(job / 'status.json')['reason'])
+
+    def test_explicit_pretransition_current_epoch_and_metadata_correction(self):
+        run = HardValidationFixtures.publish_hard(self)
+        job = HardValidationFixtures.prepare(self, run)
+        saved = torch.load(job / 'best.pt', map_location='cpu', weights_only=True)
+        saved.update(epoch=5, model={'fixture': torch.tensor([5])})
+        replacement = job / 'epoch5.tmp'; torch.save(saved, replacement); replacement.replace(job / 'best.pt')
+        _, trigger = self.archive_trainer(run, job)
+        trigger.update(checkpoint_epoch=5, checkpoint_sha256=m.sha256(job / 'best.pt'),
+                       selection_policy='full_test_every5', checkpoint_choice='current_epoch',
+                       recovered_pretransition_current_epoch=True, best_metric='weighted_score')
+        summary = m.read_json(run / 'summary.json')
+        m.validate_snapshot(saved, trigger, self.configuration, summary)
+        for overrides in ({'recovered_pretransition_current_epoch': False},
+                          {'training_source_root': str(run / 'runtime_fulltest')},
+                          {'checkpoint_choice': 'validation_best'}):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                m.validate_snapshot(saved, {**trigger, **overrides}, self.configuration, summary)
+        m.write_json(job / 'trigger.json', trigger)
+        metrics = HardValidationFixtures.metrics(self, trigger)
+        metrics['checkpoint_choice'] = 'validation_best'  # Old evaluator's protocol inference.
+        m.write_json(job / 'test_metrics.json', metrics)
+        original_sha = m.sha256(job / 'test_metrics.json')
+        self.assertEqual(m.complete_job(job, trigger)['status'], 'complete')
+        corrected = m.read_json(job / 'test_metrics.json')
+        for key, value in metrics.items():
+            if key != 'checkpoint_choice': self.assertEqual(corrected[key], value)
+        self.assertEqual(corrected['checkpoint_choice'], 'current_epoch')
+        self.assertEqual(corrected['reported_checkpoint_choice'], 'validation_best')
+        self.assertEqual(corrected['metadata_correction']['original_metrics_sha256'], original_sha)
+        self.assertEqual(m.sha256(job / 'test_metrics_before_metadata_correction.json'), original_sha)
+        self.assertEqual(m.checkpoint_metadata(run / 'best_full_test.pt')['epoch'], 5)
+        self.assertEqual(m.checkpoint_metadata(run / 'best_full_test.pt')['best_epoch'], 4)
+        self.assertEqual(m.checkpoint_metadata(run / 'best_full_test.pt')['train_config'], self.configuration)
+
+
 if __name__ == '__main__':
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(PeriodicFixtures)
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(cls)
+                               for cls in (PeriodicFixtures, HardValidationFixtures, FullTestPolicyFixtures,
+                                           PinnedConfigurationFixtures))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     destination = Path(__file__).resolve().parents[1] / 'result/verification_periodic_evaluate.json'
     m.write_json(destination, {'schema': 'vit_periodic_cpu_fixture_checks_v1', 'created_at': m.now(),

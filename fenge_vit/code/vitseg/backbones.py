@@ -12,9 +12,16 @@ from torch.utils.checkpoint import checkpoint
 
 
 VIT_MODEL = "vit_small_patch16_dinov3.lvd1689m"
+VIT_SPECS = {
+    "small": ("vit_small_patch16_dinov3", 384, 12, 6),
+    "base": ("vit_base_patch16_dinov3", 768, 12, 12),
+    "large": ("vit_large_patch16_dinov3", 1024, 24, 16),
+}
 CNN_MODEL = "convnext_tiny.dinov3_lvd1689m"
 PRETRAINED_SHA256 = {
     "dinov3_vit_small": "2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040",
+    "dinov3_vit_base": "1f9ed8a2378d65e24bb710ba522ac9fa7be4e036d7aefb4384ce022833926332",
+    "dinov3_vit_large": "45172f209c9583c40538afc26b60a07033e6fcc2e8c30228338e6b2e932e7941",
     "dinov3_convnext_tiny": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f",
 }
 
@@ -84,22 +91,31 @@ class _FrozenBackbone(nn.Module):
         return self
 
 
-class DINOv3ViTSmall(_FrozenBackbone):
-    channels, patch_size, num_prefix_tokens = 384, 16, 5
+class DINOv3ViT(_FrozenBackbone):
+    patch_size, num_prefix_tokens = 16, 5
 
-    def __init__(self, weight_dir: str | Path, input_size: int = 1024, pretrained: bool = True):
+    def __init__(self, weight_dir: str | Path, input_size: int = 1024, pretrained: bool = True,
+                 size: str = "small"):
         super().__init__()
-        self.model = timm.create_model(VIT_MODEL, pretrained=False, img_size=input_size,
+        if size not in VIT_SPECS:
+            raise ValueError(f"Unknown DINOv3 ViT size: {size!r}; expected small, base or large")
+        architecture, self.channels, depth, heads = VIT_SPECS[size]
+        self.size = size
+        self.blocks_per_stage = depth // 4
+        model_name = architecture + ".lvd1689m"
+        self.model = timm.create_model(model_name, pretrained=False, img_size=input_size,
                                       dynamic_img_size=True, num_classes=0, drop_path_rate=0.0)
-        if (self.model.num_features != 384 or len(self.model.blocks) != 12
+        if (self.model.num_features != self.channels or len(self.model.blocks) != depth
                 or self.model.num_prefix_tokens != 5 or self.model.reg_token.shape[1] != 4
-                or self.model.rope is None or tuple(self.model.patch_embed.patch_size) != (16, 16)):
-            raise ValueError("Expected non-plus DINOv3 ViT-S/16: 384 channels, 12 blocks, CLS + 4 registers + RoPE")
+                or self.model.rope is None or tuple(self.model.patch_embed.patch_size) != (16, 16)
+                or any(block.attn.num_heads != heads for block in self.model.blocks)):
+            raise ValueError(f"Expected DINOv3 ViT-{size}/16: {self.channels} channels, {depth} blocks, "
+                             f"{heads} heads, CLS + 4 registers + RoPE")
         _safe_gelu(self.model)
-        self.pretrained_report = {"loaded": False, "architecture": VIT_MODEL}
+        self.pretrained_report = {"loaded": False, "architecture": model_name}
         if pretrained:
-            self.pretrained_report = load_pretrained(self.model, Path(weight_dir) / "dinov3_vit_small",
-                                                    "vit_small_patch16_dinov3")
+            self.pretrained_report = load_pretrained(self.model, Path(weight_dir) / f"dinov3_vit_{size}",
+                                                    architecture)
 
     def forward(self, images: Tensor, before_stage=None, after_stage=None,
                 gradient_checkpointing: bool = False) -> dict:
@@ -112,7 +128,7 @@ class DINOv3ViTSmall(_FrozenBackbone):
         for stage in range(4):
             if before_stage is not None:
                 tokens = before_stage(stage, tokens, grid)
-            for index in range(stage * 3, stage * 3 + 3):
+            for index in range(stage * self.blocks_per_stage, (stage + 1) * self.blocks_per_stage):
                 block = self.model.blocks[index]
                 position = rope[index] if getattr(self.model, "rope_mixed", False) else rope
                 if gradient_checkpointing and torch.is_grad_enabled() and (
@@ -126,6 +142,14 @@ class DINOv3ViTSmall(_FrozenBackbone):
         patches = tokens[:, self.num_prefix_tokens:]
         return {"tokens": tokens, "patch_features": patches.transpose(1, 2).reshape(
             len(images), self.channels, *grid), "grid_size": grid}
+
+
+class DINOv3ViTSmall(DINOv3ViT):
+    """Backward-compatible small backbone entry point and state dictionary layout."""
+    channels = 384
+
+    def __init__(self, weight_dir: str | Path, input_size: int = 1024, pretrained: bool = True):
+        super().__init__(weight_dir, input_size, pretrained, size="small")
 
 
 class DINOv3ConvNeXtTiny(_FrozenBackbone):
@@ -157,9 +181,10 @@ class DINOv3ConvNeXtTiny(_FrozenBackbone):
 
 
 class DualDINOBackbones(nn.Module):
-    def __init__(self, weight_dir: str | Path, input_size: int, pretrained: bool = True):
+    def __init__(self, weight_dir: str | Path, input_size: int, pretrained: bool = True,
+                 vit_size: str = "small"):
         super().__init__()
-        self.vit = DINOv3ViTSmall(weight_dir, input_size, pretrained)
+        self.vit = DINOv3ViT(weight_dir, input_size, pretrained, size=vit_size)
         self.convnext = DINOv3ConvNeXtTiny(weight_dir, pretrained)
 
     def freeze(self, frozen: bool = True) -> None:

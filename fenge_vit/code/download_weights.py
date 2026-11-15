@@ -18,6 +18,18 @@ SOURCES = {
         'sha256': '2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040',
         'size_bytes': 86362376,
     },
+    'dinov3_vit_base': {
+        'repository': 'timm/vit_base_patch16_dinov3.lvd1689m',
+        'revision': 'c6a5fb7d12bbd3cf3b0079253141c3332aaed7da',
+        'sha256': '1f9ed8a2378d65e24bb710ba522ac9fa7be4e036d7aefb4384ce022833926332',
+        'size_bytes': 342579728,
+    },
+    'dinov3_vit_large': {
+        'repository': 'timm/vit_large_patch16_dinov3.lvd1689m',
+        'revision': '30c1109559f65dea34316b0d4842d35c5771fe11',
+        'sha256': '45172f209c9583c40538afc26b60a07033e6fcc2e8c30228338e6b2e932e7941',
+        'size_bytes': 1212347640,
+    },
     'dinov3_convnext_tiny': {
         'repository': 'timm/convnext_tiny.dinov3_lvd1689m',
         'revision': '7acfec1',
@@ -53,11 +65,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=ROOT / 'model')
     parser.add_argument('--proxy', default=None, help='Optional HTTPS/HTTP proxy; TLS verification remains enabled')
+    parser.add_argument('--vit-size', choices=('small', 'base', 'large'), nargs='+', default=['small'],
+                        help='ViT pretrained sizes to download; default retains the original small + ConvNeXt behavior')
     parser.add_argument('--reuse-convnext', type=Path, default=Path('/home/lzc/workspace/fenge/model/dinov3_convnext_tiny'))
     args = parser.parse_args()
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({'http':args.proxy, 'https':args.proxy})) if args.proxy else urllib.request.build_opener()
-    rows = []
-    for name, spec in SOURCES.items():
+    manifest_path = args.output / 'manifest.json'
+    previous = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {}
+    if previous and previous.get('schema') != 'lusnar_vit_pretrained_v1':
+        raise ValueError(f'Unexpected existing weight manifest schema: {manifest_path}')
+    rows = {row['path']: row for row in previous.get('files', [])}
+    selected_names = list(dict.fromkeys([f'dinov3_vit_{size}' for size in args.vit_size]
+                                        + ['dinov3_convnext_tiny']))
+    for name in selected_names:
+        spec = SOURCES[name]
         folder = args.output / name
         folder.mkdir(parents=True, exist_ok=True)
         candidate = args.reuse_convnext / 'model.safetensors' if name == 'dinov3_convnext_tiny' else None
@@ -78,12 +99,21 @@ def main():
             download(url, path, opener, spec['sha256'] if filename=='model.safetensors' else None)
             if filename=='model.safetensors' and path.stat().st_size != spec['size_bytes']:
                 raise ValueError('Weight size differs from pinned source')
-            rows.append({'path':str(path.relative_to(args.output)), 'sha256':digest(path), 'bytes':path.stat().st_size, 'source_url':url})
+            relative = str(path.relative_to(args.output))
+            rows[relative] = {'path':relative, 'sha256':digest(path), 'bytes':path.stat().st_size, 'source_url':url}
+        config = json.loads((folder / 'config.json').read_text())
+        expected_architecture = ('convnext_tiny' if name == 'dinov3_convnext_tiny'
+                                 else f"vit_{name.removeprefix('dinov3_vit_')}_patch16_dinov3")
+        if config.get('architecture') != expected_architecture or config.get('num_classes') != 0:
+            raise ValueError(f'Pretrained configuration does not match {name}: {folder / "config.json"}')
         print(name + ': verified', flush=True)
     report = {'schema':'lusnar_vit_pretrained_v1','created_at':datetime.now(timezone.utc).isoformat(),
-              'sources':SOURCES, 'files':rows, 'pretraining_only':True, 'license':'dinov3-license',
+              'sources':{**previous.get('sources', {}), **{name:SOURCES[name] for name in selected_names}},
+              'files':list(rows.values()), 'pretraining_only':True, 'license':'dinov3-license',
               'tls_verification':True,'training_does_not_download_weights':True}
-    (args.output/'manifest.json').write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
+    temporary = manifest_path.with_suffix('.json.part')
+    temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n')
+    temporary.replace(manifest_path)
 
 if __name__=='__main__':
     main()

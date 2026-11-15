@@ -1,0 +1,54 @@
+{
+  "started_at": "2026-11-14T12:30:28.828200+00:00",
+  "host": "103",
+  "physical_gpus": [
+    6,
+    7
+  ],
+  "identity": {
+    "pid": 1156123,
+    "start_ticks": 19405476
+  },
+  "command": [
+    "bash",
+    "/home/lzc/workspace/fenge_vit/result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/runtime/code/run_on_103.sh",
+    "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "-B",
+    "-u",
+    "-m",
+    "torch.distributed.run",
+    "--standalone",
+    "--nnodes=1",
+    "--nproc_per_node=2",
+    "/home/lzc/workspace/fenge_vit/result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/runtime/code/train_hardval_distributed.py",
+    "--config",
+    "/home/lzc/workspace/fenge_vit/config/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu.json"
+  ],
+  "cwd": "/home/lzc/workspace/fenge_vit",
+  "environment": {
+    "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+    "CUDA_VISIBLE_DEVICES": "GPU-cb3fabba-d9e3-21cd-180f-6ab1ae9320fa,GPU-fe010a4e-14c6-947b-5cca-b593716ecfc7",
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "MKL_NUM_THREADS": "2",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "config_sha256": "aa3a3540072ad2c5156bebfd8d10f645557528a3ad62dac24b77ff9136a821c8",
+  "code_snapshot": "/home/lzc/workspace/fenge_vit/result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/code_snapshot.json",
+  "per_rank_batch_size": 4,
+  "accumulation": 1,
+  "global_batch_size": 8,
+  "original_pretrained": true,
+  "verified_at": "2026-11-14T12:33:46.244287+00:00",
+  "verified_training_progress": {
+    "epoch": 1,
+    "batch": 25,
+    "batches": 750,
+    "global_update": 24,
+    "backbones_frozen": true,
+    "rank0_scaled_loss_base": 42.58110046386719,
+    "rank0_masking_nll": 0.0,
+    "masking_coefficient": 0.0,
+    "global_effective_batch": 8
+  }
+}

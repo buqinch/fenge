@@ -105,6 +105,8 @@ def prepare_spec(config, job, trigger):
     return {'schema': 'vit_remote_evaluation_v1', 'remote_project': remote['project'],
             'python': remote['python'], 'gpu_index': config['gpu_index'],
             'minimum_free_mib': config['minimum_free_mib'], 'gpu_lock': remote['gpu_lock'],
+            'evaluation_batch_size': config.get('evaluation_batch_size', 4),
+            'evaluation_workers': config.get('evaluation_workers', 4),
             'test_manifest': config['test_manifest'], 'training_configuration': training,
             'trigger': trigger, 'evaluation': trigger['evaluation'],
             'remote_executor_sha256': periodic.sha256(Path(__file__)),

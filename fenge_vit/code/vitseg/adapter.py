@@ -79,9 +79,11 @@ class BidirectionalAdapter(nn.Module):
 
 class SimpleMultiscaleFusion(nn.Module):
     """Variant A: a final ViT map fused separately into each CNN scale."""
-    def __init__(self, width=384):
+    def __init__(self, width=384, vit_channels=None):
         super().__init__()
-        self.fusions = nn.ModuleList([nn.Sequential(nn.Conv2d(width * 2, width, 1),
+        if vit_channels is None:
+            vit_channels = width
+        self.fusions = nn.ModuleList([nn.Sequential(nn.Conv2d(width + vit_channels, width, 1),
                                                    nn.GroupNorm(32, width), GradientSafeGELU()) for _ in range(3)])
 
     def forward(self, patch_feature: Tensor, *spatial: Tensor):

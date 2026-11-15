@@ -1,0 +1,41 @@
+{
+  "started_at": "2026-11-14T11:32:48.046651+00:00",
+  "host": "103",
+  "physical_gpus": [
+    4,
+    5
+  ],
+  "identity": {
+    "pid": 1054920,
+    "start_ticks": 19059398
+  },
+  "command": [
+    "bash",
+    "/home/lzc/workspace/fenge_vit/result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/runtime/code/run_on_103.sh",
+    "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "-B",
+    "-u",
+    "-m",
+    "torch.distributed.run",
+    "--standalone",
+    "--nnodes=1",
+    "--nproc_per_node=2",
+    "/home/lzc/workspace/fenge_vit/result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/runtime/code/train_hardval_distributed.py",
+    "--config",
+    "/home/lzc/workspace/fenge_vit/config/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu.json"
+  ],
+  "cwd": "/home/lzc/workspace/fenge_vit",
+  "environment": {
+    "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+    "CUDA_VISIBLE_DEVICES": "GPU-5cca63a4-f9d2-3f2f-f364-1e283c505931,GPU-1e4ac0fe-4d6d-3e4d-4bc0-4084fd83bad7",
+    "OMP_NUM_THREADS": "2",
+    "OPENBLAS_NUM_THREADS": "2",
+    "MKL_NUM_THREADS": "2",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "config_sha256": "77c155ed1d62b1f5ebf8479b4721a11c2dd1addf6a9ef9e028837288bbf38ce8",
+  "code_snapshot": "/home/lzc/workspace/fenge_vit/result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/code_snapshot.json",
+  "per_rank_batch_size": 4,
+  "accumulation": 1,
+  "global_batch_size": 8
+}

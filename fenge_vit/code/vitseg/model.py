@@ -1,4 +1,4 @@
-"""DINOv3 ViT-S/16 + ConvNeXt-Tiny + optional four-stage adapter + Mask2Former."""
+"""DINOv3 ViT-S/B/L + ConvNeXt-Tiny + fusion or native-width adapter + Mask2Former."""
 from __future__ import annotations
 
 import math
@@ -11,13 +11,14 @@ from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
 
 from .adapter import BidirectionalAdapter, CNNSpatialProjection, SimpleMultiscaleFusion
-from .backbones import DualDINOBackbones
+from .backbones import DualDINOBackbones, VIT_SPECS
 from .decoder import Mask2FormerHead
 
 
 @dataclass
 class ModelConfig:
     variant: str = "adapter"
+    vit_size: str = "small"
     input_size: int = 1024
     num_classes: int = 5
     num_queries: int = 32
@@ -34,10 +35,15 @@ class ModelConfig:
     def __post_init__(self):
         if self.variant not in ("fusion", "adapter"):
             raise ValueError("variant must be fusion or adapter")
+        if self.vit_size not in ("small", "base", "large"):
+            raise ValueError("vit_size must be small, base or large")
         if type(self.input_size) is not int or self.input_size < 32 or self.input_size % 32:
             raise ValueError("input_size must be a positive multiple of 32, at least 32")
-        if self.num_classes != 5 or self.adapter_dim != 384 or self.width != 256:
-            raise ValueError("This architecture uses five classes, 384-channel adapter and 256-channel pixel decoder")
+        if self.num_classes != 5 or self.width != 256:
+            raise ValueError("This architecture uses five classes and a 256-channel pixel decoder")
+        expected_dim = VIT_SPECS[self.vit_size][1] if self.variant == "adapter" else 384
+        if type(self.adapter_dim) is not int or self.adapter_dim != expected_dim:
+            raise ValueError(f"{self.variant} with ViT-{self.vit_size} requires adapter_dim={expected_dim}")
         for name in ("num_queries", "decoder_layers", "pixel_decoder_layers", "adapter_heads", "adapter_points"):
             if type(getattr(self, name)) is not int or getattr(self, name) < 1:
                 raise ValueError(f"{name} must be a positive integer")
@@ -60,10 +66,12 @@ class ViTAdapterSegmentationModel(nn.Module):
     def __init__(self, config: ModelConfig, pretrained: bool = True):
         super().__init__()
         self.config = config
-        self.encoder = DualDINOBackbones(config.weight_dir, config.input_size, pretrained)
+        self.encoder = DualDINOBackbones(config.weight_dir, config.input_size, pretrained,
+                                         vit_size=config.vit_size)
         self.projection = CNNSpatialProjection(config.adapter_dim)
         # Common modules are initialized before variant-specific modules.
-        self.decoder = Mask2FormerHead(in_channels=(96, 384, 384, 384), width=config.width,
+        self.decoder = Mask2FormerHead(in_channels=(96, config.adapter_dim, config.adapter_dim,
+                                                   config.adapter_dim), width=config.width,
             num_queries=config.num_queries, num_classes=config.num_classes,
             pixel_decoder_layers=config.pixel_decoder_layers, decoder_layers=config.decoder_layers,
             heads=8, gradient_checkpointing=config.gradient_checkpointing)
@@ -73,7 +81,7 @@ class ViTAdapterSegmentationModel(nn.Module):
             if config.variant == "adapter":
                 self.adapter = BidirectionalAdapter(config.adapter_dim, config.adapter_heads, config.adapter_points)
             else:
-                self.fusion = SimpleMultiscaleFusion(config.adapter_dim)
+                self.fusion = SimpleMultiscaleFusion(config.adapter_dim, self.encoder.vit.channels)
         self.set_gradient_checkpointing(config.gradient_checkpointing)
 
     def set_gradient_checkpointing(self, enabled: bool = True):

@@ -14,6 +14,31 @@ from vitseg.diagnostics import TerrainDiagnostics
 from vitseg.visualization import ComparisonExporter, write_json
 
 ROOT=Path(__file__).resolve().parents[1]
+HARD_PROTOCOL='pool8002_train6000_hard1500_validation_v1'
+
+def selection_metadata(saved, split, partial=False):
+    training=saved.get('train_config',saved.get('run_config',{}))
+    if training.get('protocol') != HARD_PROTOCOL:
+        return {}
+    identity=saved.get('data_identity',{}).get('val',{})
+    if identity.get('image_count') != 1500 or identity.get('checkpoint_selection_uses_test') is not True:
+        raise ValueError('Hard-validation checkpoint is missing its declared selection identity')
+    return {'protocol':HARD_PROTOCOL,'checkpoint_selection_uses_test':True,
+            'official_test_used_for_selection':True,'independent_holdout':False,
+            'official_test_scope':False,'official_full_test':False,
+            'full_test_coverage':split=='test' and not partial,
+            'test_scope':('partial_test_execution_check' if partial else
+                          'full5004_including_selection_validation' if split=='test' else
+                          'hard1500_selection_validation'),
+            'validation_images_included':1500 if not partial else None,
+            'checkpoint_selection_metric':('weighted_score' if training.get('selection_policy')=='full_test_every5'
+                                           else 'validation_weighted_score'),
+            'checkpoint_choice':('current_epoch' if training.get('selection_policy')=='full_test_every5'
+                                 else 'validation_best'),
+            'checkpoint_selected_validation_score':(None if training.get('selection_policy')=='full_test_every5'
+                                                    else saved.get('best_miou')),
+            'hard_manifest_sha256':identity.get('hard_manifest_sha256'),
+            'caveat':'The full5004 evaluation includes 1500 images used for checkpoint selection; it is not an independent holdout.'}
 
 def load_checkpoint(path,device):
     saved=torch.load(path,map_location='cpu',weights_only=True)
@@ -68,6 +93,7 @@ def main():
               'tta_sizes':args.tta_sizes,'tta_weights':args.tta_weights,'model_config':saved['model_config'],
               'checkpoint_partial_training':bool(saved.get('partial',False)),
               'score_used_for_ranking':'weighted_score for complete Moon_2/4/9; miou is the pooled pixel metric'}
+    metadata.update(selection_metadata(saved,args.split,dataset.partial))
     observer=TerrainDiagnostics(args.large_crater_area,args.small_rock_area,args.interior_erosion) if args.object_diagnostics else None
     exporter=ComparisonExporter(args.image_output_root/args.checkpoint.parent.name/f'{args.split}_{tag}',
         output.parent/f'{args.split}_{tag}_per_image',metadata) if args.save_images else None

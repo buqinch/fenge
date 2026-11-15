@@ -1,10 +1,70 @@
-# LuSNAR：ViT＋CNN 混合骨干与 Mask2Former
+# LuSNAR：DINOv3 ViT-L＋ConvNeXt-Tiny＋Mask2Former
 
-DINOv3 ViT-S/16 与 ConvNeXt-Tiny 都接收完整 **1024×1024 RGB**。本目录保留 A 融合、B 双向 Adapter、C 遮挡训练三组实现，与双 CNN 和纯 ViT 源码分开。
+## 当前A-L／B-L／C-L结果（2026-11-15）
 
-[三大框架结果总览](https://github.com/buqinch/fenge/blob/main/README.md) · [完整指标汇总](result/progress_analysis/latest_report_zh.md)
+完整Moon_2／4／9各1597／1320／2087张，共5004张；每组使用一个固定检查点评测三个场景。均采用1024＋768等权水平翻转TTA（4视图），按各场景整数混淆矩阵重算类别IoU，再计算 `S=(Moon_2 mIoU+Moon_4 mIoU+2×Moon_9 mIoU)/4`。`miou`是合并像素后的指标，排名使用`weighted_score`。
 
-## 保留的较高结果
+|模型|最佳轮次|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权S|
+|---|---:|---:|---:|---:|---:|
+|[B-L](result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/periodic_test/epoch_010/test_metrics.json)|10|94.2910%|94.5132%|92.2129%|**93.3075%**|
+|[C-L](result/c_adapter_masking_vit_large_pool8002_train6000_hardval1500_2gpu/periodic_test/epoch_005/test_metrics.json)|5|94.1251%|94.2988%|92.3193%|**93.2656%**|
+|[A-L](result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/periodic_test/epoch_005/test_metrics.json)|5|93.7111%|93.6431%|90.8608%|**92.2690%**|
+
+当前已按用户指定关闭早停，最多训练30轮，每5轮评测当轮权重；每组保留完整测试S最高的`best_full_test.pt`及最终`final.pt`，训练中`last.pt`用于断点恢复。初期困难1500验证已停用。完整2／4／9成绩直接参与选模，因此这些是本地开发集成绩，不作为未参与模型选择的独立留出结果。
+
+[完整分析、各类别precision／recall、逐轮数据及SHA来源](result/vitl_analysis_20261115/report_zh.md) · [CSV](result/vitl_analysis_20261115/metrics.csv) · [机器可读汇总](result/vitl_analysis_20261115/summary.json)
+
+## 三组具体结构
+
+共同骨干为DINOv3 ViT-L/16（24层、1024维、16头；1024输入产生64×64 patch网格，保留CLS、4个register和RoPE）与ConvNeXt-Tiny（四尺度96／192／384／768通道，stride 4／8／16／32）。两个骨干都完整输入1024原图。
+
+|组|编码与交互|像素解码器输入通道|整网参数|训练位置|
+|---|---|---|---:|---|
+|A-L|仅使用ViT第24层最终特征，与CNN三个深尺度分别拼接融合|96／384／384／384|348,105,254|103，3090 GPU4／5|
+|B-L|四阶段CNN→ViT注入、ViT→空间特征提取|96／1024／1024／1024|367,832,870|103，3090 GPU6／7|
+|C-L|与B-L同一网络，训练时追加随机RGB遮挡视图|96／1024／1024／1024|367,832,870|本机，4090 GPU3／4|
+
+A-L将后三层CNN特征投影到384通道，ViT最终1024通道特征插值到对应尺度后拼接（1408→384，1×1卷积＋GroupNorm＋GELU）。它没有双向Adapter，也没有抽取四个ViT中间层。配置里的`adapter_dim=384`用于A的融合投影宽度，`adapter_heads=6`不代表A的ViT或解码器头数。
+
+B-L／C-L的ViT分成四组，每组6个原始block，交互端点为第6／12／18／24层（零基5／11／17／23）。每组前从CNN三个深尺度向patch注入，每组后反向更新空间特征；Adapter宽1024、16头、每头每尺度4采样点，残差系数初值1e-4。ConvNeXt只执行一次，后续更新其输出空间特征；1/4浅层96通道直接保留给解码器。A与B除交互外，投影宽度和参数量也不同，差值不能全部归因于Adapter。
+
+共同Mask2Former为256通道、6层三尺度可变形像素编码器、32查询和6个查询解码块，解码端8头。查询按stride32→16→8循环两次；初始预测＋6次更新共7组，前6组辅助监督。原图损失为Hungarian类别匹配、mask BCE／Dice（权重2／5／5，no-object0.1），并非另加全图像素CE。查询mask先在256尺度sigmoid、合成五类连续分数，再插值回输入尺寸；用于语义NLL时显式五类归一化。
+
+C-L前3轮冻结期不遮挡；解冻后约25%的优化器更新追加一个遮挡视图。32×32像素块随机遮102块，约9.9609%面积，填归一化后的零。辅助语义NLL权重在解冻后1000次全部优化器更新内升至0.5，隐藏像素权重0.2；原图每次仍有完整M2F监督。遮挡是RGB输入增强，不是删token，也不同于Mask2Former内部掩码注意力。
+
+## 各组最佳权重的完整五类IoU
+
+|模型／轮次|场景|月壤IoU|岩石IoU|撞击坑IoU|山体IoU|天空IoU|
+|---|---|---:|---:|---:|---:|---:|
+|A-L／5|Moon_2|99.3249%|88.2808%|85.6445%|95.5900%|99.7150%|
+|A-L／5|Moon_4|99.2052%|88.4381%|83.5098%|97.3154%|99.7471%|
+|A-L／5|Moon_9|98.5309%|85.5141%|76.4672%|94.2647%|99.5273%|
+|B-L／10|Moon_2|99.3684%|88.9868%|87.6425%|95.7297%|99.7274%|
+|B-L／10|Moon_4|99.2865%|88.8337%|87.4377%|97.2880%|99.7199%|
+|B-L／10|Moon_9|98.7243%|86.3855%|80.6437%|95.7300%|99.5809%|
+|C-L／5|Moon_2|99.3521%|88.3243%|87.4650%|95.7557%|99.7284%|
+|C-L／5|Moon_4|99.2687%|88.5653%|86.5804%|97.3385%|99.7411%|
+|C-L／5|Moon_9|98.7725%|86.4100%|81.4345%|95.4003%|99.5791%|
+
+各场景mIoU见上表；全部五类都在这三个完整场景的GT中出现。每图平均IoU、困难1500分数和合并像素mIoU均不替代加权S。
+
+## 当前训练与评测
+
+同一6000训练清单：从Moon_1／3／5／6／7／8的8002张原图池选4000原图，再加1000坑增强、1000山岩增强。两卡每卡batch4、累积1，总batch8；原始预训练开始，30轮，前3轮冻结，骨干LR5e-6、新层LR1e-4，BF16与激活重计算。源码和数据身份绑定在各`run_config.json`。当前三组均已切换为`selection_policy=full_test_every5`、`early_stopping_patience=0`，每5轮完整评测在103物理GPU3串行执行。
+
+- A-L：[训练配置](config/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu.json) · [实际运行配置](result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/run_config.json) · [保留的全量最优记录](result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/best_full_test.json)
+- B-L：[训练配置](config/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu.json) · [实际运行配置](result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/run_config.json) · [保留的全量最优记录](result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/best_full_test.json)
+- C-L：[训练配置](config/c_adapter_masking_vit_large_pool8002_train6000_hardval1500_2gpu.json) · [实际运行配置](result/c_adapter_masking_vit_large_pool8002_train6000_hardval1500_2gpu/run_config.json) · [保留的全量最优记录](result/c_adapter_masking_vit_large_pool8002_train6000_hardval1500_2gpu/best_full_test.json)
+
+A／B：[评测配置](config/periodic_eval_vitl_103_every5.json)；C：[远程评测配置](config/periodic_eval_vitl_local_every5_remote103.json)。A在第6轮、B第3轮、C第4轮保存后迁移策略，优化器、调度器及随机状态沿用原训练；A第5轮补测使用提前固定的真实第5轮权重，旧验证best第4轮未代替它。迁移与补测绑定记录随结果保留。
+
+原始ViT-L权重：`python code/download_weights.py --vit-size large`。来源为[timm DINOv3 ViT-L/16](https://huggingface.co/timm/vit_large_patch16_dinov3.lvd1689m)，SHA256 `45172f209c9583c40538afc26b60a07033e6fcc2e8c30228338e6b2e932e7941`；ConvNeXt同为原始DINOv3，来源见[manifest](model/manifest.json)。仓库包含代码、配置、指标与权重哈希，训练权重保存在各训练服务器。
+
+后续优化候选及依据见[分析建议](result/vitl_analysis_20261115/report_zh.md)。当前建议优先验证B第10轮＋C第5轮统一系数的概率融合，其次做较低解冻学习率与EMA的独立对照，重点监测Moon_9坑召回；尚未启动这些候选。
+
+以下为历史Small实验和通用实现说明，不能与当前L分数直接归因为单一模块提升。
+
+## 历史 ViT-S 较高结果（2026-11-13快照）
 
 结果整理日期：**2026-11-13**。下表均完整评估 Moon_2／4／9 的1597／1320／2087张，共5004张，使用1024／768等权水平翻转TTA（4视图）。轮次指实际检查点，可能与测试目录名不同。
 
@@ -56,7 +116,9 @@ python code/download_weights.py
 
 ViT来自[timm DINOv3 ViT-S/16](https://huggingface.co/timm/vit_small_patch16_dinov3.lvd1689m)，revision为`3bf4720a82ec2066db88137180ff1f83a675cef0`，SHA256为`2a1ec16ae28ffa07bc0ead0241ee7df9fc26451fe6f9f839b7b3afa0a906b040`。ConvNeXt原始DINOv3权重SHA256为`a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f`。来源和许可证见[权重清单](model/manifest.json)；加载时核对SHA和参数，缺失或不匹配即报错。
 
-## 网络与三组对照
+## 历史ViT-S网络与通用解码实现
+
+以下结构图和12层／384通道说明对应历史 ViT-S 对照。当前运行采用上方 A-L／C-L 配置中的 ViT-L，不以此图的 Small 参数替代实际 Large 配置。
 
 |组|编码与交互|RGB输入遮挡|配置|
 |---|---|---|---|
@@ -115,13 +177,14 @@ L = L_Mask2Former(full_image) + lambda × L_masked(masked_image)
 |---|---|---|---|
 |旧8000|原6401训练来源中4000原图＋2000坑＋2000山岩|固定1601原图|每轮单1024；汇总mIoU|
 |旧6000|与旧8000同4000原图，增强各抽1000|同一1601原图|同上；每轮750更新|
-|新6000|全8002候选中重新抽4000原图，增强各1000|固定困难1500|每2轮及末轮四视图；场景加权分数|
+|新6000初期协议|全8002候选中重新抽4000原图，增强各1000|固定困难1500|每2轮及末轮四视图；场景加权分数|
+|当前A-L／B-L／C-L|保持同一6000训练清单|切换后停用困难验证|每5轮完整5004四视图；按S保留最优，无早停|
 
 旧协议的原图及其增强来源不跨训练／验证，Moon_2/4/9不进入训练或选轮。旧6000与旧8000的更新数不同，不能把同epoch解释为相同更新预算。
 
 新清单为`pool8002_train6000_hardval1500_seed42_20261113.json`，SHA256为`68bb4ab8410fb36009d4f6a5818d3943a7f675769a4cd73c9e281a5a82ac7e09`。候选原图来自Moon_1/3/5/6/7/8，增强父图也只来自该池。验证为Moon_2/4/9的188／187／1125张，固定后不随新预测重选；采样1∶1∶6，评分仍1∶1∶2。
 
-新验证字段`validation_weighted_score`用于best，`miou`仍是汇总混淆矩阵mIoU。困难Moon_4无山体GT，该类IoU为null，只平均其余4类。原测试1500被用于新验证，期末分别报告完整5004、验证1500、剩余3504；完整5004包含选轮数据，3504也参与过难度筛选，均不称为未经查看的留出集。
+切换前的新验证字段`validation_weighted_score`用于best，`miou`仍是汇总混淆矩阵mIoU。困难Moon_4无山体GT，该类IoU为null，只平均其余4类。原测试1500被用于新验证，期末分别报告完整5004、验证1500、剩余3504；完整5004包含选轮数据，3504也参与过难度筛选，均不称为未经查看的留出集。
 
 ## 训练与断点续训
 
@@ -135,7 +198,7 @@ python code/train.py --config config/c_adapter_masking.json \
   --resume result/c_adapter_masking/last.pt --device cuda:2
 ```
 
-严格新高保存best；显著提升阈值为0.05个百分点。旧协议从第4轮起连续5轮无显著增长早停，新协议按5次实际验证检查计数，跳过验证的轮次不计耐心。
+当前A-L／B-L／C-L关闭早停；完整2／4／9评测严格新高更新`best_full_test.pt`，另保留最终模型。历史配置曾使用0.05个百分点显著提升阈值和5次验证耐心；这些历史早停规则不再用于当前三组。
 
 检查点保存优化器、调度器、AMP、随机流、样本身份、代码SHA、早停状态；按完整epoch边界恢复。数据、批次或实现改变不能静默作为精确续训。不同GPU和CUDA算子不保证逐位相同。
 
@@ -151,7 +214,7 @@ bash code/run_on_103.sh env CUDA_VISIBLE_DEVICES=4,5,6,7 \
 
 四卡每卡batch2，总batch8。分布式入口按全局匹配目标／有效像素归约损失，以NCCL同步梯度，验证先合并整数混淆矩阵；保存时核对各卡模型SHA。续训要求相同卡数和配置。
 
-新A在103卡4／5，每卡batch4，总batch8；新纯ViT使用卡6／7。A入口为：
+原Small版困难验证A使用103卡4／5，每卡batch4，总batch8；同协议纯ViT已在11月14日第25轮后停止，best与last保留。卡6／7现用于上方新A-B实验。Small版A入口为：
 
 ```bash
 bash code/run_on_103.sh env CUDA_VISIBLE_DEVICES=4,5 \
@@ -195,3 +258,7 @@ python code/benchmark_memory.py --variant B --device cuda:0 \
 运行检查覆盖真实1024前向、冻结Adapter梯度、解冻双骨干更新、遮挡一致性、四视图TTA及严格重载。batch8实测峰值缓存预留：A在3090为10.52GiB，B/C在4090为11.94／11.99GiB；详见[显存汇总](result/memory_summary.json)。
 
 [四卡真实训练及续训](result/verification_distributed_runtime.json)、[困难验证协议42项检查](result/hardval_protocol_verification.json)、[期末集合划分检查](result/verification_final_partition.json)保留运行证据。小样本检查明确标记partial，不作为分割成绩。训练状态、逐轮结果和完整评测来源见[结果汇总](result/progress_analysis/latest_report_zh.md)。
+
+## 本地工作区清理（2026-11-14）
+
+旧低分运行、调试权重、重复快照及其专用启动配置已清理；较好结果、必要对照、运行中的任务、数据和预训练权重保留。旧指标与配置见[清理记录](../fenge/result/retired_experiments/cleanup_20261114/README.md)。

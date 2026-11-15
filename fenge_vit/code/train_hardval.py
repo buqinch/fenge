@@ -27,6 +27,9 @@ from vitseg.masking import (apply_block_mask, make_block_masks, masked_semantic_
                             update_is_masked, warmup_factor, prepare_masked_support)
 from vitseg.metrics import autocast_context, evaluate_loader, validate_tta_sizes, validate_tta_weights
 from vitseg.model import ModelConfig, build_model
+from fulltest_policy import (LEGACY_POLICY, FULL_TEST_POLICY, full_test_enabled,
+                             validate_transition, policy_metadata, publish_checkpoints,
+                             persist_transition_audit, recover_policy_outputs)
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = Path('/home/lzc/workspace/fenge/result/selections')
@@ -159,7 +162,7 @@ class PatienceTracker:
 
 def should_validate(epoch, args):
     """A skipped epoch cannot advance validation patience or choose a best."""
-    return epoch % args.validation_every == 0 or epoch == args.epochs
+    return not full_test_enabled(args) and (epoch % args.validation_every == 0 or epoch == args.epochs)
 
 
 def validation_score(validation, partial=False):
@@ -222,8 +225,10 @@ def parse_args(argv=None):
     parser.add_argument('--output', default='result/c_adapter_masking_pool8002_train6000_hardval1500_103_4gpu')
     parser.add_argument('--protocol', choices=[TRAINING_PROTOCOL], default=TRAINING_PROTOCOL)
     parser.add_argument('--validation-every', type=int, default=2)
+    parser.add_argument('--selection-policy', choices=[LEGACY_POLICY, FULL_TEST_POLICY], default=LEGACY_POLICY)
     parser.add_argument('--weight-dir', default='model')
     parser.add_argument('--variant', choices=['fusion', 'adapter'], default='adapter')
+    parser.add_argument('--vit-size', choices=['small', 'base', 'large'], default='small')
     parser.add_argument('--input-size', type=int, default=1024)
     parser.add_argument('--num-queries', type=int, default=32)
     parser.add_argument('--decoder-layers', type=int, default=6)
@@ -325,9 +330,11 @@ def parse_args(argv=None):
     for key in ('max_train_samples', 'max_val_samples'):
         if getattr(args, key) is not None and (type(getattr(args, key)) is not int or getattr(args, key) < 1):
             parser.error(f'{key} must be positive or null')
-    for key in ('variant', 'amp', 'val_tta', 'protocol'):
+    for key in ('variant', 'vit_size', 'amp', 'val_tta', 'protocol', 'selection_policy'):
         if getattr(args, key) not in next(action.choices for action in parser._actions if action.dest == key):
             parser.error(f'Invalid {key}')
+    if full_test_enabled(args) and args.early_stopping_patience != 0:
+        parser.error('full_test_every5 requires early_stopping_patience=0')
     validate_tta_sizes(args.val_tta, args.val_tta_sizes)
     validate_tta_weights(args.val_tta, args.val_tta_sizes, args.val_tta_weights)
     if args.resume and args.initial_checkpoint:
@@ -347,14 +354,19 @@ def _check_resume(saved, configuration, model_config, identities):
     if saved.get('data_identity') != identities:
         raise ValueError('Resume data identity differs, including the fixed training selection')
     old = saved['train_config']
+    transition = validate_transition(saved, configuration)
     ignored = {'config', 'resume', 'device', 'log_every', 'val_progress_every'}
     generated = {'initial_model_sha256', 'initial_body_sha256', 'initial_shared_model_sha256', 'initial_checkpoint_sha256',
                  'initialization_mode', 'pretrained_report', 'source_sha256'}
     for key, value in configuration.items():
-        if key not in ignored | generated and old.get(key) != value:
+        if transition and key in {'early_stopping_patience', 'selection_policy'}:
+            continue
+        old_value = old.get(key, LEGACY_POLICY) if key == 'selection_policy' else old.get(key)
+        if key not in ignored | generated and old_value != value:
             raise ValueError(f'Resume training configuration changed: {key}')
-    if old.get('source_sha256') != configuration.get('source_sha256'):
+    if not transition and old.get('source_sha256') != configuration.get('source_sha256'):
         raise ValueError('Resume implementation SHA differs; use the recorded experiment code')
+    return transition
 
 
 def _sample_keys(batch):
@@ -398,7 +410,7 @@ def _training_windows(loader, args, current_update, updates_per_epoch, frozen):
                                                        prepared[offset] if use_mask else None)
 
 
-def _validate_history(output, saved, partial):
+def _validate_history(output, saved, partial, selection_policy=LEGACY_POLICY):
     """Recover only the durable checkpoint prefix and repair its best snapshot."""
     history = output / 'history.jsonl'
     raw = history.read_bytes() if history.exists() else b''
@@ -417,6 +429,8 @@ def _validate_history(output, saved, partial):
         temporary = history.with_name('history.jsonl.tmp')
         temporary.write_bytes(b''.join(lines[:epoch]))
         temporary.replace(history)
+    if selection_policy == FULL_TEST_POLICY:
+        return
     best_epoch = saved.get('best_epoch')
     if best_epoch is None:
         if saved.get('best_miou') is not None:
@@ -472,7 +486,7 @@ def main(argv=None):
                               generator=loader_generator, drop_last=False)
     val_loader = DataLoader(val_set, batch_size=args.val_batch_size, shuffle=False, num_workers=args.workers,
                             pin_memory=device.type == 'cuda', worker_init_fn=seed_worker, generator=val_generator)
-    model_config = ModelConfig(variant=args.variant, input_size=args.input_size, num_queries=args.num_queries,
+    model_config = ModelConfig(variant=args.variant, vit_size=args.vit_size, input_size=args.input_size, num_queries=args.num_queries,
         decoder_layers=args.decoder_layers, pixel_decoder_layers=args.pixel_decoder_layers, width=args.width,
         adapter_dim=args.adapter_dim, adapter_heads=args.adapter_heads, adapter_points=args.adapter_points,
         gradient_checkpointing=args.gradient_checkpointing, weight_dir=args.weight_dir,
@@ -488,10 +502,13 @@ def main(argv=None):
         model.load_state_dict(initial['model'], strict=True)
     configuration = _training_config(args)
     source_files = [Path(__file__), Path(__file__).with_name('hardval_data.py'),
-                    Path(__file__).with_name('train.py'), *(Path(__file__).parent / 'vitseg').glob('*.py')]
+                    Path(__file__).with_name('train.py'), Path(__file__).with_name('fulltest_policy.py'),
+                    *(Path(__file__).parent / 'vitseg').glob('*.py')]
     configuration['source_sha256'] = {str(path.relative_to(ROOT)): sha256_file(path) for path in sorted(source_files)}
+    transition, migration = None, None
     if saved:
-        _check_resume(saved, configuration, model_config, identities)
+        migration = _check_resume(saved, configuration, model_config, identities)
+        transition = migration or saved.get('policy_transition')
         for key in ('initial_model_sha256', 'initial_body_sha256', 'initial_shared_model_sha256', 'initial_checkpoint_sha256',
                     'initialization_mode', 'pretrained_report'):
             configuration[key] = saved['train_config'].get(key)
@@ -529,15 +546,20 @@ def main(argv=None):
         optimizer.load_state_dict(saved['optimizer'])
         schedule.load_state_dict(saved['scheduler'])
         scaler.load_state_dict(saved['scaler'])
-        tracker.load_state_dict(saved['early_stopping'])
+        if not migration:
+            tracker.load_state_dict(saved['early_stopping'])
         global_update, start_epoch = saved['global_update'], saved['epoch'] + 1
         if global_update != schedule.completed_updates:
             raise ValueError('Checkpoint optimizer update counters disagree')
-        best, best_epoch = saved['best_miou'], saved['best_epoch']
+        if not full_test_enabled(args):
+            best, best_epoch = saved['best_miou'], saved['best_epoch']
         loader_generator.set_state(saved['loader_generator'])
         val_generator.set_state(saved['val_generator'])
         restore_rng(saved['rng'], device)
-        _validate_history(output, dict(saved, _resume_path=args.resume), partial)
+        _validate_history(output, dict(saved, _resume_path=args.resume), partial, args.selection_policy)
+        persist_transition_audit(output, migration, saved['train_config'], write_json)
+        recover_policy_outputs(output, saved, args, configuration, transition, tracker.state_dict(), atomic_checkpoint)
+        del saved
     write_json(output / 'run_config.json', configuration)
     write_json(output / 'data_identity.json', identities)
     print(json.dumps({'output': str(output), 'train_images': len(train_set), 'val_images': len(val_set),
@@ -673,6 +695,7 @@ def main(argv=None):
                               'selection_scope': 'one independent hash decision per optimizer update, all microbatches',
                               'pattern_scope': 'independent per stable sample key and optimizer update'},
                   'early_stopping': tracker.state_dict(), 'seconds': time.monotonic() - epoch_start}
+        record.update(policy_metadata(args, epoch, transition))
         if validation is not None:
             write_json(output / f'validation_epoch_{epoch:03d}.json', validation)
         write_json(output / f'masking_epoch_{epoch:03d}.json', record['masking'])
@@ -692,7 +715,9 @@ def main(argv=None):
                       'loader_generator': loader_generator.get_state(), 'val_generator': val_generator.get_state(),
                       'early_stopping': tracker.state_dict(), 'status': status, 'stop_reason': stop_reason,
                       'partial': partial}
+        checkpoint.update(policy_metadata(args, epoch, transition))
         atomic_checkpoint(output / 'last.pt', checkpoint)
+        publish_checkpoints(output, checkpoint, args.epochs, atomic_checkpoint)
         if improved:
             atomic_checkpoint(output / ('best_smoke.pt' if partial else 'best.pt'), checkpoint)
         summary = {'format': 'lusnar_vit_run_v1', 'status': status, 'stop_reason': stop_reason,
@@ -709,6 +734,7 @@ def main(argv=None):
                    'global_update': global_update, 'model_config': model_config.to_dict(),
                    'data_identity': identities, 'initial_model_sha256': configuration['initial_model_sha256']}
         # Published only after validation/history and both checkpoints commit.
+        summary.update(policy_metadata(args, epoch, transition))
         write_json(output / 'summary.json', summary)
         print(json.dumps({'epoch': epoch, 'validation_weighted_score': score, 'best_epoch': best_epoch, 'best_miou': best,
                           'status': status, 'seconds': record['seconds']}, ensure_ascii=False), flush=True)

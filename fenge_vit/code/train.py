@@ -149,6 +149,7 @@ def parse_args(argv=None):
     parser.add_argument('--output', default='result/b_adapter')
     parser.add_argument('--weight-dir', default='model')
     parser.add_argument('--variant', choices=['fusion', 'adapter'], default='adapter')
+    parser.add_argument('--vit-size', choices=['small', 'base', 'large'], default='small')
     parser.add_argument('--input-size', type=int, default=1024)
     parser.add_argument('--num-queries', type=int, default=32)
     parser.add_argument('--decoder-layers', type=int, default=6)
@@ -250,7 +251,7 @@ def parse_args(argv=None):
     for key in ('max_train_samples', 'max_val_samples'):
         if getattr(args, key) is not None and (type(getattr(args, key)) is not int or getattr(args, key) < 1):
             parser.error(f'{key} must be positive or null')
-    for key in ('variant', 'amp', 'val_tta'):
+    for key in ('variant', 'vit_size', 'amp', 'val_tta'):
         if getattr(args, key) not in next(action.choices for action in parser._actions if action.dest == key):
             parser.error(f'Invalid {key}')
     validate_tta_sizes(args.val_tta, args.val_tta_sizes)
@@ -355,7 +356,7 @@ def main(argv=None):
                               generator=loader_generator, drop_last=False)
     val_loader = DataLoader(val_set, batch_size=args.val_batch_size, shuffle=False, num_workers=args.workers,
                             pin_memory=device.type == 'cuda', worker_init_fn=seed_worker, generator=val_generator)
-    model_config = ModelConfig(variant=args.variant, input_size=args.input_size, num_queries=args.num_queries,
+    model_config = ModelConfig(variant=args.variant, vit_size=args.vit_size, input_size=args.input_size, num_queries=args.num_queries,
         decoder_layers=args.decoder_layers, pixel_decoder_layers=args.pixel_decoder_layers, width=args.width,
         adapter_dim=args.adapter_dim, adapter_heads=args.adapter_heads, adapter_points=args.adapter_points,
         gradient_checkpointing=args.gradient_checkpointing, weight_dir=args.weight_dir,
