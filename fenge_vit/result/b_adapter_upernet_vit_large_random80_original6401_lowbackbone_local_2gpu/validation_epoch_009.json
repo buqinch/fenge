@@ -1,0 +1,898 @@
+{
+  "miou": 0.9794605169577523,
+  "pooled_miou": 0.9794605169577523,
+  "miou_definition": "mIoU of pooled pixel confusion matrix across evaluated scenes; not official weighted score",
+  "class_iou": {
+    "regolith": 0.9977879016861126,
+    "rock": 0.9421045128396808,
+    "crater": 0.9692740085591455,
+    "mountain": 0.988739319707725,
+    "sky": 0.9993968419960968
+  },
+  "class_precision": {
+    "regolith": 0.9987051221764391,
+    "rock": 0.9727342724059475,
+    "crater": 0.9912801317146999,
+    "mountain": 0.9935713360081184,
+    "sky": 0.9997376558221175
+  },
+  "class_recall": {
+    "regolith": 0.9990804006060477,
+    "rock": 0.9676576177392489,
+    "crater": 0.9776093895364009,
+    "mountain": 0.9951054066324776,
+    "sky": 0.999659007313044
+  },
+  "gt_pixels": {
+    "regolith": 1156456830,
+    "rock": 35669605,
+    "crater": 22360891,
+    "mountain": 59473582,
+    "sky": 404809268
+  },
+  "predicted_pixels": {
+    "regolith": 1156891386,
+    "rock": 35483447,
+    "crater": 22052512,
+    "mountain": 59565409,
+    "sky": 404777422
+  },
+  "pixel_accuracy": 0.9981254569297281,
+  "confusion_matrix_gt_rows_pred_cols": [
+    [
+      1155393353,
+      754295,
+      187186,
+      97951,
+      24045
+    ],
+    [
+      927883,
+      34515965,
+      5091,
+      198294,
+      22372
+    ],
+    [
+      492099,
+      8574,
+      21860217,
+      0,
+      1
+    ],
+    [
+      63915,
+      167411,
+      0,
+      59182483,
+      59773
+    ],
+    [
+      14136,
+      37202,
+      18,
+      86681,
+      404671231
+    ]
+  ],
+  "gt_present_classes": [
+    "regolith",
+    "rock",
+    "crater",
+    "mountain",
+    "sky"
+  ],
+  "absent_gt_policy": "Average only classes present in accumulated ground truth",
+  "direction_errors": {
+    "2->0": {
+      "pixels": 492099,
+      "fraction_of_gt_class": 0.0220071284279325
+    },
+    "2->3": {
+      "pixels": 0,
+      "fraction_of_gt_class": 0.0
+    },
+    "3->1": {
+      "pixels": 167411,
+      "fraction_of_gt_class": 0.0028148800588469686
+    },
+    "1->3": {
+      "pixels": 198294,
+      "fraction_of_gt_class": 0.005559186876333506
+    },
+    "0->2": {
+      "pixels": 187186,
+      "fraction_of_gt_class": 0.0001618616407842911
+    },
+    "3->0": {
+      "pixels": 63915,
+      "fraction_of_gt_class": 0.001074678838076375
+    }
+  },
+  "tta_mode": "multiscale_hflip",
+  "test_time_augmentation": true,
+  "tta_input_sizes": [
+    1024,
+    768
+  ],
+  "tta_scale_weights": [
+    0.5,
+    0.5
+  ],
+  "tta_views": [
+    {
+      "input_size": 1024,
+      "transform": "original"
+    },
+    {
+      "input_size": 1024,
+      "transform": "horizontal_flip"
+    },
+    {
+      "input_size": 768,
+      "transform": "original"
+    },
+    {
+      "input_size": 768,
+      "transform": "horizontal_flip"
+    }
+  ],
+  "tta_view_weights": [
+    0.25,
+    0.25,
+    0.25,
+    0.25
+  ],
+  "tta_forward_calls_per_batch": 4,
+  "tta_input_antialias": true,
+  "tta_aggregation": "scale_weighted_float32_normalized_probability_mean",
+  "tta_score_resize": "exp_log_probability_then_inverse_flip_then_bilinear",
+  "image_count": 1601,
+  "partial": false,
+  "data_identity": {
+    "manifest": "/home/lzc/workspace/fenge/result/selections/random80_original_only_seed42_20261115.json",
+    "manifest_sha256": "84fbf3f010220dc7032d685f0d0b511162cb982b0e318e0cc4f4e63ebb010fd0",
+    "split": "val",
+    "train_source": null,
+    "protocol": "random_original_source_family_4_to_1",
+    "custom_split": true,
+    "selection_metric": "validation_all_scenes_miou",
+    "selection_scope": "custom_val_originals",
+    "split_seed": 42,
+    "split_counts": {
+      "original_pool": 8002,
+      "train_original": 6401,
+      "val_original": 1601,
+      "train_augmented": 0,
+      "train_total": 6401,
+      "val_total": 1601
+    },
+    "augmentation_counts": {
+      "crater": 0,
+      "mountain_rock": 0
+    },
+    "source_manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "source_manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+    "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+    "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+    "original_split_sha256": "e442513b7c6d6357db4c59df4377c7a39a046feca4119251fe0476c2f7ef65e4",
+    "splits_sha256": "6332c9cd92d262046c364905ef39797252d7e8e13f1022d10707475453a0274f",
+    "literal_ordered_samples_sha256": "2f97e1d6e9ceb200d3c1aba7746797798a98e5a4654723e657d8e31e3361be2c",
+    "train_original_source_ids_sha256": "fec94ec964934d4c4840973267bd1427a285557f723b992da0e0ff73fea0e198",
+    "val_original_source_ids_sha256": "23a64d503db0d08d08fdcd4dd05921a4aa458e70f835edba2a827ee510d4267a",
+    "validation_scenes": [
+      "Moon_1",
+      "Moon_3",
+      "Moon_5",
+      "Moon_6",
+      "Moon_7",
+      "Moon_8"
+    ],
+    "validation_image_count": 1601,
+    "independent_test_scenes": [
+      "Moon_2",
+      "Moon_4",
+      "Moon_9"
+    ],
+    "image_count": 1601,
+    "complete_image_count": 1601,
+    "partial": false,
+    "unique_source_count": 1601,
+    "ordered_samples_sha256": "2f97e1d6e9ceb200d3c1aba7746797798a98e5a4654723e657d8e31e3361be2c"
+  },
+  "validation_unique_source_count": 1601,
+  "scenes": {
+    "Moon_1": {
+      "miou": 0.9922642702448976,
+      "pooled_miou": 0.9922642702448976,
+      "miou_definition": "mIoU of pooled pixel confusion matrix across evaluated scenes; not official weighted score",
+      "class_iou": {
+        "regolith": 0.9986237440716611,
+        "rock": 0.9758390488661357,
+        "crater": null,
+        "mountain": 0.9950942464657111,
+        "sky": 0.9995000415760825
+      },
+      "class_precision": {
+        "regolith": 0.9990423110856714,
+        "rock": 0.9921389953209968,
+        "crater": null,
+        "mountain": 0.9972809643388101,
+        "sky": 0.9997381570880108
+      },
+      "class_recall": {
+        "regolith": 0.9995806302872797,
+        "rock": 0.9834428871435494,
+        "crater": null,
+        "mountain": 0.9978013550664863,
+        "sky": 0.9997617597562215
+      },
+      "gt_pixels": {
+        "regolith": 153985846,
+        "rock": 10399760,
+        "crater": 0,
+        "mountain": 13428271,
+        "sky": 49727115
+      },
+      "predicted_pixels": {
+        "regolith": 154068819,
+        "rock": 10308606,
+        "crater": 0,
+        "mountain": 13435278,
+        "sky": 49728289
+      },
+      "pixel_accuracy": 0.9987776356358682,
+      "confusion_matrix_gt_rows_pred_cols": [
+        [
+          153921269,
+          52624,
+          0,
+          11559,
+          394
+        ],
+        [
+          139666,
+          10227570,
+          0,
+          21884,
+          10640
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          7798,
+          19739,
+          0,
+          13398747,
+          1987
+        ],
+        [
+          86,
+          8673,
+          0,
+          3088,
+          49715268
+        ]
+      ],
+      "gt_present_classes": [
+        "regolith",
+        "rock",
+        "mountain",
+        "sky"
+      ],
+      "absent_gt_policy": "Average only classes present in accumulated ground truth",
+      "direction_errors": {
+        "2->0": {
+          "pixels": 0,
+          "fraction_of_gt_class": null
+        },
+        "2->3": {
+          "pixels": 0,
+          "fraction_of_gt_class": null
+        },
+        "3->1": {
+          "pixels": 19739,
+          "fraction_of_gt_class": 0.0014699584183250397
+        },
+        "1->3": {
+          "pixels": 21884,
+          "fraction_of_gt_class": 0.002104279329522989
+        },
+        "0->2": {
+          "pixels": 0,
+          "fraction_of_gt_class": 0.0
+        },
+        "3->0": {
+          "pixels": 7798,
+          "fraction_of_gt_class": 0.0005807151196159208
+        }
+      },
+      "image_count": 217
+    },
+    "Moon_3": {
+      "miou": 0.9776177135501,
+      "pooled_miou": 0.9776177135501,
+      "miou_definition": "mIoU of pooled pixel confusion matrix across evaluated scenes; not official weighted score",
+      "class_iou": {
+        "regolith": 0.9982625906673394,
+        "rock": 0.9503319979600328,
+        "crater": 0.9570666041229268,
+        "mountain": 0.9831269823340797,
+        "sky": 0.9993003926661216
+      },
+      "class_precision": {
+        "regolith": 0.9988821739294768,
+        "rock": 0.9810139885647093,
+        "crater": 0.9940124696060711,
+        "mountain": 0.9893652077641271,
+        "sky": 0.9998024183041241
+      },
+      "class_recall": {
+        "regolith": 0.9993790296702152,
+        "rock": 0.9681381979095479,
+        "crater": 0.9626160697804856,
+        "mountain": 0.9936273749945332,
+        "sky": 0.9994977759708691
+      },
+      "gt_pixels": {
+        "regolith": 184422660,
+        "rock": 4680997,
+        "crater": 1403143,
+        "mountain": 7980071,
+        "sky": 66802857
+      },
+      "predicted_pixels": {
+        "regolith": 184514394,
+        "rock": 4619559,
+        "crater": 1358824,
+        "mountain": 8014449,
+        "sky": 66782502
+      },
+      "pixel_accuracy": 0.9984902355510726,
+      "confusion_matrix_gt_rows_pred_cols": [
+        [
+          184308139,
+          73909,
+          7108,
+          33402,
+          102
+        ],
+        [
+          127691,
+          4531852,
+          1028,
+          19993,
+          433
+        ],
+        [
+          51292,
+          1163,
+          1350688,
+          0,
+          0
+        ],
+        [
+          27153,
+          11041,
+          0,
+          7929217,
+          12660
+        ],
+        [
+          119,
+          1594,
+          0,
+          31837,
+          66769307
+        ]
+      ],
+      "gt_present_classes": [
+        "regolith",
+        "rock",
+        "crater",
+        "mountain",
+        "sky"
+      ],
+      "absent_gt_policy": "Average only classes present in accumulated ground truth",
+      "direction_errors": {
+        "2->0": {
+          "pixels": 51292,
+          "fraction_of_gt_class": 0.036555076709929066
+        },
+        "2->3": {
+          "pixels": 0,
+          "fraction_of_gt_class": 0.0
+        },
+        "3->1": {
+          "pixels": 11041,
+          "fraction_of_gt_class": 0.001383571649926423
+        },
+        "1->3": {
+          "pixels": 19993,
+          "fraction_of_gt_class": 0.0042710986569741444
+        },
+        "0->2": {
+          "pixels": 7108,
+          "fraction_of_gt_class": 3.85419015212122e-05
+        },
+        "3->0": {
+          "pixels": 27153,
+          "fraction_of_gt_class": 0.0034026013051763576
+        }
+      },
+      "image_count": 253
+    },
+    "Moon_5": {
+      "miou": 0.9788567879991644,
+      "pooled_miou": 0.9788567879991644,
+      "miou_definition": "mIoU of pooled pixel confusion matrix across evaluated scenes; not official weighted score",
+      "class_iou": {
+        "regolith": 0.9976593730814983,
+        "rock": 0.9363421488700893,
+        "crater": 0.9716229177150365,
+        "mountain": 0.9896138910257524,
+        "sky": 0.9990456093034457
+      },
+      "class_precision": {
+        "regolith": 0.998854615537366,
+        "rock": 0.963296629442005,
+        "crater": 0.989759944165656,
+        "mountain": 0.9944956374435839,
+        "sky": 0.9995854022309977
+      },
+      "class_recall": {
+        "regolith": 0.9988020164523437,
+        "rock": 0.9709832939018604,
+        "crater": 0.9814892502345915,
+        "mountain": 0.9950641988787802,
+        "sky": 0.9994597593210545
+      },
+      "gt_pixels": {
+        "regolith": 238646850,
+        "rock": 6985114,
+        "crater": 4560053,
+        "mountain": 8875155,
+        "sky": 80671452
+      },
+      "predicted_pixels": {
+        "regolith": 238634283,
+        "rock": 7040852,
+        "crater": 4521948,
+        "mountain": 8880229,
+        "sky": 80661312
+      },
+      "pixel_accuracy": 0.9980562174761737,
+      "confusion_matrix_gt_rows_pred_cols": [
+        [
+          238360955,
+          214556,
+          46069,
+          11753,
+          13517
+        ],
+        [
+          169740,
+          6782429,
+          236,
+          25716,
+          6993
+        ],
+        [
+          83693,
+          717,
+          4475643,
+          0,
+          0
+        ],
+        [
+          9685,
+          21189,
+          0,
+          8831349,
+          12932
+        ],
+        [
+          10210,
+          21961,
+          0,
+          11411,
+          80627870
+        ]
+      ],
+      "gt_present_classes": [
+        "regolith",
+        "rock",
+        "crater",
+        "mountain",
+        "sky"
+      ],
+      "absent_gt_policy": "Average only classes present in accumulated ground truth",
+      "direction_errors": {
+        "2->0": {
+          "pixels": 83693,
+          "fraction_of_gt_class": 0.018353514750815397
+        },
+        "2->3": {
+          "pixels": 0,
+          "fraction_of_gt_class": 0.0
+        },
+        "3->1": {
+          "pixels": 21189,
+          "fraction_of_gt_class": 0.0023874512614145893
+        },
+        "1->3": {
+          "pixels": 25716,
+          "fraction_of_gt_class": 0.0036815433506167546
+        },
+        "0->2": {
+          "pixels": 46069,
+          "fraction_of_gt_class": 0.00019304256477720112
+        },
+        "3->0": {
+          "pixels": 9685,
+          "fraction_of_gt_class": 0.0010912485472084712
+        }
+      },
+      "image_count": 324
+    },
+    "Moon_6": {
+      "miou": 0.9747033477521139,
+      "pooled_miou": 0.9747033477521139,
+      "miou_definition": "mIoU of pooled pixel confusion matrix across evaluated scenes; not official weighted score",
+      "class_iou": {
+        "regolith": 0.9978857379903939,
+        "rock": 0.9253809687531857,
+        "crater": 0.9618609635632538,
+        "mountain": 0.9889194749512636,
+        "sky": 0.9994695935024729
+      },
+      "class_precision": {
+        "regolith": 0.998618372382255,
+        "rock": 0.9704695201209865,
+        "crater": 0.9895954518638306,
+        "mountain": 0.9930986207835956,
+        "sky": 0.9997614423225534
+      },
+      "class_recall": {
+        "regolith": 0.9992653376947164,
+        "rock": 0.9521932817867457,
+        "crater": 0.9716875909684951,
+        "mountain": 0.9957626916549815,
+        "sky": 0.9997080119048618
+      },
+      "gt_pixels": {
+        "regolith": 156955106,
+        "rock": 3069715,
+        "crater": 3633813,
+        "mountain": 9225432,
+        "sky": 53608350
+      },
+      "predicted_pixels": {
+        "regolith": 157056791,
+        "rock": 3011905,
+        "crater": 3568055,
+        "mountain": 9250180,
+        "sky": 53605485
+      },
+      "pixel_accuracy": 0.9981470108032227,
+      "confusion_matrix_gt_rows_pred_cols": [
+        [
+          156839797,
+          62215,
+          34903,
+          15455,
+          2736
+        ],
+        [
+          108633,
+          2922962,
+          2203,
+          35679,
+          238
+        ],
+        [
+          98317,
+          4564,
+          3530931,
+          0,
+          1
+        ],
+        [
+          7726,
+          21552,
+          0,
+          9186341,
+          9813
+        ],
+        [
+          2318,
+          612,
+          18,
+          12705,
+          53592697
+        ]
+      ],
+      "gt_present_classes": [
+        "regolith",
+        "rock",
+        "crater",
+        "mountain",
+        "sky"
+      ],
+      "absent_gt_policy": "Average only classes present in accumulated ground truth",
+      "direction_errors": {
+        "2->0": {
+          "pixels": 98317,
+          "fraction_of_gt_class": 0.027056152862021243
+        },
+        "2->3": {
+          "pixels": 0,
+          "fraction_of_gt_class": 0.0
+        },
+        "3->1": {
+          "pixels": 21552,
+          "fraction_of_gt_class": 0.0023361507623708027
+        },
+        "1->3": {
+          "pixels": 35679,
+          "fraction_of_gt_class": 0.011622903103382562
+        },
+        "0->2": {
+          "pixels": 34903,
+          "fraction_of_gt_class": 0.00022237569002693037
+        },
+        "3->0": {
+          "pixels": 7726,
+          "fraction_of_gt_class": 0.000837467557074834
+        }
+      },
+      "image_count": 216
+    },
+    "Moon_7": {
+      "miou": 0.976083090213449,
+      "pooled_miou": 0.976083090213449,
+      "miou_definition": "mIoU of pooled pixel confusion matrix across evaluated scenes; not official weighted score",
+      "class_iou": {
+        "regolith": 0.9972701194639486,
+        "rock": 0.9237733495245103,
+        "crater": 0.9727472302667187,
+        "mountain": 0.9870770694751754,
+        "sky": 0.9995476823368927
+      },
+      "class_precision": {
+        "regolith": 0.9984661741721945,
+        "rock": 0.9615227948575673,
+        "crater": 0.9919222559842642,
+        "mountain": 0.9923875488645768,
+        "sky": 0.9997918852719776
+      },
+      "class_recall": {
+        "regolith": 0.998800269961378,
+        "rock": 0.9592329172375252,
+        "crater": 0.9805144655265312,
+        "mountain": 0.9946079577372202,
+        "sky": 0.9997556954011421
+      },
+      "gt_pixels": {
+        "regolith": 236218975,
+        "rock": 6617226,
+        "crater": 7254869,
+        "mountain": 10458375,
+        "sky": 89674939
+      },
+      "predicted_pixels": {
+        "regolith": 236298016,
+        "rock": 6601467,
+        "crater": 7171433,
+        "mountain": 10481775,
+        "sky": 89671693
+      },
+      "pixel_accuracy": 0.9977933318315152,
+      "confusion_matrix_gt_rows_pred_cols": [
+        [
+          235935576,
+          205751,
+          57759,
+          13488,
+          6401
+        ],
+        [
+          217836,
+          6347461,
+          170,
+          48548,
+          3211
+        ],
+        [
+          140801,
+          564,
+          7113504,
+          0,
+          0
+        ],
+        [
+          2835,
+          44507,
+          0,
+          10401983,
+          9050
+        ],
+        [
+          968,
+          3184,
+          0,
+          17756,
+          89653031
+        ]
+      ],
+      "gt_present_classes": [
+        "regolith",
+        "rock",
+        "crater",
+        "mountain",
+        "sky"
+      ],
+      "absent_gt_policy": "Average only classes present in accumulated ground truth",
+      "direction_errors": {
+        "2->0": {
+          "pixels": 140801,
+          "fraction_of_gt_class": 0.019407793579732453
+        },
+        "2->3": {
+          "pixels": 0,
+          "fraction_of_gt_class": 0.0
+        },
+        "3->1": {
+          "pixels": 44507,
+          "fraction_of_gt_class": 0.004255632447679491
+        },
+        "1->3": {
+          "pixels": 48548,
+          "fraction_of_gt_class": 0.007336609026199196
+        },
+        "0->2": {
+          "pixels": 57759,
+          "fraction_of_gt_class": 0.0002445146500191189
+        },
+        "3->0": {
+          "pixels": 2835,
+          "fraction_of_gt_class": 0.00027107461723260064
+        }
+      },
+      "image_count": 334
+    },
+    "Moon_8": {
+      "miou": 0.9706615991599421,
+      "pooled_miou": 0.9706615991599421,
+      "miou_definition": "mIoU of pooled pixel confusion matrix across evaluated scenes; not official weighted score",
+      "class_iou": {
+        "regolith": 0.9973662609634557,
+        "rock": 0.9002301806444086,
+        "crater": 0.9707549640531905,
+        "mountain": 0.9853697102746443,
+        "sky": 0.9995868798640116
+      },
+      "class_precision": {
+        "regolith": 0.9984356621162632,
+        "rock": 0.9494068019496249,
+        "crater": 0.992120947260915,
+        "mountain": 0.9927761335878642,
+        "sky": 0.9997655302987848
+      },
+      "class_recall": {
+        "regolith": 0.9989272469705893,
+        "rock": 0.9455927336471445,
+        "crater": 0.9782970198109897,
+        "mountain": 0.9924858077998561,
+        "sky": 0.9998212657670155
+      },
+      "gt_pixels": {
+        "regolith": 186227393,
+        "rock": 3916793,
+        "crater": 5509013,
+        "mountain": 9506278,
+        "sky": 64324555
+      },
+      "predicted_pixels": {
+        "regolith": 186319083,
+        "rock": 3901058,
+        "crater": 5432252,
+        "mountain": 9503498,
+        "sky": 64328141
+      },
+      "pixel_accuracy": 0.9977164917882778,
+      "confusion_matrix_gt_rows_pred_cols": [
+        [
+          186027617,
+          145240,
+          41347,
+          12294,
+          895
+        ],
+        [
+          164317,
+          3703691,
+          1454,
+          46474,
+          857
+        ],
+        [
+          117996,
+          1566,
+          5389451,
+          0,
+          0
+        ],
+        [
+          8718,
+          49383,
+          0,
+          9434846,
+          13331
+        ],
+        [
+          435,
+          1178,
+          0,
+          9884,
+          64313058
+        ]
+      ],
+      "gt_present_classes": [
+        "regolith",
+        "rock",
+        "crater",
+        "mountain",
+        "sky"
+      ],
+      "absent_gt_policy": "Average only classes present in accumulated ground truth",
+      "direction_errors": {
+        "2->0": {
+          "pixels": 117996,
+          "fraction_of_gt_class": 0.021418718743266715
+        },
+        "2->3": {
+          "pixels": 0,
+          "fraction_of_gt_class": 0.0
+        },
+        "3->1": {
+          "pixels": 49383,
+          "fraction_of_gt_class": 0.005194777598551189
+        },
+        "1->3": {
+          "pixels": 46474,
+          "fraction_of_gt_class": 0.011865319407995265
+        },
+        "0->2": {
+          "pixels": 41347,
+          "fraction_of_gt_class": 0.0002220242647116904
+        },
+        "3->0": {
+          "pixels": 8718,
+          "fraction_of_gt_class": 0.0009170781666599693
+        }
+      },
+      "image_count": 257
+    }
+  },
+  "model_forward_calls": 6404,
+  "loader_passes": 1,
+  "weighted_score": null,
+  "distributed_validation": {
+    "world_size": 2,
+    "shard_image_counts": [
+      801,
+      800
+    ],
+    "padding": false,
+    "duplicate_source_count": 0
+  },
+  "epoch": 9,
+  "selection_scene": "custom_validation",
+  "checkpoint_selection_uses_test": false
+}

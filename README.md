@@ -2,34 +2,42 @@
 
 ## 最新结果与进度（2026-11-17）
 
-快照时间：2026-11-17T15:56:13+08:00。下表各行均采用 **1024＋水平翻转**，由完整三个场景的整数混淆矩阵复算。
+快照时间：**2026-11-17T21:46:30+08:00**。下表均为完整Moon_2／4／9共5004张、**1024＋水平翻转（2视图）**，已由逐场景整数混淆矩阵独立复算。
 
 |方案|实际权重轮次|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权 S|
 |---|---:|---:|---:|---:|---:|
 |[UPerNet，骨干5e-6](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_103_2gpu/periodic_test/epoch_015/test_hflip_1024_metrics.json)|14|95.3825%|96.1529%|91.9133%|**93.8405%**|
 |[UPerNet，骨干5e-6](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_103_2gpu/periodic_test/epoch_020/test_metrics.json)|20|95.4966%|96.3846%|91.5763%|**93.7585%**|
 |[UPerNet，骨干2e-6](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/periodic_test/epoch_005/test_metrics.json)|5|95.1797%|95.8072%|91.9826%|**93.7380%**|
+|[UPerNet，骨干2e-6](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/periodic_test/epoch_010/test_metrics.json)|10|95.2623%|95.9977%|91.6130%|**93.6215%**|
+|[UPerNet，骨干2e-6](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/periodic_test/epoch_015/test_metrics.json)|15|95.2658%|96.0726%|91.6135%|**93.6414%**|
+|[UPerNet＋区域语义校正，骨干2e-6](fenge_vit/result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/periodic_test/epoch_005/test_metrics.json)|5|95.2311%|95.5648%|91.5757%|**93.4868%**|
+|[UPerNet＋细节修正，骨干2e-6](fenge_vit/result/b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu/periodic_test/epoch_005/test_metrics.json)|5|95.1773%|95.7804%|91.6470%|**93.5629%**|
 |[Mask2Former，骨干2e-6](fenge_vit/result/b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu/periodic_test/epoch_020/test_metrics.json)|20|93.8135%|94.0150%|91.3975%|**92.6559%**|
 
-本轮6401／1601对照中的最高已测记录为 UPerNet 第14轮的 **93.8405%**，位于第15轮周期评测目录；最终验证 BEST 为第20轮，对应完整 S **93.7585%**。这里明确区分“已测最高”和“训练结束时的验证 BEST”。低学习率 UPerNet 目前仅有第5轮完整测试，不能据此判定它的最终上限。
+当前6401／1601协议的最高已测记录仍为骨干5e-6 UPerNet第14轮的 **93.8405%**，位于第15轮周期评测目录；其最终验证BEST为第20轮，完整S为93.7585%。**最终目标为S≥94.00%，尚未达到；当前最高记录距目标0.1595个百分点。**
 
-区域校正和细节修正均从原始 DINOv3 ViT-L＋ConvNeXt 预训练开始，是两组独立实验；刚完成第1轮验证，尚无完整2／4／9成绩。验证分数不能当作测试分数，也不能与完成20轮的基线直接判断模块收益。
+低学习率UPerNet第5／10／15轮完整S为 **93.7380%／93.6215%／93.6414%**。第15轮比第10轮提高0.0198个百分点，仍低于第5轮0.0966个百分点。Moon_9坑IoU从第5轮79.8481%降至第15轮76.7606%，召回率从88.3995%降至82.9664%；验证分数上涨尚未转化为测试总分上涨。
 
-当前数据为 Moon_1／3／5／6／7／8 的 **6401 张原图训练＋1601 张固定验证**，不加离线增强。每轮按验证集累计混淆矩阵 mIoU 选 BEST，每5轮及训练结束后完整测试当时的验证 BEST；完成第20轮保存后停止，自动早停关闭，学习率仍沿用启动时的30轮 poly 计划。验证使用1024／768等权水平翻转，后续完整测试使用 **1024原图＋水平翻转（2视图）**。测试卡不足时保留快照排队。
+两种修正头均从原始DINOv3 ViT-L＋ConvNeXt预训练开始，分别与原UPerNet同轮对照。第5轮区域校正S为 **93.4868%**，细节修正为 **93.5629%**，较原UPerNet第5轮分别低0.2512、0.1751个百分点。细节修正提高了Moon_2／4岩石IoU，但Moon_9的坑、岩石和山体IoU均下降。当前未观察到整体收益；首次第5轮结果不证明方法普遍无效，不能用它们与已完成20轮的模型单独归因模块收益。
 
-完整测试包含 Moon_2／4／9 的1597／1320／2087张，共5004张，`S=(mIoU_2+mIoU_4+2×mIoU_9)/4`。`weighted_score`是这个加权S；JSON中的`miou`是合并像素后的mIoU，二者不同。测试场景曾参与历史开发和方案选择，以下是已查看测试集上的开发结果。
+当前数据为Moon_1／3／5／6／7／8的 **6401张原图训练＋1601张固定验证**，不加离线增强。每轮按验证集累计混淆矩阵mIoU选BEST，每5轮及训练结束后完整测试当时的验证BEST；完成第20轮保存后停止，自动早停关闭，学习率保留启动时的30轮poly计划。验证使用1024／768等权水平翻转，完整测试使用1024原图＋水平翻转。
 
-|训练中实验|位置|已完成轮次／目标|验证最佳 mIoU|最近完整轮平均 loss|
-|---|---|---:|---:|---:|
-|[UPerNet，骨干2e-6](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/summary.json)|本机 GPU 3／4|8／20|97.9599%（第8轮）|0.009313|
-|[UPerNet＋区域校正，骨干2e-6](fenge_vit/result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 4／5|1／20|94.6639%（第1轮）|0.057023|
-|[UPerNet＋细节修正，骨干2e-6](fenge_vit/result/b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 6／7|1／20|94.9791%（第1轮）|0.057609|
+完整测试的Moon_2／4／9分别为1597／1320／2087张，`S=(mIoU_2+mIoU_4+2×mIoU_9)/4`。`weighted_score`为这个加权S；JSON中的`miou`为合并像素混淆矩阵后的mIoU，不能替代S。测试场景已反复用于历史开发和方案选择，以上为已查看测试集上的开发结果。
 
-本地低学习率 UPerNet 在第9轮读取NAS时发生I/O错误，已从完整第8轮恢复，改用逐文件SHA256核验的本地只读缓存；训练划分和样本身份不变。[恢复记录](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/resume_20261117T074423Z_local_cache/report_zh.md)。
+|训练中实验|位置|已完成轮次／目标|日志进度|验证最佳 mIoU|最近完整轮平均 loss|
+|---|---|---:|---|---:|---:|
+|[UPerNet，骨干2e-6](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/summary.json)|本机 GPU 3／4|16／20|第17轮 525／801批次|98.3360%（第16轮）|0.007107|
+|[UPerNet＋区域语义校正，骨干2e-6](fenge_vit/result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 4／5|6／20|第7轮 600／801批次|97.7476%（第6轮）|0.010488|
+|[UPerNet＋细节修正，骨干2e-6](fenge_vit/result/b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 6／7|6／20|第7轮 300／801批次|97.6148%（第5轮）|0.010425|
 
-[完整结果与逐类别IoU](fenge_vit/result/progress_analysis/github_update_20261117/report_zh.md) · [机器可读快照](fenge_vit/result/progress_analysis/github_update_20261117/summary.json) · [两种校正头设计与检查](fenge_vit/UPERNET_CORRECTION_EXPERIMENTS_20261117.md)
+本轮第15轮基线、两组第5轮完整评测均已完成。后续评测在103物理GPU4／5／6／7上四卡分片，每卡batch=1；每卡最多一个训练与一个评测，完整任务之间排队。合并各场景整数混淆矩阵后计算S。远程传输的临时评测权重在结果回传校验后删除，训练BEST、last和final按原规则保留。
 
-以下历史快照的训练状态、候选计划和评测协议只代表记录当时；当前安排以上述2026-11-17快照为准。
+本地低学习率UPerNet此前第9轮遇到NAS I/O错误，已从完整第8轮恢复并切换到逐文件SHA256核验的本地只读缓存，划分和样本身份不变。[恢复记录](fenge_vit/result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/resume_20261117T074423Z_local_cache/report_zh.md)。
+
+[完整结果与逐类别IoU](fenge_vit/result/progress_analysis/github_update_20261117_evening/report_zh.md) · [机器可读快照](fenge_vit/result/progress_analysis/github_update_20261117_evening/summary.json) · [两种校正头设计与检查](fenge_vit/UPERNET_CORRECTION_EXPERIMENTS_20261117.md)
+
+以下历史快照的状态、候选计划和评测协议仅代表记录当时；当前安排以上述快照为准。
 
 ## 历史 ViT-L 三组实际结果（2026-11-15）
 
