@@ -1,0 +1,34 @@
+{
+  "created_at": "2026-11-15T12:27:26.218030+00:00",
+  "host": "Server103",
+  "pid": 3184453,
+  "command": [
+    "bash",
+    "/media/common/lzc/fenge_vit_random80_20261115/code/run_on_103.sh",
+    "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "-B",
+    "-u",
+    "-m",
+    "torch.distributed.run",
+    "--standalone",
+    "--nproc_per_node=2",
+    "/media/common/lzc/fenge_vit_random80_20261115/result/b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu/runtime/code/train_distributed.py",
+    "--config",
+    "/media/common/lzc/fenge_vit_random80_20261115/config/b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu.json"
+  ],
+  "gpu_indices": [
+    4,
+    5
+  ],
+  "gpu_uuids": [
+    "GPU-5cca63a4-f9d2-3f2f-f364-1e283c505931",
+    "GPU-1e4ac0fe-4d6d-3e4d-4bc0-4084fd83bad7"
+  ],
+  "config": "/media/common/lzc/fenge_vit_random80_20261115/config/b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu.json",
+  "runtime": "/media/common/lzc/fenge_vit_random80_20261115/result/b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu/runtime",
+  "selection": "1601-image fixed validation mIoU",
+  "test_schedule": "every 5 completed epochs, then-current validation best, full Moon_2/4/9",
+  "early_stopping": false,
+  "initialization": "original_pretrained",
+  "data": "6401 original train + 1601 original validation, no offline augmentation"
+}

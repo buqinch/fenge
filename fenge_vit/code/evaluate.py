@@ -15,15 +15,25 @@ from vitseg.visualization import ComparisonExporter, write_json
 
 ROOT=Path(__file__).resolve().parents[1]
 HARD_PROTOCOL='pool8002_train6000_hard1500_validation_v1'
+ORIGINAL_ONLY_TRAINING_PROTOCOL='pool8002_original_train8002_fulltest_v1'
 
 def selection_metadata(saved, split, partial=False):
     training=saved.get('train_config',saved.get('run_config',{}))
-    if training.get('protocol') != HARD_PROTOCOL:
+    protocol=training.get('protocol')
+    original_only=protocol==ORIGINAL_ONLY_TRAINING_PROTOCOL
+    if protocol not in (HARD_PROTOCOL, ORIGINAL_ONLY_TRAINING_PROTOCOL):
         return {}
+    if original_only:
+        from hardval_data import validate_original_only_identity
+        validate_original_only_identity(saved.get('data_identity',{}).get('train',{}))
+        if training.get('selection_policy')!='full_test_every5' or training.get('early_stopping_patience')!=0:
+            raise ValueError('Original-only checkpoint requires full-test selection without early stopping')
+        if split != 'test':
+            raise ValueError('Original-only protocol does not execute hard-validation evaluation')
     identity=saved.get('data_identity',{}).get('val',{})
     if identity.get('image_count') != 1500 or identity.get('checkpoint_selection_uses_test') is not True:
         raise ValueError('Hard-validation checkpoint is missing its declared selection identity')
-    return {'protocol':HARD_PROTOCOL,'checkpoint_selection_uses_test':True,
+    result={'protocol':protocol,'checkpoint_selection_uses_test':True,
             'official_test_used_for_selection':True,'independent_holdout':False,
             'official_test_scope':False,'official_full_test':False,
             'full_test_coverage':split=='test' and not partial,
@@ -39,6 +49,12 @@ def selection_metadata(saved, split, partial=False):
                                                     else saved.get('best_miou')),
             'hard_manifest_sha256':identity.get('hard_manifest_sha256'),
             'caveat':'The full5004 evaluation includes 1500 images used for checkpoint selection; it is not an independent holdout.'}
+    if original_only:
+        result.update(test_scope='partial_test_execution_check' if partial else 'full5004_used_for_checkpoint_selection',
+            hard_validation_executed=False, hard_validation_role='unused_interface_compatibility',
+            caveat='This original-only run does not execute hard validation. The full5004 scores select checkpoints; '
+                   'the retained 1500-image validation identity is compatibility metadata, not an independent holdout.')
+    return result
 
 def load_checkpoint(path,device):
     saved=torch.load(path,map_location='cpu',weights_only=True)

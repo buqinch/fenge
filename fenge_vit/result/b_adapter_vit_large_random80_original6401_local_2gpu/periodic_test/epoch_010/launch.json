@@ -1,0 +1,81 @@
+{
+  "created_at": "2026-11-16T01:05:56.372167+00:00",
+  "configuration": {
+    "schema": "vit_periodic_test_v1",
+    "every_epochs": 5,
+    "poll_seconds": 15,
+    "minimum_free_mib": 7000,
+    "periodic_evaluation": true,
+    "final_evaluation": true,
+    "evaluation_batch_size": 1,
+    "evaluation_workers": 4,
+    "test_manifest": "/home/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+    "retain_above_score": null,
+    "runs": [
+      "/home/lzc/workspace/fenge_vit/result/b_adapter_vit_large_random80_original6401_local_2gpu"
+    ],
+    "state_directory": "/home/lzc/workspace/fenge_vit/result/periodic_eval_random80_original6401_local_gpu3",
+    "python": "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python3.11",
+    "gpu_index": 3,
+    "max_concurrent_evaluations": 1,
+    "gpu_lock": "/home/lzc/workspace/fenge_vit/result/.periodic_gpu_3.lock",
+    "allowed_training_processes": [
+      {
+        "pid": 1382507,
+        "start_ticks": "41844353",
+        "boot_id": "84c70a00-ca14-43d7-83f1-7405f4973c42"
+      }
+    ],
+    "evaluation_memory_fraction": 0.22,
+    "project": "/home/lzc/workspace/fenge_vit",
+    "evaluation": {
+      "split": "test",
+      "tta": "multiscale_hflip",
+      "tta_sizes": [
+        1024,
+        768
+      ],
+      "tta_weights": [
+        0.5,
+        0.5
+      ],
+      "amp": "bf16",
+      "batch_size": 1,
+      "workers": 4,
+      "test_manifest": "/home/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+      "test_manifest_sha256": "69b4e7cb3878333102858b1db3872763b84dc38cf30513d3ad723ac3ade1dd87",
+      "evaluate_sha256": "19f3479d6bfd21b71cd5211c033f2f92283f395053d7165125c2d6eb7c7329d9",
+      "save_images": false
+    }
+  },
+  "command": [
+    "/home/vrlab/miniconda3/envs/lzc_fenge/bin/python3.11",
+    "-u",
+    "/home/lzc/workspace/fenge_vit/code/evaluate.py",
+    "--checkpoint",
+    "/home/lzc/workspace/fenge_vit/result/b_adapter_vit_large_random80_original6401_local_2gpu/periodic_test/epoch_010/best.pt",
+    "--split",
+    "test",
+    "--test-manifest",
+    "/home/nas/lzc/lusnar_test_eval_20261102/data/manifest.json",
+    "--device",
+    "cuda:0",
+    "--amp",
+    "bf16",
+    "--batch-size",
+    "1",
+    "--workers",
+    "4",
+    "--tta",
+    "multiscale_hflip",
+    "--tta-sizes",
+    "1024",
+    "768",
+    "--tta-weights",
+    "0.5",
+    "0.5",
+    "--output",
+    "/home/lzc/workspace/fenge_vit/result/b_adapter_vit_large_random80_original6401_local_2gpu/periodic_test/epoch_010/test_metrics.json"
+  ],
+  "host": "Server70"
+}

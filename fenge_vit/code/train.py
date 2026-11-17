@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 
 from vitseg.data import LunarDataset, sha256_file
 from vitseg.losses import Mask2FormerCriterion
+from vitseg.upernet import PixelCrossEntropyCriterion
 from vitseg.masking import (apply_block_mask, make_block_masks, masked_semantic_nll,
                             update_is_masked, warmup_factor, prepare_masked_support)
 from vitseg.metrics import autocast_context, evaluate_loader, validate_tta_sizes, validate_tta_weights
@@ -149,6 +150,10 @@ def parse_args(argv=None):
     parser.add_argument('--output', default='result/b_adapter')
     parser.add_argument('--weight-dir', default='model')
     parser.add_argument('--variant', choices=['fusion', 'adapter'], default='adapter')
+    parser.add_argument('--decoder-type', choices=['mask2former', 'upernet'], default='mask2former')
+    parser.add_argument('--region-correction', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('--detail-correction', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('--auxiliary-weight', type=float, default=0.4)
     parser.add_argument('--vit-size', choices=['small', 'base', 'large'], default='small')
     parser.add_argument('--input-size', type=int, default=1024)
     parser.add_argument('--num-queries', type=int, default=32)
@@ -240,7 +245,7 @@ def parse_args(argv=None):
         value = getattr(args, key)
         if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
             parser.error(f'{key} must be finite and positive')
-    for key in ('weight_decay', 'gradient_clip', 'masking_weight', 'early_stopping_min_delta'):
+    for key in ('weight_decay', 'gradient_clip', 'masking_weight', 'early_stopping_min_delta', 'auxiliary_weight'):
         value = getattr(args, key)
         if isinstance(value, bool) or not math.isfinite(value) or value < 0:
             parser.error(f'{key} must be finite and nonnegative')
@@ -251,7 +256,7 @@ def parse_args(argv=None):
     for key in ('max_train_samples', 'max_val_samples'):
         if getattr(args, key) is not None and (type(getattr(args, key)) is not int or getattr(args, key) < 1):
             parser.error(f'{key} must be positive or null')
-    for key in ('variant', 'vit_size', 'amp', 'val_tta'):
+    for key in ('variant', 'vit_size', 'amp', 'val_tta', 'decoder_type'):
         if getattr(args, key) not in next(action.choices for action in parser._actions if action.dest == key):
             parser.error(f'Invalid {key}')
     validate_tta_sizes(args.val_tta, args.val_tta_sizes)
@@ -259,6 +264,14 @@ def parse_args(argv=None):
     if args.resume and args.initial_checkpoint:
         parser.error('resume and initial_checkpoint are mutually exclusive')
     return args
+
+
+def make_criterion(args):
+    if args.decoder_type == 'upernet':
+        return PixelCrossEntropyCriterion(auxiliary_weight=args.auxiliary_weight, ignore_index=255)
+    return Mask2FormerCriterion(num_classes=5, num_points=args.num_points, class_weight=args.class_weight,
+        mask_weight=args.mask_weight, dice_weight=args.dice_weight, no_object_weight=args.no_object_weight,
+        ignore_index=255)
 
 
 def _training_config(args):
@@ -360,7 +373,8 @@ def main(argv=None):
         decoder_layers=args.decoder_layers, pixel_decoder_layers=args.pixel_decoder_layers, width=args.width,
         adapter_dim=args.adapter_dim, adapter_heads=args.adapter_heads, adapter_points=args.adapter_points,
         gradient_checkpointing=args.gradient_checkpointing, weight_dir=args.weight_dir,
-        semantic_epsilon=args.semantic_epsilon)
+        semantic_epsilon=args.semantic_epsilon, decoder_type=args.decoder_type,
+        region_correction=args.region_correction, detail_correction=args.detail_correction)
     saved = torch.load(args.resume, map_location='cpu', weights_only=True) if args.resume else None
     model = build_model(model_config, pretrained=args.pretrained and saved is None and not args.initial_checkpoint)
     if saved:
@@ -402,9 +416,7 @@ def main(argv=None):
     schedule = PolynomialSchedule(optimizer, args.epochs * updates_per_epoch,
                                   args.head_lr, args.backbone_lr, args.poly_power)
     scaler = torch.cuda.amp.GradScaler(enabled=device.type == 'cuda' and args.amp == 'fp16')
-    criterion = Mask2FormerCriterion(num_classes=5, num_points=args.num_points, class_weight=args.class_weight,
-        mask_weight=args.mask_weight, dice_weight=args.dice_weight, no_object_weight=args.no_object_weight,
-        ignore_index=255).to(device)
+    criterion = make_criterion(args).to(device)
     tracker = PatienceTracker(args.early_stopping_patience, args.early_stopping_min_delta,
                               args.early_stopping_start_epoch)
     start_epoch, global_update, best, best_epoch = 1, 0, -math.inf, None

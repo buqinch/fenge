@@ -1,0 +1,55 @@
+{
+  "passed": true,
+  "checked_at": "2026-11-17T07:57:45.803844+00:00",
+  "publication_worktree_base": "6036d1f",
+  "unit_tests": {
+    "count": 103,
+    "modules": [
+      "verify_periodic_evaluate",
+      "verify_remote_evaluate",
+      "verify_sharded_dispatch",
+      "verify_stop_at_epoch",
+      "verify_tta_components"
+    ],
+    "result": "OK"
+  },
+  "correction_head_cpu_checks": {
+    "region": {
+      "passed": true,
+      "checks": {
+        "weighted_pooling_and_absent_class": true,
+        "shared_initial_weights_and_rng_identical": true,
+        "zero_residual_exact_identity_fp32_bf16_train_eval": true,
+        "checkpointed_backward_delta_then_all_region_parameters": true,
+        "strict_save_reload_output_identity": true,
+        "configuration_guard": true
+      },
+      "torch": "2.1.1+cu121"
+    },
+    "detail": {
+      "passed": true,
+      "checks": {
+        "pixel_center_sampling_matches_bilinear_whole_image": true,
+        "zero_initialized_identity_fp32_bf16_train_eval": true,
+        "full_image_ce_and_checkpointed_backward_all_branches": true,
+        "strip_partition_does_not_change_predictions": true,
+        "strict_checkpoint_reload_identity": true,
+        "upernet_only_configuration_guard": true
+      },
+      "torch": "2.1.1+cu121"
+    }
+  },
+  "full_test_records_recomputed": 13,
+  "full_test_expected_scene_counts": {
+    "Moon_2": 1597,
+    "Moon_4": 1320,
+    "Moon_9": 2087
+  },
+  "score_weights": [
+    1,
+    1,
+    2
+  ],
+  "syntax_json_and_secret_checks_passed": true,
+  "checkpoints_and_image_data_included": false
+}

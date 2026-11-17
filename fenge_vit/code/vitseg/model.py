@@ -13,6 +13,8 @@ from torch.utils.checkpoint import checkpoint
 from .adapter import BidirectionalAdapter, CNNSpatialProjection, SimpleMultiscaleFusion
 from .backbones import DualDINOBackbones, VIT_SPECS
 from .decoder import Mask2FormerHead
+from .upernet import UPerNetHead
+from .detail import DenseDetailCorrection
 
 
 @dataclass
@@ -31,8 +33,17 @@ class ModelConfig:
     gradient_checkpointing: bool = True
     weight_dir: str = str(Path(__file__).resolve().parents[2] / "model")
     semantic_epsilon: float = 1e-8
+    decoder_type: str = "mask2former"
+    region_correction: bool = False
+    detail_correction: bool = False
 
     def __post_init__(self):
+        if self.decoder_type not in ("mask2former", "upernet"):
+            raise ValueError("decoder_type must be mask2former or upernet")
+        if type(self.region_correction) is not bool or (self.region_correction and self.decoder_type != "upernet"):
+            raise ValueError("region_correction is a boolean option for UPerNet only")
+        if type(self.detail_correction) is not bool or (self.detail_correction and self.decoder_type != "upernet"):
+            raise ValueError("detail_correction is a boolean option for UPerNet only")
         if self.variant not in ("fusion", "adapter"):
             raise ValueError("variant must be fusion or adapter")
         if self.vit_size not in ("small", "base", "large"):
@@ -70,11 +81,22 @@ class ViTAdapterSegmentationModel(nn.Module):
                                          vit_size=config.vit_size)
         self.projection = CNNSpatialProjection(config.adapter_dim)
         # Common modules are initialized before variant-specific modules.
-        self.decoder = Mask2FormerHead(in_channels=(96, config.adapter_dim, config.adapter_dim,
-                                                   config.adapter_dim), width=config.width,
-            num_queries=config.num_queries, num_classes=config.num_classes,
-            pixel_decoder_layers=config.pixel_decoder_layers, decoder_layers=config.decoder_layers,
-            heads=8, gradient_checkpointing=config.gradient_checkpointing)
+        channels = (96, config.adapter_dim, config.adapter_dim, config.adapter_dim)
+        if config.decoder_type == "upernet":
+            self.decoder = UPerNetHead(channels, config.width, config.num_classes,
+                                      gradient_checkpointing=config.gradient_checkpointing,
+                                      region_correction=config.region_correction)
+        else:
+            self.decoder = Mask2FormerHead(in_channels=channels, width=config.width,
+                num_queries=config.num_queries, num_classes=config.num_classes,
+                pixel_decoder_layers=config.pixel_decoder_layers, decoder_layers=config.decoder_layers,
+                heads=8, gradient_checkpointing=config.gradient_checkpointing)
+        self.detail_correction = None
+        if config.detail_correction:
+            with torch.random.fork_rng(devices=[]):
+                torch.random.default_generator.manual_seed(20261118)
+                self.detail_correction = DenseDetailCorrection(96, config.num_classes,
+                    gradient_checkpointing=config.gradient_checkpointing)
         self.adapter, self.fusion = None, None
         with torch.random.fork_rng(devices=[]):
             torch.random.default_generator.manual_seed(20261113)
@@ -89,6 +111,8 @@ class ViTAdapterSegmentationModel(nn.Module):
             raise ValueError("gradient checkpointing must be boolean")
         self._gradient_checkpointing = enabled
         self.decoder.gradient_checkpointing = enabled
+        if self.detail_correction is not None:
+            self.detail_correction.gradient_checkpointing = enabled
         if hasattr(self.decoder, "set_gradient_checkpointing"):
             self.decoder.set_gradient_checkpointing(enabled)
 
@@ -144,6 +168,16 @@ class ViTAdapterSegmentationModel(nn.Module):
             vit = self.encoder.vit(images, gradient_checkpointing=active)
             spatial = checkpoint(self.fusion, vit["patch_features"], *spatial, use_reentrant=False) if active else self.fusion(vit["patch_features"], *spatial)
         output = self.decoder([native[0], *spatial])
+        if self.config.decoder_type == "upernet":
+            with torch.autocast(device_type=images.device.type, enabled=False):
+                logits = F.interpolate(output['pixel_logits'].float(), images.shape[-2:],
+                                       mode='bilinear', align_corners=False)
+            if self.detail_correction is not None:
+                logits = self.detail_correction(images, native[0], logits)
+            with torch.autocast(device_type=images.device.type, enabled=False):
+                log_probabilities = logits.log_softmax(dim=1)
+            output.update(semantic_scores=log_probabilities.exp(), semantic_logits=log_probabilities)
+            return output
         # Explicitly disable autocast: einsum otherwise downcasts even .float()
         # inputs, and these probabilities are also used for masked-view NLL.
         with torch.autocast(device_type=images.device.type, enabled=False):

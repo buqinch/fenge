@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import torch
 
@@ -46,8 +46,15 @@ class PeriodicFixtures(unittest.TestCase):
             'final_evaluation': True, 'test_manifest': str(self.root / 'test_manifest.json'),
             'gpu_lock': str(self.root / 'result/.gpu.lock')}
         self.config['evaluation'] = m.settings(self.config)
+        # GPU admission is covered independently with mocked nvidia-smi in
+        # verify_gpu_slots.py. These fixtures exercise real inherited file locks
+        # and CPU evaluator processes without probing any physical GPU.
+        self.slot_patch = patch.object(m, 'acquire_gpu_slot',
+                                       side_effect=lambda config: m.acquire_lock(config['gpu_lock']))
+        self.slot_patch.start()
 
     def tearDown(self):
+        self.slot_patch.stop()
         m.ROOT = self.old_root
         self.temporary.cleanup()
 
@@ -119,6 +126,51 @@ class PeriodicFixtures(unittest.TestCase):
         with patch.object(m, 'gpu_available', return_value=(False, 'fixture busy', 'fixture')):
             m.Monitor(self.config).tick()
         self.assertFalse((run / 'periodic_test/epoch_003/status.json').exists())
+
+    def test_hflip_protocol_validates_only_native_two_view_results(self):
+        self.config['evaluation_tta'] = 'hflip'
+        self.config['evaluation'] = m.settings(self.config)
+        run = self.publish()
+        job = self.prepare(run)
+        trigger = m.read_json(job / 'trigger.json')
+        document = self.metrics(trigger)
+        with self.assertRaises(ValueError):
+            m.validate_metrics(document, trigger)
+        document.update(tta='hflip', tta_mode='hflip', tta_sizes=None, tta_weights=None,
+                        tta_views=['original', 'horizontal_flip'], tta_forward_calls_per_batch=2,
+                        model_config={'input_size': 1024})
+        for key in ('tta_input_sizes', 'tta_scale_weights', 'tta_view_weights'):
+            document.pop(key)
+        self.assertEqual(m.validate_metrics(document, trigger)['image_count'], 5004)
+        command = m.evaluator_command(self.config, job)
+        self.assertEqual(command[command.index('--tta') + 1], 'hflip')
+        self.assertNotIn('--tta-sizes', command)
+        document['model_config']['input_size'] = 768
+        with self.assertRaises(ValueError):
+            m.validate_metrics(document, trigger)
+
+    def test_changing_future_tta_preserves_previously_queued_protocol(self):
+        run = self.publish()
+        job = self.prepare(run)
+        digest = m.sha256(job / 'trigger.json')
+        self.config['evaluation_tta'] = 'hflip'
+        self.config['evaluation'] = m.settings(self.config)
+        self.prepare(run)
+        self.assertEqual(m.sha256(job / 'trigger.json'), digest)
+        command = m.evaluator_command(self.config, job)
+        self.assertEqual(command[command.index('--tta') + 1], 'multiscale_hflip')
+        self.assertIn('--tta-sizes', command)
+        m.validate_metrics(self.metrics(m.read_json(job / 'trigger.json')), m.read_json(job / 'trigger.json'))
+        self.publish(scores=(.5, .6, .7, .8, .9, .95))
+        newjob = self.prepare(run, 6)
+        self.assertEqual(m.read_json(newjob / 'trigger.json')['evaluation']['tta'], 'hflip')
+
+    def test_unsupported_inference_policy_is_rejected(self):
+        for mode in ('none', 'invalid'):
+            with self.assertRaises(ValueError):
+                m.settings({**self.config, 'evaluation_tta': mode})
+        with self.assertRaises(ValueError):
+            m.tta_arguments({'tta': 'hflip', 'tta_sizes': [1024, 768], 'tta_weights': [0.5, 0.5]})
 
     def test_atomic_snapshot_survives_replacement(self):
         run = self.publish()
@@ -492,6 +544,77 @@ class PeriodicFixtures(unittest.TestCase):
             m.write_json(config_path, {**self.config, key: 'false'})
             with self.assertRaises(ValueError):
                 m.load_config(config_path)
+
+    def test_two_slot_configuration_is_explicit_and_bounded(self):
+        path = self.root / 'config.json'
+        m.write_json(path, self.config)
+        self.assertEqual(m.load_config(path)['max_concurrent_evaluations'], 1)
+        m.write_json(path, {**self.config, 'max_concurrent_evaluations': 2})
+        self.assertEqual(m.load_config(path)['max_concurrent_evaluations'], 2)
+        for value in (0, 3, True, '2'):
+            with self.subTest(value=value):
+                m.write_json(path, {**self.config, 'max_concurrent_evaluations': value})
+                with self.assertRaises(ValueError):
+                    m.load_config(path)
+
+    def test_resource_migration_preserves_state_but_rejects_inference_changes(self):
+        m.Monitor(self.config)
+        directory = Path(self.config['state_directory'])
+        marker = directory / 'state.json'
+        marker.write_text('{"history":"preserved"}')
+        updated = {**self.config, 'max_concurrent_evaluations': 2,
+                   'minimum_free_mib': 12000, 'poll_seconds': 15}
+        m.Monitor(updated)
+        self.assertEqual(m.read_json(marker), {'history': 'preserved'})
+        archives = list(directory.glob('configuration_before_resources_*.json'))
+        self.assertEqual(len(archives), 1)
+        self.assertEqual(m.read_json(archives[0]), self.config)
+        with self.assertRaisesRegex(ValueError, 'configuration changed'):
+            m.Monitor({**updated, 'evaluation_batch_size': 1})
+
+    def test_two_slots_schedule_other_run_while_first_is_active(self):
+        first = self.prepare(self.publish())
+        second_run = self.publish('c')
+        self.config['max_concurrent_evaluations'] = 2
+        m.set_status(first, 'running', worker_identity=m.process_identity(os.getpid()))
+        child = Mock(pid=123456)
+        child.poll.return_value = None
+        with patch.object(m, 'gpu_available', return_value=(True, 'slot1 free', 'GPU-fixture')), \
+             patch.object(m.subprocess, 'Popen', return_value=child) as spawn:
+            report = m.Monitor(self.config).tick()
+        self.assertEqual(len(report['active_jobs']), 2)
+        self.assertIn(str(first), report['active_jobs'])
+        self.assertIn(str(second_run / 'periodic_test/epoch_003'), report['active_jobs'])
+        self.assertEqual(spawn.call_count, 1)
+
+    def test_two_slots_do_not_overlap_epochs_of_same_run(self):
+        run = self.publish()
+        first = self.prepare(run)
+        self.publish(scores=(.5, .6, .7, .71, .72, .73))
+        self.config['runs'] = [str(run)]
+        self.config['max_concurrent_evaluations'] = 2
+        m.set_status(first, 'running', worker_identity=m.process_identity(os.getpid()))
+        with patch.object(m, 'gpu_available', side_effect=AssertionError('Same run remains serial')):
+            report = m.Monitor(self.config).tick()
+        self.assertEqual(report['active_jobs'], [str(first)])
+        self.assertEqual(m.read_json(run / 'periodic_test/epoch_006/status.json')['status'], 'queued')
+
+    def test_worker_inherits_the_selected_second_slot(self):
+        run = self.publish()
+        job = self.prepare(run)
+        self.config['max_concurrent_evaluations'] = 2
+        trigger = m.read_json(job / 'trigger.json')
+        m.write_json(job / 'fixture_metrics.json', self.metrics(trigger))
+        m.write_json(job / 'launch.json', {'configuration': self.config})
+        handle = m.acquire_lock(self.config['gpu_lock'] + '.slot1')
+        descriptor = handle.fileno()
+        original_popen = m.subprocess.Popen
+        with patch.object(m, 'acquire_gpu_slot', return_value=handle) as acquire, \
+             patch.object(m.subprocess, 'Popen', wraps=original_popen) as spawn:
+            self.assertEqual(m.worker(job, probe=lambda _: (True, 'fixture slot1', 'GPU-fixture')), 0)
+        self.assertEqual(acquire.call_args.args[0]['max_concurrent_evaluations'], 2)
+        self.assertIn(descriptor, spawn.call_args.kwargs['pass_fds'])
+        self.assertTrue(handle.closed)
 
 
 class HardValidationFixtures(unittest.TestCase):
@@ -979,6 +1102,7 @@ class PinnedConfigurationFixtures(unittest.TestCase):
             target = archived / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((self.root / relative).read_bytes())
+        (archived / 'code/evaluate.py').write_bytes((self.root / 'code/evaluate.py').read_bytes())
         trigger = m.read_json(job / 'trigger.json')
         trigger['training_source_root'] = str(archived)
         m.write_json(job / 'trigger.json', trigger)
@@ -1035,11 +1159,20 @@ class PinnedConfigurationFixtures(unittest.TestCase):
                 self.assertEqual(self.run_worker(job), 0)
                 (self.root / 'code/train.py').write_text('# fixture source only\n')
 
-    def test_archived_trainer_does_not_bypass_actual_model_source_hash(self):
+    def test_archived_model_is_the_actual_inference_runtime(self):
         run = self.publish(); job = self.prepare(run)
-        _, trigger = self.archive_trainer(run, job)
-        (self.root / 'code/vitseg/data.py').write_text('# changed actual inference implementation\n')
-        with self.assertRaisesRegex(ValueError, 'Actual evaluator vitseg sources differ'):
+        archived, trigger = self.archive_trainer(run, job)
+        (self.root / 'code/vitseg/data.py').write_text('# main project belongs to a newer model\n')
+        m.job_training_configuration(job, trigger)
+        command = m.evaluator_command(self.config, job)
+        self.assertIn(str(archived / 'code/evaluate.py'), command)
+        self.assertEqual(self.run_worker(job), 0)
+
+    def test_archived_model_inventory_cannot_gain_untracked_sources(self):
+        run = self.publish(); job = self.prepare(run)
+        archived, trigger = self.archive_trainer(run, job)
+        (archived / 'code/vitseg/untracked.py').write_text('# not part of training\n')
+        with self.assertRaisesRegex(ValueError, 'Archived evaluator vitseg sources differ'):
             m.job_training_configuration(job, trigger)
 
     def test_archived_training_source_hash_still_checked(self):

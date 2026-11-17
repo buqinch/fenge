@@ -1,0 +1,43 @@
+{
+  "created_at": "2026-11-17T06:45:58.085753+00:00",
+  "host": "Server103",
+  "pid": 1174543,
+  "outer_pid": 1174540,
+  "process_identity": {
+    "pid": 1174543,
+    "start_ticks": "43258624",
+    "boot_id": "591ae69a-fd65-41d4-8c1b-de7f0bbfbcda"
+  },
+  "command": [
+    "bash",
+    "/media/common/lzc/fenge_vit_random80_20261115/code/run_on_103.sh",
+    "/home/lzc/miniconda3/envs/lusnar/bin/python",
+    "-B",
+    "-u",
+    "-m",
+    "torch.distributed.run",
+    "--standalone",
+    "--nproc_per_node=2",
+    "/media/common/lzc/fenge_vit_random80_20261115/result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/runtime/code/train_distributed.py",
+    "--config",
+    "/media/common/lzc/fenge_vit_random80_20261115/config/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu.json"
+  ],
+  "gpu_indices": [
+    4,
+    5
+  ],
+  "gpu_uuids": [
+    "GPU-5cca63a4-f9d2-3f2f-f364-1e283c505931",
+    "GPU-1e4ac0fe-4d6d-3e4d-4bc0-4084fd83bad7"
+  ],
+  "config": "/media/common/lzc/fenge_vit_random80_20261115/config/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu.json",
+  "runtime": "/media/common/lzc/fenge_vit_random80_20261115/result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/runtime",
+  "selection": "1601-image validation mIoU",
+  "test_schedule": "every 5 completed epochs and final, validation BEST; 1024+hflip",
+  "early_stopping": false,
+  "actual_stop_epoch": 20,
+  "learning_rate_schedule_epochs": 30,
+  "initialization": "original_pretrained",
+  "data": "6401 original train + 1601 original validation, no offline augmentation",
+  "preflight": "/media/common/lzc/fenge_vit_random80_20261115/result/verification_region_correction_20261117/distributed_batch4.json"
+}

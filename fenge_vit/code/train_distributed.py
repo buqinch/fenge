@@ -17,10 +17,10 @@ import time
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 
 import train as base
-from distributed_training import (NoPaddingShardSampler, assert_all_finite, broadcast_model,
+from distributed_training import (NoPaddingShardSampler, audit_padded_sampler, assert_all_finite, broadcast_model,
     broadcast_object, distributed_evaluate, distributed_masked_loss, distributed_set_loss,
     gather_objects, reduce_sum, synchronize_gradients, world_info)
 from vitseg.data import LunarDataset, sha256_file
@@ -129,7 +129,8 @@ def _run(args, device, rank, world):
     identity_digest = hashlib.sha256(json.dumps(identities, sort_keys=True).encode()).hexdigest()
     if len(set(gather_objects(identity_digest))) != 1:
         raise ValueError('Ranks read different dataset identities')
-    sampler = NoPaddingShardSampler(train_set, shuffle=True, seed=args.seed, require_equal=True)
+    sampler = DistributedSampler(train_set, num_replicas=world, rank=rank, shuffle=True,
+                                 seed=args.seed, drop_last=False)
     val_sampler = NoPaddingShardSampler(val_set)
     if len(sampler) < 1:
         raise ValueError('Every training rank must receive at least one image')
@@ -147,7 +148,8 @@ def _run(args, device, rank, world):
         decoder_layers=args.decoder_layers, pixel_decoder_layers=args.pixel_decoder_layers, width=args.width,
         adapter_dim=args.adapter_dim, adapter_heads=args.adapter_heads, adapter_points=args.adapter_points,
         gradient_checkpointing=args.gradient_checkpointing, weight_dir=args.weight_dir,
-        semantic_epsilon=args.semantic_epsilon)
+        semantic_epsilon=args.semantic_epsilon, decoder_type=args.decoder_type,
+        region_correction=args.region_correction, detail_correction=args.detail_correction)
     saved = torch.load(args.resume, map_location='cpu', weights_only=True) if args.resume else None
     model = build_model(model_config, pretrained=args.pretrained and saved is None and not args.initial_checkpoint)
     if saved:
@@ -166,9 +168,12 @@ def _run(args, device, rank, world):
         'per_rank_batch_size': args.batch_size, 'accumulation': args.accumulation,
         'global_effective_batch': args.batch_size * world * args.accumulation,
         'backend': dist.get_backend() if dist.is_initialized() else 'single_process',
-        'train_sampler': 'one seed+epoch permutation, rank-strided disjoint shards, no padding',
+        'train_sampler': 'seed+epoch permutation with deterministic tail padding; all unique images included',
+        'unique_training_images': len(train_set), 'training_exposures_per_epoch': sampler.total_size,
+        'padding_exposures_per_epoch': sampler.total_size - len(train_set),
         'validation_sampler': 'rank-strided, unequal disjoint shards, no padding',
-        'set_loss_reduction': 'global CE target-weight denominator and global matched-mask count at every stage',
+        'set_loss_reduction': ('global valid-pixel denominator for main and auxiliary CE' if args.decoder_type == 'upernet'
+                              else 'global CE target-weight denominator and global matched-mask count at every stage'),
         'masked_loss_reduction': 'global eligible-pixel denominator over all accumulation microbatches',
         'gradient_bucket_bytes': 25 * 1024 * 1024, 'loader_worker_start_method': 'spawn' if args.workers else None,
         'training_rng_seeds': [args.seed + 7919 * (i + 1) for i in range(world)]}
@@ -210,9 +215,7 @@ def _run(args, device, rank, world):
     schedule = base.PolynomialSchedule(optimizer, args.epochs * updates_per_epoch,
                                        args.head_lr, args.backbone_lr, args.poly_power)
     scaler = torch.cuda.amp.GradScaler(enabled=device.type == 'cuda' and args.amp == 'fp16')
-    criterion = Mask2FormerCriterion(num_classes=5, num_points=args.num_points, class_weight=args.class_weight,
-        mask_weight=args.mask_weight, dice_weight=args.dice_weight, no_object_weight=args.no_object_weight,
-        ignore_index=255).to(device)
+    criterion = base.make_criterion(args).to(device)
     tracker = base.PatienceTracker(args.early_stopping_patience, args.early_stopping_min_delta,
                                    args.early_stopping_start_epoch)
     start_epoch, global_update, best, best_epoch = 1, 0, -math.inf, None
@@ -250,6 +253,7 @@ def _run(args, device, rank, world):
         epoch_start = time.monotonic()
         frozen = epoch <= args.freeze_epochs
         sampler.set_epoch(epoch)
+        sampler_audit = audit_padded_sampler(train_set, args.seed, epoch, world, args.batch_size)
         model.train()
         model.freeze_backbones(frozen)
         optimizer.zero_grad(set_to_none=True)
@@ -363,11 +367,11 @@ def _run(args, device, rank, world):
             'mask_stats': mask_stats, 'masked_updates': masked_updates, 'masked_microbatches': masked_microbatches,
             'data_hash': data_hash.hexdigest(), 'masking_hash': masking_hash.hexdigest(),
             'seconds': time.monotonic() - epoch_start, 'optimizer_updates': successful_updates})
-        if sum(p['images'] for p in payloads) != len(train_set):
-            raise ValueError('Training shards do not cover every selected image exactly once')
+        if sum(p['images'] for p in payloads) != sampler.total_size:
+            raise ValueError('Training exposures differ from the audited padded sampler')
         if len({p['optimizer_updates'] for p in payloads}) != 1 or len({p['masked_updates'] for p in payloads}) != 1:
             raise ValueError('Rank optimizer/masking update counts diverged')
-        averages = {key: sum(p['loss_sums'].get(key, 0.0) for p in payloads) / len(train_set)
+        averages = {key: sum(p['loss_sums'].get(key, 0.0) for p in payloads) / sampler.total_size
                     for key in sorted(set().union(*(p['loss_sums'] for p in payloads)))}
         averages['masking_to_base_ratio'] = averages['loss_masking_weighted'] / averages['loss_base'] if averages['loss_base'] else None
         mask_record = {'enabled': args.masking, 'selected_optimizer_updates': masked_updates,
@@ -378,6 +382,7 @@ def _run(args, device, rank, world):
             'selection_scope': 'one shared decision per global optimizer update, all ranks/microbatches',
             'pattern_scope': 'independent per stable sample key and global optimizer update'}
         record = {'epoch': epoch, 'global_update': global_update, 'optimizer_updates': successful_updates,
+            'sampler_audit': sampler_audit,
             'backbones_frozen': frozen, 'losses': averages, 'validation_miou': score, 'miou': score,
             'best_miou': best, 'best_epoch': best_epoch, 'selection_scene': 'custom_validation',
             'checkpoint_selection_uses_test': False, 'partial': partial, 'status': status, 'stop_reason': stop_reason,
@@ -393,6 +398,7 @@ def _run(args, device, rank, world):
             'loader_generator': loader_generator.get_state(), 'val_generator': val_generator.get_state(),
             'sampler_epoch': epoch})
         def commit_epoch():
+            base.write_json(output / f'sampler_epoch_{epoch:03d}.json', sampler_audit)
             base.write_json(output / f'validation_epoch_{epoch:03d}.json', validation)
             base.write_json(output / f'masking_epoch_{epoch:03d}.json', mask_record)
             with (output / 'history.jsonl').open('a') as stream:
@@ -411,6 +417,12 @@ def _run(args, device, rank, world):
             base.atomic_checkpoint(output / 'last.pt', checkpoint)
             if decision['improved']:
                 base.atomic_checkpoint(output / ('best_smoke.pt' if partial else 'best.pt'), checkpoint)
+            if epoch == args.epochs:
+                final = output / ('final_smoke.pt' if partial else 'final.pt')
+                temporary = final.with_suffix('.pt.tmp')
+                temporary.unlink(missing_ok=True)
+                os.link(output / 'last.pt', temporary)
+                temporary.replace(final)
             summary = {'format': 'lusnar_vit_run_v1', 'status': status, 'stop_reason': stop_reason,
                 'completed_epochs': epoch, 'best_epoch': best_epoch, 'best_miou': best, 'partial': partial,
                 'train_images': len(train_set), 'validation_images': len(val_set), 'selection_scene': 'custom_validation',

@@ -1,0 +1,713 @@
+{
+  "passed": true,
+  "status": "complete",
+  "world_size": 2,
+  "variant": "adapter",
+  "masking": false,
+  "global_batch_size": 8,
+  "per_rank_batch_size": 4,
+  "accumulation": 1,
+  "input_size": 1024,
+  "amp": "bf16",
+  "gradient_checkpointing": true,
+  "vit_size": "large",
+  "model_config": {
+    "variant": "adapter",
+    "vit_size": "large",
+    "input_size": 1024,
+    "num_classes": 5,
+    "num_queries": 32,
+    "decoder_layers": 6,
+    "pixel_decoder_layers": 6,
+    "width": 256,
+    "adapter_dim": 1024,
+    "adapter_heads": 16,
+    "adapter_points": 4,
+    "gradient_checkpointing": true,
+    "weight_dir": "/home/lzc/workspace/fenge_vit/model",
+    "semantic_epsilon": 1e-08,
+    "decoder_type": "upernet",
+    "region_correction": false,
+    "detail_correction": true
+  },
+  "pretrained_report": {
+    "vit": {
+      "loaded": true,
+      "path": "/home/lzc/workspace/fenge_vit/model/dinov3_vit_large/model.safetensors",
+      "sha256": "45172f209c9583c40538afc26b60a07033e6fcc2e8c30228338e6b2e932e7941",
+      "config_sha256": "a71f705b0074e173540d0bdbd3aa940fa8d7d3c6c7f020a683004c46ca605b24",
+      "architecture": "vit_large_patch16_dinov3",
+      "tensor_count": 318,
+      "strict": true,
+      "format": "timm_safetensors"
+    },
+    "convnext": {
+      "loaded": true,
+      "path": "/home/lzc/workspace/fenge_vit/model/dinov3_convnext_tiny/model.safetensors",
+      "sha256": "a7637753a2e85d709d1a5474e13382d39e7bc581a35868b477585c970f36847f",
+      "config_sha256": "ca74f08faca70799f011184069ced874174e99cd9a83da966fbc8f176c04498b",
+      "architecture": "convnext_tiny",
+      "tensor_count": 180,
+      "strict": true,
+      "format": "timm_safetensors"
+    }
+  },
+  "total_parameters": 365108991,
+  "visible_devices": "GPU-cb3fabba-d9e3-21cd-180f-6ab1ae9320fa,GPU-fe010a4e-14c6-947b-5cca-b593716ecfc7",
+  "torch_version": "2.2.2+cu121",
+  "device_reports": [
+    {
+      "rank": 0,
+      "name": "NVIDIA GeForce RTX 3090",
+      "uuid": "GPU-cb3fabba-d9e3-21cd-180f-6ab1ae9320fa",
+      "peak_allocated_bytes": 1465042432,
+      "peak_reserved_bytes": 1484783616
+    },
+    {
+      "rank": 1,
+      "name": "NVIDIA GeForce RTX 3090",
+      "uuid": "GPU-fe010a4e-14c6-947b-5cca-b593716ecfc7",
+      "peak_allocated_bytes": 1465042432,
+      "peak_reserved_bytes": 1484783616
+    }
+  ],
+  "initial_model_sha256": "ace50c31f1ec81a7e9373943160d211a70eaed74ce27cd0cf0f5b32d91789621",
+  "initial_model_without_region_correction_sha256": "ace50c31f1ec81a7e9373943160d211a70eaed74ce27cd0cf0f5b32d91789621",
+  "initial_model_without_corrections_sha256": "6021974abefadb3f42966c435763584db242c083d0112292a90d2120885160f6",
+  "phases": [
+    {
+      "phase": "frozen_full",
+      "median_seconds_per_update": 3.2196999235020485,
+      "global_images_per_second": 2.4847036028433505,
+      "parameters_equal_across_ranks": true,
+      "model_sha256": "8f30e6b87899573c8af6393c7c07a6d436fa63715af56a0d84bdf80ee56cdf35",
+      "frozen_backbones_unchanged": true,
+      "full_phase_peak_allocated_bytes": 11948704768,
+      "full_phase_peak_reserved_bytes": 13662945280,
+      "updates": [
+        {
+          "warmup": true,
+          "seconds_max_rank": 3.52021504600998,
+          "ranks": [
+            {
+              "rank": 0,
+              "seconds": 3.5170828190166503,
+              "peak_allocated_bytes": 11661168640,
+              "peak_reserved_bytes": 12958302208,
+              "gradient_norm_before_clip": 34.36354064941406,
+              "component_gradient_audit": {
+                "vit": {
+                  "parameters_with_gradient": 0,
+                  "gradient_l2": 0.0,
+                  "finite": true,
+                  "nonzero": false
+                },
+                "convnext": {
+                  "parameters_with_gradient": 0,
+                  "gradient_l2": 0.0,
+                  "finite": true,
+                  "nonzero": false
+                },
+                "head": {
+                  "parameters_with_gradient": 178,
+                  "gradient_l2": 1.0,
+                  "finite": true,
+                  "nonzero": true
+                }
+              },
+              "component_parameter_updates": {
+                "head": {
+                  "parameter": "projection.projections.0.0.weight",
+                  "flat_index": 182110,
+                  "absolute_change": 0.00010005012154579163
+                }
+              },
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                2.298208236694336
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": {
+                "components": {
+                  "vit": {
+                    "parameters_with_state": 0,
+                    "state_tensor_bytes": 0
+                  },
+                  "convnext": {
+                    "parameters_with_state": 0,
+                    "state_tensor_bytes": 0
+                  },
+                  "head": {
+                    "parameters_with_state": 178,
+                    "state_tensor_bytes": 273676224
+                  }
+                },
+                "minimum_parameter_step": 1,
+                "maximum_parameter_step": 1
+              }
+            },
+            {
+              "rank": 1,
+              "seconds": 3.52021504600998,
+              "peak_allocated_bytes": 11661168640,
+              "peak_reserved_bytes": 12958302208,
+              "gradient_norm_before_clip": 34.36354064941406,
+              "component_gradient_audit": {
+                "vit": {
+                  "parameters_with_gradient": 0,
+                  "gradient_l2": 0.0,
+                  "finite": true,
+                  "nonzero": false
+                },
+                "convnext": {
+                  "parameters_with_gradient": 0,
+                  "gradient_l2": 0.0,
+                  "finite": true,
+                  "nonzero": false
+                },
+                "head": {
+                  "parameters_with_gradient": 178,
+                  "gradient_l2": 1.0,
+                  "finite": true,
+                  "nonzero": true
+                }
+              },
+              "component_parameter_updates": {
+                "head": {
+                  "parameter": "projection.projections.0.0.weight",
+                  "flat_index": 182110,
+                  "absolute_change": 0.00010005012154579163
+                }
+              },
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                2.306340217590332
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": {
+                "components": {
+                  "vit": {
+                    "parameters_with_state": 0,
+                    "state_tensor_bytes": 0
+                  },
+                  "convnext": {
+                    "parameters_with_state": 0,
+                    "state_tensor_bytes": 0
+                  },
+                  "head": {
+                    "parameters_with_state": 178,
+                    "state_tensor_bytes": 273676224
+                  }
+                },
+                "minimum_parameter_step": 1,
+                "maximum_parameter_step": 1
+              }
+            }
+          ]
+        },
+        {
+          "warmup": false,
+          "seconds_max_rank": 3.1614267930272035,
+          "ranks": [
+            {
+              "rank": 0,
+              "seconds": 3.1613429349963553,
+              "peak_allocated_bytes": 11948704768,
+              "peak_reserved_bytes": 13662945280,
+              "gradient_norm_before_clip": 10.77027702331543,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                1.0823240280151367
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            },
+            {
+              "rank": 1,
+              "seconds": 3.1614267930272035,
+              "peak_allocated_bytes": 11948704768,
+              "peak_reserved_bytes": 13662945280,
+              "gradient_norm_before_clip": 10.77027702331543,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                1.1088738441467285
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            }
+          ]
+        },
+        {
+          "warmup": false,
+          "seconds_max_rank": 3.2779730539768934,
+          "ranks": [
+            {
+              "rank": 0,
+              "seconds": 3.2778976039844565,
+              "peak_allocated_bytes": 11948704768,
+              "peak_reserved_bytes": 13662945280,
+              "gradient_norm_before_clip": 8.20154094696045,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": {
+                "rgb_half.0.weight": 9.292666618421208e-06,
+                "rgb_half.1.weight": 5.946091050645919e-07,
+                "rgb_half.1.bias": 7.321195312215423e-07,
+                "rgb_half.3.weight": 1.5158712812990416e-05,
+                "rgb_half.4.weight": 7.712389447078749e-07,
+                "rgb_half.4.bias": 1.0137115395991714e-06,
+                "cnn_project.0.weight": 1.1487072697491385e-05,
+                "cnn_project.1.weight": 1.3601410273622605e-06,
+                "cnn_project.1.bias": 1.0102799024025444e-06,
+                "mlp.0.weight": 1.8321259631193243e-05,
+                "mlp.0.bias": 4.107118911633734e-06,
+                "mlp.2.weight": 2.0603385564754717e-05,
+                "mlp.2.bias": 1.19774986160337e-05,
+                "delta.weight": 0.011521656066179276,
+                "delta.bias": 0.022778823971748352
+              },
+              "full_set_losses": [
+                0.7858775854110718
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            },
+            {
+              "rank": 1,
+              "seconds": 3.2779730539768934,
+              "peak_allocated_bytes": 11948704768,
+              "peak_reserved_bytes": 13662945280,
+              "gradient_norm_before_clip": 8.20154094696045,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": {
+                "rgb_half.0.weight": 9.292666618421208e-06,
+                "rgb_half.1.weight": 5.946091050645919e-07,
+                "rgb_half.1.bias": 7.321195312215423e-07,
+                "rgb_half.3.weight": 1.5158712812990416e-05,
+                "rgb_half.4.weight": 7.712389447078749e-07,
+                "rgb_half.4.bias": 1.0137115395991714e-06,
+                "cnn_project.0.weight": 1.1487072697491385e-05,
+                "cnn_project.1.weight": 1.3601410273622605e-06,
+                "cnn_project.1.bias": 1.0102799024025444e-06,
+                "mlp.0.weight": 1.8321259631193243e-05,
+                "mlp.0.bias": 4.107118911633734e-06,
+                "mlp.2.weight": 2.0603385564754717e-05,
+                "mlp.2.bias": 1.19774986160337e-05,
+                "delta.weight": 0.011521656066179276,
+                "delta.bias": 0.022778823971748352
+              },
+              "full_set_losses": [
+                0.8505169153213501
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "joint_full",
+      "median_seconds_per_update": 3.895564583974192,
+      "global_images_per_second": 2.053617602159872,
+      "parameters_equal_across_ranks": true,
+      "model_sha256": "cca327f8c011113477783792a54d15a5406e6cf3212e1e86da708284a292e5f0",
+      "frozen_backbones_unchanged": null,
+      "full_phase_peak_allocated_bytes": 14908619776,
+      "full_phase_peak_reserved_bytes": 16376659968,
+      "updates": [
+        {
+          "warmup": true,
+          "seconds_max_rank": 3.853619459026959,
+          "ranks": [
+            {
+              "rank": 0,
+              "seconds": 3.853619459026959,
+              "peak_allocated_bytes": 12254397440,
+              "peak_reserved_bytes": 13662945280,
+              "gradient_norm_before_clip": 21.12822914123535,
+              "component_gradient_audit": {
+                "vit": {
+                  "parameters_with_gradient": 318,
+                  "gradient_l2": 1.7283316992688924e-05,
+                  "finite": true,
+                  "nonzero": true
+                },
+                "convnext": {
+                  "parameters_with_gradient": 178,
+                  "gradient_l2": 0.9925094842910767,
+                  "finite": true,
+                  "nonzero": true
+                },
+                "head": {
+                  "parameters_with_gradient": 178,
+                  "gradient_l2": 0.12216706573963165,
+                  "finite": true,
+                  "nonzero": true
+                }
+              },
+              "component_parameter_updates": {
+                "vit": {
+                  "parameter": "encoder.vit.model.cls_token",
+                  "flat_index": 663,
+                  "absolute_change": 1.9634608179330826e-06
+                },
+                "convnext": {
+                  "parameter": "encoder.convnext.model.stem.0.weight",
+                  "flat_index": 3951,
+                  "absolute_change": 2.00001522898674e-06
+                },
+                "head": {
+                  "parameter": "projection.projections.0.0.weight",
+                  "flat_index": 180382,
+                  "absolute_change": 6.986409425735474e-05
+                }
+              },
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                0.5903830528259277
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": {
+                "components": {
+                  "vit": {
+                    "parameters_with_state": 318,
+                    "state_tensor_bytes": 2424636664
+                  },
+                  "convnext": {
+                    "parameters_with_state": 178,
+                    "state_tensor_bytes": 222549448
+                  },
+                  "head": {
+                    "parameters_with_state": 178,
+                    "state_tensor_bytes": 273676224
+                  }
+                },
+                "minimum_parameter_step": 1,
+                "maximum_parameter_step": 4
+              }
+            },
+            {
+              "rank": 1,
+              "seconds": 3.8533882920164615,
+              "peak_allocated_bytes": 12254397440,
+              "peak_reserved_bytes": 13662945280,
+              "gradient_norm_before_clip": 21.12822914123535,
+              "component_gradient_audit": {
+                "vit": {
+                  "parameters_with_gradient": 318,
+                  "gradient_l2": 1.7283316992688924e-05,
+                  "finite": true,
+                  "nonzero": true
+                },
+                "convnext": {
+                  "parameters_with_gradient": 178,
+                  "gradient_l2": 0.9925094842910767,
+                  "finite": true,
+                  "nonzero": true
+                },
+                "head": {
+                  "parameters_with_gradient": 178,
+                  "gradient_l2": 0.12216706573963165,
+                  "finite": true,
+                  "nonzero": true
+                }
+              },
+              "component_parameter_updates": {
+                "vit": {
+                  "parameter": "encoder.vit.model.cls_token",
+                  "flat_index": 663,
+                  "absolute_change": 1.9634608179330826e-06
+                },
+                "convnext": {
+                  "parameter": "encoder.convnext.model.stem.0.weight",
+                  "flat_index": 3951,
+                  "absolute_change": 2.00001522898674e-06
+                },
+                "head": {
+                  "parameter": "projection.projections.0.0.weight",
+                  "flat_index": 180382,
+                  "absolute_change": 6.986409425735474e-05
+                }
+              },
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                0.637940526008606
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": {
+                "components": {
+                  "vit": {
+                    "parameters_with_state": 318,
+                    "state_tensor_bytes": 2424636664
+                  },
+                  "convnext": {
+                    "parameters_with_state": 178,
+                    "state_tensor_bytes": 222549448
+                  },
+                  "head": {
+                    "parameters_with_state": 178,
+                    "state_tensor_bytes": 273676224
+                  }
+                },
+                "minimum_parameter_step": 1,
+                "maximum_parameter_step": 4
+              }
+            }
+          ]
+        },
+        {
+          "warmup": false,
+          "seconds_max_rank": 3.836688160954509,
+          "ranks": [
+            {
+              "rank": 0,
+              "seconds": 3.836688160954509,
+              "peak_allocated_bytes": 14908619776,
+              "peak_reserved_bytes": 16376659968,
+              "gradient_norm_before_clip": 48.159183502197266,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                0.554402232170105
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            },
+            {
+              "rank": 1,
+              "seconds": 3.8362974830088206,
+              "peak_allocated_bytes": 14908619776,
+              "peak_reserved_bytes": 16376659968,
+              "gradient_norm_before_clip": 48.159183502197266,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": null,
+              "full_set_losses": [
+                0.5874857306480408
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            }
+          ]
+        },
+        {
+          "warmup": false,
+          "seconds_max_rank": 3.954441006993875,
+          "ranks": [
+            {
+              "rank": 0,
+              "seconds": 3.9543666059616953,
+              "peak_allocated_bytes": 14908086272,
+              "peak_reserved_bytes": 16376659968,
+              "gradient_norm_before_clip": 31.18250274658203,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": {
+                "rgb_half.0.weight": 4.982508016837528e-06,
+                "rgb_half.1.weight": 3.451453949310235e-07,
+                "rgb_half.1.bias": 2.6857335910790425e-07,
+                "rgb_half.3.weight": 1.0021474736277014e-05,
+                "rgb_half.4.weight": 4.2525562093942426e-07,
+                "rgb_half.4.bias": 3.1130855404626345e-07,
+                "cnn_project.0.weight": 4.0827590055414476e-06,
+                "cnn_project.1.weight": 3.229544631722092e-07,
+                "cnn_project.1.bias": 2.9694251679757144e-07,
+                "mlp.0.weight": 6.176690476422664e-06,
+                "mlp.0.bias": 1.0395705203336547e-06,
+                "mlp.2.weight": 5.154664449946722e-06,
+                "mlp.2.bias": 2.3085692646418465e-06,
+                "delta.weight": 0.0008745748782530427,
+                "delta.bias": 0.0007326188497245312
+              },
+              "full_set_losses": [
+                0.5213279724121094
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            },
+            {
+              "rank": 1,
+              "seconds": 3.954441006993875,
+              "peak_allocated_bytes": 14908086272,
+              "peak_reserved_bytes": 16376659968,
+              "gradient_norm_before_clip": 31.18250274658203,
+              "component_gradient_audit": null,
+              "component_parameter_updates": null,
+              "region_correction_gradients": null,
+              "detail_correction_gradients": {
+                "rgb_half.0.weight": 4.982508016837528e-06,
+                "rgb_half.1.weight": 3.451453949310235e-07,
+                "rgb_half.1.bias": 2.6857335910790425e-07,
+                "rgb_half.3.weight": 1.0021474736277014e-05,
+                "rgb_half.4.weight": 4.2525562093942426e-07,
+                "rgb_half.4.bias": 3.1130855404626345e-07,
+                "cnn_project.0.weight": 4.0827590055414476e-06,
+                "cnn_project.1.weight": 3.229544631722092e-07,
+                "cnn_project.1.bias": 2.9694251679757144e-07,
+                "mlp.0.weight": 6.176690476422664e-06,
+                "mlp.0.bias": 1.0395705203336547e-06,
+                "mlp.2.weight": 5.154664449946722e-06,
+                "mlp.2.bias": 2.3085692646418465e-06,
+                "delta.weight": 0.0008745748782530427,
+                "delta.bias": 0.0007326188497245312
+              },
+              "full_set_losses": [
+                0.5522726774215698
+              ],
+              "masked_nll_losses": [],
+              "masked_global_denominator": null,
+              "masking_weight": 0.0,
+              "optimizer_state": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "training_identity": {
+    "manifest": "/home/lzc/workspace/fenge/result/selections/random80_original_only_seed42_20261115.json",
+    "manifest_sha256": "84fbf3f010220dc7032d685f0d0b511162cb982b0e318e0cc4f4e63ebb010fd0",
+    "split": "train",
+    "train_source": "embedded_custom_manifest",
+    "protocol": "random_original_source_family_4_to_1",
+    "custom_split": true,
+    "selection_metric": "validation_all_scenes_miou",
+    "selection_scope": "custom_val_originals",
+    "split_seed": 42,
+    "split_counts": {
+      "original_pool": 8002,
+      "train_original": 6401,
+      "val_original": 1601,
+      "train_augmented": 0,
+      "train_total": 6401,
+      "val_total": 1601
+    },
+    "augmentation_counts": {
+      "crater": 0,
+      "mountain_rock": 0
+    },
+    "source_manifest": "/home/nas/lzc/fenge/baseline_segformer_20261026/manifest.json",
+    "source_manifest_sha256": "1475720137480b1e35d206735555738f3ae5e6816e9dca81ba2f68d54cb43d05",
+    "augmented_manifest": "/home/nas/lzc/lusnar_augmentation/lusnar_gt_context_6000_20261110/manifest.json",
+    "augmented_manifest_sha256": "73a5a9673745a9fa88d535839dd61cc06b36b61d1aea5307920796a1b79d15bb",
+    "original_split_sha256": "e442513b7c6d6357db4c59df4377c7a39a046feca4119251fe0476c2f7ef65e4",
+    "splits_sha256": "6332c9cd92d262046c364905ef39797252d7e8e13f1022d10707475453a0274f",
+    "literal_ordered_samples_sha256": "12b9087461c3b6727d9fd2a041eca1156d68fadfad25b19106a850defcdac812",
+    "train_original_source_ids_sha256": "fec94ec964934d4c4840973267bd1427a285557f723b992da0e0ff73fea0e198",
+    "val_original_source_ids_sha256": "23a64d503db0d08d08fdcd4dd05921a4aa458e70f835edba2a827ee510d4267a",
+    "validation_scenes": [
+      "Moon_1",
+      "Moon_3",
+      "Moon_5",
+      "Moon_6",
+      "Moon_7",
+      "Moon_8"
+    ],
+    "validation_image_count": 1601,
+    "independent_test_scenes": [
+      "Moon_2",
+      "Moon_4",
+      "Moon_9"
+    ],
+    "image_count": 6401,
+    "complete_image_count": 6401,
+    "partial": false,
+    "unique_source_count": 6401,
+    "ordered_samples_sha256": "12b9087461c3b6727d9fd2a041eca1156d68fadfad25b19106a850defcdac812"
+  },
+  "sample_indices_by_rank": [
+    [
+      0,
+      2,
+      4,
+      6
+    ],
+    [
+      1,
+      3,
+      5,
+      7
+    ]
+  ],
+  "source_ids": [
+    "Moon_7/1693385300870821632",
+    "Moon_5/1693360250542969088",
+    "Moon_7/1693385287578570496",
+    "Moon_3/1693290462765564928",
+    "Moon_3/1693290353571931904",
+    "Moon_3/1693290362638372096",
+    "Moon_8/1693502016718506752",
+    "Moon_1/1693274825623457536"
+  ],
+  "limitations": [
+    "Two timed updates per phase; excludes data loading, validation and checkpoint writes.",
+    "Masked phase forces auxiliary masking at full configured weight every update; formal training ramps and samples updates.",
+    "Changed rank partition and stochastic sampling need not produce identical optimization trajectories."
+  ],
+  "source_sha256": {
+    "code/benchmark_distributed.py": "567f8d6f71dd8b6f76b68b9b2677856eb6bd53f21ff4f90bd31df1bbc2ce4ea9",
+    "code/benchmark_memory.py": "044cd9c0fb1b1169a1ca98179431e64e702a496869a0ef9bf7a2c49a02de25ad",
+    "code/distributed_training.py": "ef5d92d8573dc17f367a6891a0662842995b29f05a12ad575c3ae1be7aee8f26",
+    "code/train.py": "8469d1ab06c9e398b3bc1d0e7fbe5829e4ffe65072172b8e6a5014d5fe6a8471",
+    "code/hardval_data.py": "782e20f5d1ca6cf165e51e6d4c0b186b8e3477152d04d42ae7848aa601c01b15",
+    "code/vitseg/__init__.py": "39ac7bbf4636a3a7637a26da818ba5c447617185860319a6b1cdb3f883dd7e84",
+    "code/vitseg/adapter.py": "a960a2d7880839eb9676621248934baf4418620e6cd985e63615def3a37f7917",
+    "code/vitseg/backbones.py": "78f3b968338453583f35056b65dbeb56ebc47cf1960bb05ae04d39f7003a4335",
+    "code/vitseg/crater_diagnostics.py": "c8f78ed8f6be785ad22dfc011b1bb289188975cc7afff9a4e75dc50e2e005541",
+    "code/vitseg/data.py": "aeddb74833832a1226f9bd88a673fc141e7a604d92ec6ee4e34a33152bb90d23",
+    "code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "code/vitseg/deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5",
+    "code/vitseg/detail.py": "9301b208dbacd91c6ca56a19bc5f9df31d493fd381c6043cae37971f0c1cb247",
+    "code/vitseg/diagnostics.py": "bce4cf627a5dabcbf9720695a5246f7515ff8c6911e6de8f0435e9416848ff7d",
+    "code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "code/vitseg/masking.py": "166c131cf93b81ae5f1cee7c6c7dd4f126e4b2ea5ac0da082667a5039a619913",
+    "code/vitseg/metrics.py": "582acd2cd0833b2cca0fd79d39744c0d88f827a4b5af5374c783f3ac0d3a196b",
+    "code/vitseg/model.py": "c99fa094d5f05020457786989bc82a6fef97c94fbebeea7a4fa9122370f5beee",
+    "code/vitseg/score_diagnostics.py": "213ebbcbd8bf615a1862f0e7bc8f2ca0a4559d54b155553b52bcff28936f2b6e",
+    "code/vitseg/upernet.py": "22cf4b43d54e52a0f18abdfe47e3a27039617845ca1b4c55dc3e0203b71c910b",
+    "code/vitseg/visualization.py": "01539be949ab7e3cf522cf1792ae5930b800109e6f64baee53a025d03995cd4a"
+  },
+  "current_phase": null,
+  "full_run_peak_allocated_bytes": 14908619776,
+  "full_run_peak_reserved_bytes": 16376659968
+}

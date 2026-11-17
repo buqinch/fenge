@@ -280,8 +280,8 @@ class LunarDataset(Dataset):
 
         augmentation_counts = source.get("augmentation_counts")
         if (not isinstance(augmentation_counts, dict) or set(augmentation_counts) != {"crater", "mountain_rock"}
-                or any(type(count) is not int or count < 1 for count in augmentation_counts.values())):
-            raise ValueError("Custom split must declare positive crater and mountain_rock augmentation counts")
+                or any(type(count) is not int or count < 0 for count in augmentation_counts.values())):
+            raise ValueError("Custom split must declare nonnegative crater and mountain_rock augmentation counts")
         actual_groups = dict.fromkeys(augmentation_counts, 0)
         actual_originals = {"train": set(), "val": set()}
         seen_ids, seen_images, seen_masks = set(), set(), set()

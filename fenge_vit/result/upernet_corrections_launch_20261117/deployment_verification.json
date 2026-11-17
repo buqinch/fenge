@@ -1,0 +1,75 @@
+{
+  "verified_at": "2026-11-17T06:58:14.880831+00:00",
+  "experiments": [
+    {
+      "name": "b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu",
+      "gpus": [
+        4,
+        5
+      ],
+      "pid": 1174543,
+      "source_root": "/media/common/lzc/fenge_vit_random80_20261115/result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/runtime",
+      "latest_batch": {
+        "epoch": 1,
+        "batch": 200,
+        "batches": 801,
+        "global_update": 199,
+        "backbones_frozen": true,
+        "rank0_scaled_loss_base": 0.036973919719457626,
+        "rank0_masking_nll": 0.0,
+        "masking_coefficient": 0.0,
+        "global_effective_batch": 8
+      },
+      "epoch20_controller": "watching",
+      "test_tta": "hflip",
+      "test_every_epochs": 5,
+      "initialization": "original_pretrained",
+      "region_correction": true,
+      "detail_correction": false,
+      "source_verified": true
+    },
+    {
+      "name": "b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu",
+      "gpus": [
+        6,
+        7
+      ],
+      "pid": 1186458,
+      "source_root": "/media/common/lzc/fenge_vit_random80_20261115/result/b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu/runtime",
+      "latest_batch": {
+        "epoch": 1,
+        "batch": 50,
+        "batches": 801,
+        "global_update": 49,
+        "backbones_frozen": true,
+        "rank0_scaled_loss_base": 0.13958437740802765,
+        "rank0_masking_nll": 0.0,
+        "masking_coefficient": 0.0,
+        "global_effective_batch": 8
+      },
+      "epoch20_controller": "watching",
+      "test_tta": "hflip",
+      "test_every_epochs": 5,
+      "initialization": "original_pretrained",
+      "region_correction": false,
+      "detail_correction": true,
+      "source_verified": true
+    }
+  ],
+  "control_flow_checks": {
+    "tests_passed": 94,
+    "modules": [
+      "verify_periodic_evaluate",
+      "verify_remote_evaluate",
+      "verify_sharded_dispatch"
+    ],
+    "scope": "CPU fixtures for frozen model source dispatch, remote transfer and shared GPU locks"
+  },
+  "source_sha256": {
+    "periodic_evaluate.py": "1132ccb43fad19ab59963981c64a0d1a68bda3f01c05edded0b110ea52f88a74",
+    "remote_evaluate.py": "18833649d369c85875ed6a3032260f585f2228c45c09a25cf3b4a2b405ae95a5",
+    "vitseg/model.py": "c99fa094d5f05020457786989bc82a6fef97c94fbebeea7a4fa9122370f5beee",
+    "vitseg/detail.py": "9301b208dbacd91c6ca56a19bc5f9df31d493fd381c6043cae37971f0c1cb247",
+    "vitseg/upernet.py": "22cf4b43d54e52a0f18abdfe47e3a27039617845ca1b4c55dc3e0203b71c910b"
+  }
+}

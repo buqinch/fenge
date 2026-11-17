@@ -1,0 +1,81 @@
+{
+  "updated_at": "2026-11-15T12:30:51.214881+00:00",
+  "status": "passed",
+  "verification_only": true,
+  "new_experiment_scores_available": false,
+  "checks": {
+    "distributed_loss_cpu": "distributed_cpu.json",
+    "frozen_two_gpu_training": "distributed_resume/verification_rank_state_epoch_001.json",
+    "unfrozen_two_gpu_resume": "distributed_resume/verification_rank_state_epoch_002.json",
+    "strict_reload_and_1024_768_hflip": "inference_reload.json",
+    "4090_1024_batch4_joint_update": "memory_1024_cases/batch_4.json",
+    "3090_1024_batch4_joint_update": "remote3090/fixed_memory_1024_cases/batch_4.json",
+    "periodic_evaluation_unit_checks": "63 tests passed"
+  },
+  "compatibility_fix": "PyTorch 2.2 GroupNorm channels-last backward mismatch; spatial flattening gives the same GroupNorm forward/backward. Earlier failed remote checks retained for provenance.",
+  "code_sha256": {
+    "code/vitseg/__init__.py": "39ac7bbf4636a3a7637a26da818ba5c447617185860319a6b1cdb3f883dd7e84",
+    "code/vitseg/adapter.py": "a960a2d7880839eb9676621248934baf4418620e6cd985e63615def3a37f7917",
+    "code/vitseg/backbones.py": "78f3b968338453583f35056b65dbeb56ebc47cf1960bb05ae04d39f7003a4335",
+    "code/vitseg/crater_diagnostics.py": "c8f78ed8f6be785ad22dfc011b1bb289188975cc7afff9a4e75dc50e2e005541",
+    "code/vitseg/data.py": "aeddb74833832a1226f9bd88a673fc141e7a604d92ec6ee4e34a33152bb90d23",
+    "code/vitseg/decoder.py": "bfb65e534ab1e7a921588b102becff34adeb1a71a79cb624d1deb0b78992dc31",
+    "code/vitseg/deformable.py": "f77e6919a5fe68db2cab479bb5cf0d022820d69637359d316b7b6421ec3cedf5",
+    "code/vitseg/diagnostics.py": "bce4cf627a5dabcbf9720695a5246f7515ff8c6911e6de8f0435e9416848ff7d",
+    "code/vitseg/losses.py": "a374ce1dab0566f45baa060a1c3a3a03a247d6e854388a7cd7896540ac2dfd1e",
+    "code/vitseg/masking.py": "166c131cf93b81ae5f1cee7c6c7dd4f126e4b2ea5ac0da082667a5039a619913",
+    "code/vitseg/metrics.py": "582acd2cd0833b2cca0fd79d39744c0d88f827a4b5af5374c783f3ac0d3a196b",
+    "code/vitseg/model.py": "dd8d5d9fd02656aa313229f73505fdf77bee050b3f3f385fe6f724594748e7df",
+    "code/vitseg/score_diagnostics.py": "213ebbcbd8bf615a1862f0e7bc8f2ca0a4559d54b155553b52bcff28936f2b6e",
+    "code/vitseg/upernet.py": "fe134d5c29d3a27382a915e8dda0b7cc4116035a5bd56b9878f997b5c436c0cc",
+    "code/vitseg/visualization.py": "01539be949ab7e3cf522cf1792ae5930b800109e6f64baee53a025d03995cd4a"
+  },
+  "protocol": {
+    "train_original": 6401,
+    "validation_original": 1601,
+    "offline_augmented": 0,
+    "training_exposures_per_epoch": 6402,
+    "padding_exposures_per_epoch": 1,
+    "world_size": 2,
+    "per_rank_batch": 4,
+    "accumulation": 1,
+    "effective_batch": 8,
+    "updates_per_epoch": 801,
+    "epochs": 30,
+    "freeze_epochs": 3,
+    "best_selection": "validation_miou",
+    "early_stopping": false,
+    "test_every_epochs": 5,
+    "test_checkpoint": "then-current validation best",
+    "test_images": 5004,
+    "tta": "1024/768 equal hflip"
+  },
+  "matching_initialization": {
+    "mask2former_initial_model_sha256": "79271849365bb9b3fa1d3f48abea9fb9505de401013c57ffcaf96b9cd9bdd8fa",
+    "all_three_initial_backbone_sha256": "441f94b145a43464fac6db4fb77dd3eae603838e5d56c25f5280f029e9db4e6f"
+  },
+  "experiments": [
+    {
+      "name": "b_adapter_vit_large_random80_original6401_local_2gpu",
+      "decoder": "mask2former",
+      "backbone_lr": 5e-06,
+      "head_lr": 0.0001,
+      "initialization_mode": "original_pretrained"
+    },
+    {
+      "name": "b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu",
+      "decoder": "mask2former",
+      "backbone_lr": 2e-06,
+      "head_lr": 0.0001,
+      "initialization_mode": "original_pretrained"
+    },
+    {
+      "name": "b_adapter_upernet_vit_large_random80_original6401_103_2gpu",
+      "decoder": "upernet",
+      "backbone_lr": 5e-06,
+      "head_lr": 0.0001,
+      "initialization_mode": "original_pretrained"
+    }
+  ],
+  "3090_peak_reserved_gib": 16.017578125
+}

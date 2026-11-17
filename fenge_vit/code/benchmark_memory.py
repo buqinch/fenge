@@ -2,8 +2,8 @@
 """Measure warmed, accumulated full-resolution training memory, never inference.
 
 Each actual batch size runs in a fresh child process. A successful case executes
-one warmup optimizer update followed by two measured updates, with two accumulated
-microbatches per update. C always adds sequential masked-view NLL at full weight.
+one warmup optimizer update followed by two measured updates. Accumulation and
+frozen/joint training stage are explicit; C adds masked-view NLL only when joint.
 This execution benchmark writes metrics/logs only, never training checkpoints.
 """
 from __future__ import annotations
@@ -36,6 +36,11 @@ def write_json(path, value):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variant", choices=list(VARIANTS), required=True)
+    parser.add_argument("--vit-size", choices=["small", "base", "large"], default="small")
+    parser.add_argument("--decoder-type", choices=["mask2former", "upernet"], default="mask2former")
+    parser.add_argument("--training-stage", choices=["frozen", "joint"], default="joint")
+    parser.add_argument("--accumulation", type=int, default=2,
+                        help="Microbatches per AdamW update; use 1 for the current B/L comparison")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--batch-sizes", nargs="+", type=int, default=[1, 2, 4, 8])
     parser.add_argument("--manifest", default=MANIFEST)
@@ -47,9 +52,13 @@ def parse_args(argv=None):
     parser.add_argument("--_worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--_batch-size", type=int, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.selection_manifest.lower() in ("none", "null", ""):
+        args.selection_manifest = None
     if (not args.batch_sizes or any(b < 1 for b in args.batch_sizes)
             or len(set(args.batch_sizes)) != len(args.batch_sizes) or args.seed < 0):
         parser.error("Batch sizes must be unique positive integers; seed must be nonnegative")
+    if args.accumulation < 1:
+        parser.error("Accumulation must be a positive integer")
     if not args.device.startswith("cuda"):
         parser.error("This benchmark measures actual CUDA training memory")
     if args._worker and (args._batch_size is None or args._batch_size < 1):
@@ -62,8 +71,41 @@ def _keys(batch):
             zip(batch["scene"], batch["sample_id"], batch["source_id"])]
 
 
-def accumulated_update(model, criterion, optimizer, batches, device, update, masked=False):
-    """Two real backward graphs accumulate before clipping and AdamW.step."""
+def parameter_component(name):
+    return "vit" if name.startswith("encoder.vit.") else "convnext" if name.startswith("encoder.convnext.") else "head"
+
+
+def gradient_and_update_probes(model, frozen):
+    """Audit live gradients and keep one small, nonzero-gradient update probe per component."""
+    import torch
+    groups = {key: {"parameters_with_gradient": 0, "norms": []} for key in ("vit", "convnext", "head")}
+    probes = {}
+    for name, parameter in model.named_parameters():
+        key = parameter_component(name)
+        if parameter.grad is None:
+            continue
+        if not parameter.requires_grad or (frozen and key != "head"):
+            raise RuntimeError(f"Frozen parameter unexpectedly received gradient: {name}")
+        groups[key]["parameters_with_gradient"] += 1
+        groups[key]["norms"].append(torch.linalg.vector_norm(parameter.grad.detach()))
+        # Snapshotting one scalar avoids changing the model's actual memory footprint.
+        if key not in probes:
+            flat_gradient = parameter.grad.detach().reshape(-1)
+            index = int(flat_gradient.abs().argmax())
+            if float(flat_gradient[index].abs()) > 0:
+                probes[key] = (name, parameter, index, parameter.detach().reshape(-1)[index].clone())
+    for key, row in groups.items():
+        norms = row.pop("norms")
+        norm = float(torch.linalg.vector_norm(torch.stack(norms))) if norms else 0.0
+        row.update(gradient_l2=norm, finite=bool(torch.isfinite(torch.tensor(norm))), nonzero=norm > 0)
+        expected = key == "head" or not frozen
+        if not row["finite"] or expected != row["nonzero"] or (expected and key not in probes):
+            raise RuntimeError(f"Unexpected {key} gradient audit: {row}")
+    return groups, probes
+
+
+def accumulated_update(model, criterion, optimizer, batches, device, update, masked=False, frozen=False):
+    """Full real-image loss and accumulated backward graphs precede each AdamW update."""
     import torch
     from vitseg.masking import apply_block_mask, make_block_masks, masked_semantic_nll, prepare_masked_support
     from vitseg.metrics import autocast_context
@@ -106,13 +148,22 @@ def accumulated_update(model, criterion, optimizer, batches, device, update, mas
         del images, target
     norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0, error_if_nonfinite=True)
     gradient_norm = float(norm)
+    # Audit only warmup so measured timings remain full training updates without inspection overhead.
+    groups, probes = gradient_and_update_probes(model, frozen) if update == 0 else (None, {})
     optimizer.step()
     if device.type == "cuda":
         torch.cuda.synchronize(device)
+    changes = {}
+    for key, (name, parameter, index, before) in probes.items():
+        delta = float((parameter.detach().reshape(-1)[index] - before).abs())
+        if delta == 0 or not bool(torch.isfinite(torch.tensor(delta))):
+            raise RuntimeError(f"AdamW did not change the {key} update probe: {name}")
+        changes[key] = {"parameter": name, "flat_index": index, "absolute_change": delta}
     return {"optimizer_update": update + 1, "microbatches": len(batches), "images_processed": images_in_window,
             "full_set_losses": base_losses, "masked_nll_losses": mask_losses,
             "gradient_norm_before_clip": gradient_norm, "finite_losses_and_gradients": True,
             "optimizer_step_completed": True, "seconds": time.monotonic() - start,
+            "component_gradient_audit": groups, "component_parameter_updates": changes or None,
             "masking_lambda": .5 if masked else 0.0, "hidden_weight_rho": .2 if masked else None,
             "masked_support_denominator": denominator if masked else None,
             "ignored_fully_hidden_component_counts": component_counts if masked else None}
@@ -126,7 +177,7 @@ def optimizer_state_summary(model, optimizer):
         state = optimizer.state.get(parameter, {})
         if not state:
             continue
-        key = "vit" if name.startswith("encoder.vit.") else "convnext" if name.startswith("encoder.convnext.") else "head"
+        key = parameter_component(name)
         groups[key]["parameters_with_state"] += 1
         groups[key]["state_tensor_bytes"] += sum(value.numel() * value.element_size()
                                                     for value in state.values() if torch.is_tensor(value))
@@ -144,15 +195,30 @@ def _memory(device):
             "reserved_bytes": torch.cuda.memory_reserved(device)}
 
 
+def cuda_device_uuid(logical_index):
+    """Resolve the device selected by CUDA, including CUDA_VISIBLE_DEVICES remapping."""
+    import ctypes
+    import uuid
+    driver = ctypes.CDLL("libcuda.so.1")
+    device = ctypes.c_int()
+    if driver.cuDeviceGet(ctypes.byref(device), ctypes.c_int(logical_index)) != 0:
+        raise RuntimeError("CUDA driver could not identify the selected device")
+    data = (ctypes.c_ubyte * 16)()
+    getter = getattr(driver, "cuDeviceGetUuid_v2", driver.cuDeviceGetUuid)
+    if getter(ctypes.byref(data), device) != 0:
+        raise RuntimeError("CUDA driver could not return the selected device UUID")
+    return "GPU-" + str(uuid.UUID(bytes=bytes(data)))
+
+
 def include_full_run_peaks(result):
     """Keep warmup/workspace peaks as well as warmed-state measured peaks."""
-    snapshots = [result, result.get("warmup", {}), *result.get("updates", [])]
+    snapshots = [result, result.get("setup_memory", {}), result.get("warmup", {}), *result.get("updates", [])]
     for kind in ("allocated", "reserved"):
         values = [row.get(f"peak_{kind}_bytes") for row in snapshots]
         values = [value for value in values if isinstance(value, int)]
         result[f"full_run_peak_{kind}_bytes"] = max(values) if values else None
     result["peak_definition"] = ("peak_allocated/reserved report the warmed measured updates; "
-                                  "full_run_peak includes the warmup and all measured updates")
+                                  "full_run_peak includes CUDA model setup, first AdamW state allocation, warmup audits, and all measured updates")
     return result
 
 
@@ -166,9 +232,13 @@ def worker(args):
     from vitseg.model import ModelConfig, build_model
 
     variant, masked = VARIANTS[args.variant]
+    frozen = args.training_stage == "frozen"
+    masked = masked and not frozen
     result = {"status": "running", "variant": args.variant, "model_variant": variant,
-              "batch_size": args._batch_size, "accumulation": 2, "effective_batch": args._batch_size * 2,
-              "input_size": 1024, "phase": "setup", "training_stage": "joint_all_backbones_trainable",
+              "vit_size": args.vit_size, "decoder_type": args.decoder_type,
+              "batch_size": args._batch_size, "accumulation": args.accumulation,
+              "effective_batch": args._batch_size * args.accumulation,
+              "input_size": 1024, "phase": "setup", "training_stage": args.training_stage,
               "warmup_updates": 1, "measured_updates": 2, "masking_forced_every_update": masked,
               "amp": "bf16", "gradient_checkpointing": True, "device": args.device,
               "pid": os.getpid(), "torch_version": torch.__version__,
@@ -180,6 +250,7 @@ def worker(args):
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA is unavailable")
         torch.cuda.set_device(device)
+        torch.cuda.reset_peak_memory_stats(device)
         if not torch.cuda.is_bf16_supported():
             raise RuntimeError("Selected GPU does not support BF16")
         random.seed(args.seed); np.random.seed(args.seed)
@@ -188,41 +259,68 @@ def worker(args):
         free, total = torch.cuda.mem_get_info(device)
         result["device_info"] = {"name": properties.name, "total_memory_bytes": properties.total_memory,
             "compute_capability": [properties.major, properties.minor], "free_before_model_bytes": free,
+            "uuid": cuda_device_uuid(torch.cuda.current_device()),
+            "logical_device_index": torch.cuda.current_device(),
+            "cuda_device_order": os.environ.get("CUDA_DEVICE_ORDER"),
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"), "cuda_runtime": torch.version.cuda}
-        dataset = LunarDataset(args.manifest, "train", 1024, horizontal_flip=False,
+        document = json.loads(Path(args.manifest).read_text())
+        dataset_type = LunarDataset
+        if document.get("schema") == "lusnar_all_sources_hardval_v1":
+            from hardval_data import HardValidationDataset
+            dataset_type = HardValidationDataset
+        dataset = dataset_type(args.manifest, "train", 1024, horizontal_flip=False,
                                selection_manifest=args.selection_manifest)
-        if len(dataset) < args._batch_size * 2:
-            raise ValueError("Not enough distinct real training samples for two microbatches")
+        sample_count = args._batch_size * args.accumulation
+        if len(dataset) < sample_count:
+            raise ValueError("Not enough distinct real training samples for the accumulation window")
         batches = [default_collate([dataset[i] for i in range(start, start + args._batch_size)])
-                   for start in (0, args._batch_size)]
+                   for start in range(0, sample_count, args._batch_size)]
         result.update(data_identity=dataset.identity, sample_keys=[key for batch in batches for key in _keys(batch)],
-            unique_real_training_samples=args._batch_size * 2,
+            unique_real_training_samples=sample_count,
             gt_class_ids=sorted(set(int(c) for batch in batches for c in batch["mask"].unique().tolist())),
-            sample_reuse="Same two distinct microbatches are reused for the warmup and two measurement updates",
+            sample_reuse="Same distinct accumulation window is reused for the warmup and two measurement updates",
             horizontal_flip=False)
-        config = ModelConfig(variant=variant, input_size=1024, gradient_checkpointing=True, weight_dir=args.weight_dir)
+        adapter_dim, adapter_heads = ((384, 6) if variant == "fusion" else
+                                      {"small": (384, 6), "base": (768, 12), "large": (1024, 16)}[args.vit_size])
+        config = ModelConfig(variant=variant, vit_size=args.vit_size, input_size=1024,
+                             adapter_dim=adapter_dim, adapter_heads=adapter_heads,
+                             gradient_checkpointing=True, weight_dir=args.weight_dir, decoder_type=args.decoder_type)
         model = build_model(config, pretrained=True).to(device)
-        model.train(); model.freeze_backbones(False); model.set_gradient_checkpointing(True)
-        if not all(parameter.requires_grad for parameter in model.parameters()):
-            raise RuntimeError("Joint benchmark unexpectedly contains frozen parameters")
-        result.update(model_config=config.to_dict(), pretrained_report=model.pretrained_report)
+        model.train(); model.freeze_backbones(frozen); model.set_gradient_checkpointing(True)
+        for name, parameter in model.named_parameters():
+            expected = parameter_component(name) == "head" or not frozen
+            if parameter.requires_grad != expected:
+                raise RuntimeError(f"Unexpected requires_grad state for {name}")
+        counts = {key: {"total": 0, "trainable": 0} for key in ("vit", "convnext", "head")}
+        for name, parameter in model.named_parameters():
+            row = counts[parameter_component(name)]
+            row["total"] += parameter.numel()
+            row["trainable"] += parameter.numel() if parameter.requires_grad else 0
+        result.update(model_config=config.to_dict(), pretrained_report=model.pretrained_report,
+                      parameter_counts=counts, total_parameters=sum(row["total"] for row in counts.values()),
+                      trainable_parameters=sum(row["trainable"] for row in counts.values()))
         criterion = Mask2FormerCriterion(num_points=4096, class_weight=2., mask_weight=5., dice_weight=5.,
                                          no_object_weight=.1).to(device)
+        if args.decoder_type == 'upernet':
+            from vitseg.upernet import PixelCrossEntropyCriterion
+            criterion = PixelCrossEntropyCriterion(auxiliary_weight=.4).to(device)
         optimizer = torch.optim.AdamW([{"params": list(model.head_parameters()), "lr": 1e-4},
                                       {"params": list(model.backbone_parameters()), "lr": 5e-6}], weight_decay=.01)
+        result["setup_memory"] = _memory(device)
         torch.cuda.synchronize(device); torch.cuda.reset_peak_memory_stats(device)
         result["phase"] = "warmup"
-        result["warmup"] = accumulated_update(model, criterion, optimizer, batches, device, 0, masked)
+        result["warmup"] = accumulated_update(model, criterion, optimizer, batches, device, 0, masked, frozen)
         result["warmup"].update(_memory(device))
         state = optimizer_state_summary(model, optimizer)
-        if any(value["parameters_with_state"] == 0 for value in state["components"].values()):
-            raise RuntimeError("AdamW warmup did not create states for both backbones and the head")
+        for key, value in state["components"].items():
+            if (value["parameters_with_state"] > 0) != (key == "head" or not frozen):
+                raise RuntimeError(f"AdamW state disagrees with the selected training stage: {key}")
         result["warmed_optimizer_state"] = state
         result["updates"] = []
         for update in (1, 2):
             torch.cuda.synchronize(device); torch.cuda.reset_peak_memory_stats(device)
             result["phase"] = f"measured_update_{update}"
-            row = accumulated_update(model, criterion, optimizer, batches, device, update, masked)
+            row = accumulated_update(model, criterion, optimizer, batches, device, update, masked, frozen)
             row.update(_memory(device)); result["updates"].append(row)
         state = optimizer_state_summary(model, optimizer)
         if state["minimum_parameter_step"] != 3 or state["maximum_parameter_step"] != 3:
@@ -254,8 +352,11 @@ def main(argv=None):
     folder = output.parent / (output.stem + "_cases")
     folder.mkdir(parents=True, exist_ok=True)
     result = {"schema": "fenge_vit_training_memory_v1", "variant": args.variant, "device": args.device,
-              "scope": "Actual1024 pretrained full32-query6+6 BF16 checkpointed training with warmed AdamW; no formal training/checkpoints",
-              "comparison": "Different actual batches use two accumulated microbatches each; effective batch is therefore2xactual and is not a controlled accuracy comparison",
+              "vit_size": args.vit_size, "decoder_type": args.decoder_type,
+              "training_stage": args.training_stage, "accumulation": args.accumulation,
+              "scope": "Actual1024 pretrained BF16 checkpointed training with warmed AdamW; configured decoder; no formal training/checkpoints",
+              "comparison": "Different actual batches use the specified accumulation; this measures memory and throughput, not segmentation accuracy",
+              "limitations": "One CUDA device, no distributed gradient buckets/communication, no validation/TTA; short real-sample window rather than worst-case data-loader run",
               "benchmark_completed": False, "cases": []}
     for batch in args.batch_sizes:
         case_output, log = folder / f"batch_{batch}.json", folder / f"batch_{batch}.log"
@@ -266,7 +367,10 @@ def main(argv=None):
             case_output.unlink()
         command = [sys.executable, "-B", "-u", str(Path(__file__).resolve()), "--_worker", "--variant", args.variant,
                    "--device", args.device, "--_batch-size", str(batch), "--manifest", args.manifest,
-                   "--selection-manifest", args.selection_manifest, "--weight-dir", args.weight_dir,
+                   "--vit-size", args.vit_size, "--training-stage", args.training_stage,
+                   "--decoder-type", args.decoder_type,
+                   "--accumulation", str(args.accumulation),
+                   "--selection-manifest", args.selection_manifest or "none", "--weight-dir", args.weight_dir,
                    "--seed", str(args.seed), "--output", str(case_output)]
         environment = {**os.environ, "OMP_NUM_THREADS": "2", "MKL_NUM_THREADS": "2", "OPENBLAS_NUM_THREADS": "2"}
         with log.open("w") as stream:

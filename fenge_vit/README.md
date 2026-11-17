@@ -1,6 +1,37 @@
-# LuSNAR：DINOv3 ViT-L＋ConvNeXt-Tiny＋Mask2Former
+# LuSNAR：DINOv3 ViT-L＋ConvNeXt-Tiny，Mask2Former／UPerNet
 
-## 当前A-L／B-L／C-L结果（2026-11-15）
+## 最新结果与进度（2026-11-17）
+
+快照时间：2026-11-17T15:56:13+08:00。下表各行均采用 **1024＋水平翻转**，由完整三个场景的整数混淆矩阵复算。
+
+|方案|实际权重轮次|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权 S|
+|---|---:|---:|---:|---:|---:|
+|[UPerNet，骨干5e-6](result/b_adapter_upernet_vit_large_random80_original6401_103_2gpu/periodic_test/epoch_015/test_hflip_1024_metrics.json)|14|95.3825%|96.1529%|91.9133%|**93.8405%**|
+|[UPerNet，骨干5e-6](result/b_adapter_upernet_vit_large_random80_original6401_103_2gpu/periodic_test/epoch_020/test_metrics.json)|20|95.4966%|96.3846%|91.5763%|**93.7585%**|
+|[UPerNet，骨干2e-6](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/periodic_test/epoch_005/test_metrics.json)|5|95.1797%|95.8072%|91.9826%|**93.7380%**|
+|[Mask2Former，骨干2e-6](result/b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu/periodic_test/epoch_020/test_metrics.json)|20|93.8135%|94.0150%|91.3975%|**92.6559%**|
+
+本轮6401／1601对照中的最高已测记录为 UPerNet 第14轮的 **93.8405%**，位于第15轮周期评测目录；最终验证 BEST 为第20轮，对应完整 S **93.7585%**。这里明确区分“已测最高”和“训练结束时的验证 BEST”。低学习率 UPerNet 目前仅有第5轮完整测试，不能据此判定它的最终上限。
+
+区域校正和细节修正均从原始 DINOv3 ViT-L＋ConvNeXt 预训练开始，是两组独立实验；刚完成第1轮验证，尚无完整2／4／9成绩。验证分数不能当作测试分数，也不能与完成20轮的基线直接判断模块收益。
+
+当前数据为 Moon_1／3／5／6／7／8 的 **6401 张原图训练＋1601 张固定验证**，不加离线增强。每轮按验证集累计混淆矩阵 mIoU 选 BEST，每5轮及训练结束后完整测试当时的验证 BEST；完成第20轮保存后停止，自动早停关闭，学习率仍沿用启动时的30轮 poly 计划。验证使用1024／768等权水平翻转，后续完整测试使用 **1024原图＋水平翻转（2视图）**。测试卡不足时保留快照排队。
+
+完整测试包含 Moon_2／4／9 的1597／1320／2087张，共5004张，`S=(mIoU_2+mIoU_4+2×mIoU_9)/4`。`weighted_score`是这个加权S；JSON中的`miou`是合并像素后的mIoU，二者不同。测试场景曾参与历史开发和方案选择，以下是已查看测试集上的开发结果。
+
+|训练中实验|位置|已完成轮次／目标|验证最佳 mIoU|最近完整轮平均 loss|
+|---|---|---:|---:|---:|
+|[UPerNet，骨干2e-6](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/summary.json)|本机 GPU 3／4|8／20|97.9599%（第8轮）|0.009313|
+|[UPerNet＋区域校正，骨干2e-6](result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 4／5|1／20|94.6639%（第1轮）|0.057023|
+|[UPerNet＋细节修正，骨干2e-6](result/b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 6／7|1／20|94.9791%（第1轮）|0.057609|
+
+本地低学习率 UPerNet 在第9轮读取NAS时发生I/O错误，已从完整第8轮恢复，改用逐文件SHA256核验的本地只读缓存；训练划分和样本身份不变。[恢复记录](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/resume_20261117T074423Z_local_cache/report_zh.md)。
+
+[完整结果与逐类别IoU](result/progress_analysis/github_update_20261117/report_zh.md) · [机器可读快照](result/progress_analysis/github_update_20261117/summary.json) · [两种校正头设计与检查](UPERNET_CORRECTION_EXPERIMENTS_20261117.md)
+
+以下历史快照的训练状态、候选计划和评测协议只代表记录当时；当前安排以上述2026-11-17快照为准。
+
+## 历史A-L／B-L／C-L结果（2026-11-15）
 
 完整Moon_2／4／9各1597／1320／2087张，共5004张；每组使用一个固定检查点评测三个场景。均采用1024＋768等权水平翻转TTA（4视图），按各场景整数混淆矩阵重算类别IoU，再计算 `S=(Moon_2 mIoU+Moon_4 mIoU+2×Moon_9 mIoU)/4`。`miou`是合并像素后的指标，排名使用`weighted_score`。
 
@@ -10,7 +41,7 @@
 |[C-L](result/c_adapter_masking_vit_large_pool8002_train6000_hardval1500_2gpu/periodic_test/epoch_005/test_metrics.json)|5|94.1251%|94.2988%|92.3193%|**93.2656%**|
 |[A-L](result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/periodic_test/epoch_005/test_metrics.json)|5|93.7111%|93.6431%|90.8608%|**92.2690%**|
 
-当前已按用户指定关闭早停，最多训练30轮，每5轮评测当轮权重；每组保留完整测试S最高的`best_full_test.pt`及最终`final.pt`，训练中`last.pt`用于断点恢复。初期困难1500验证已停用。完整2／4／9成绩直接参与选模，因此这些是本地开发集成绩，不作为未参与模型选择的独立留出结果。
+这些历史实验当时关闭早停，最多训练30轮，每5轮评测当轮权重；每组保留完整测试S最高的`best_full_test.pt`及最终`final.pt`，训练中`last.pt`用于断点恢复。初期困难1500验证已停用。完整2／4／9成绩直接参与选模，因此这些是本地开发集成绩，不作为未参与模型选择的独立留出结果。
 
 [完整分析、各类别precision／recall、逐轮数据及SHA来源](result/vitl_analysis_20261115/report_zh.md) · [CSV](result/vitl_analysis_20261115/metrics.csv) · [机器可读汇总](result/vitl_analysis_20261115/summary.json)
 
@@ -48,7 +79,7 @@ C-L前3轮冻结期不遮挡；解冻后约25%的优化器更新追加一个遮�
 
 各场景mIoU见上表；全部五类都在这三个完整场景的GT中出现。每图平均IoU、困难1500分数和合并像素mIoU均不替代加权S。
 
-## 当前训练与评测
+## 历史训练与评测（2026-11-15协议）
 
 同一6000训练清单：从Moon_1／3／5／6／7／8的8002张原图池选4000原图，再加1000坑增强、1000山岩增强。两卡每卡batch4、累积1，总batch8；原始预训练开始，30轮，前3轮冻结，骨干LR5e-6、新层LR1e-4，BF16与激活重计算。源码和数据身份绑定在各`run_config.json`。当前三组均已切换为`selection_policy=full_test_every5`、`early_stopping_patience=0`，每5轮完整评测在103物理GPU3串行执行。
 
@@ -261,4 +292,4 @@ python code/benchmark_memory.py --variant B --device cuda:0 \
 
 ## 本地工作区清理（2026-11-14）
 
-旧低分运行、调试权重、重复快照及其专用启动配置已清理；较好结果、必要对照、运行中的任务、数据和预训练权重保留。旧指标与配置见[清理记录](../fenge/result/retired_experiments/cleanup_20261114/README.md)。
+旧低分运行、调试权重、重复快照及其专用启动配置已清理；较好结果、必要对照、运行中的任务、数据和预训练权重保留。旧指标与配置的清理归档保留在实验服务器。

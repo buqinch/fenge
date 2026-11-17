@@ -108,6 +108,31 @@ def worker(rank, world, rendezvous, output):
                             timeout=datetime.timedelta(seconds=120))
     checks = []
     try:
+        # Dense CE must equal one global-batch objective even when one rank
+        # contains only ignore labels. This also tests both UPerNet heads.
+        from vitseg.upernet import PixelCrossEntropyCriterion
+        from torch.nn import functional as F
+        dense_target = torch.arange(world * 2 * 8 * 8).reshape(world * 2, 8, 8) % 5
+        dense_target[-2:] = 255
+        dense_criterion = PixelCrossEntropyCriterion(.4)
+        actual = nn.Parameter(torch.linspace(-.4, .5, 40).reshape(2, 5, 2, 2))
+        expected = nn.Parameter(actual.detach().clone())
+        def dense_output(parameter, count):
+            main = parameter[0][None].expand(count, -1, -1, -1)
+            auxiliary = parameter[1][None].expand(count, -1, -1, -1)
+            return {'pixel_logits': main, 'auxiliary_logits': auxiliary,
+                    'semantic_logits': F.interpolate(main, (8, 8), mode='bilinear', align_corners=False).log_softmax(1)}
+        result = distributed_set_loss(dense_output(actual, 2), dense_target[rank*2:(rank+1)*2], dense_criterion)
+        result['loss_total'].backward()
+        reduced = actual.grad.clone(); dist.all_reduce(reduced); reduced /= world
+        full = dense_output(expected, world*2)
+        oracle = F.nll_loss(full['semantic_logits'], dense_target, ignore_index=255)
+        oracle += .4 * F.cross_entropy(F.interpolate(full['auxiliary_logits'], (8, 8),
+                        mode='bilinear', align_corners=False), dense_target, ignore_index=255)
+        oracle.backward()
+        assert_close(reduced, expected.grad, 'UPerNet global valid-pixel CE gradient')
+        assert_close(reduce_sum(result['loss_total'].detach()) / world, oracle.detach(), 'UPerNet CE value')
+        checks.append({'name': 'upernet_dense_ce_global_pixel_denominator', 'passed': True})
         # A full batch with deliberately unequal class counts and an empty rank.
         targets = varied_targets(world)
         ids = torch.arange(len(targets))

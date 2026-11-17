@@ -22,11 +22,18 @@ import sys
 import tempfile
 import time
 
+from gpu_slots import acquire_gpu_slot, available as gpu_slot_available, evaluation_command
+from gpu_slots import acquire_gpu_group, group_available
+
 ROOT = Path(__file__).resolve().parents[1]
 SCENES = {'Moon_2': 1597, 'Moon_4': 1320, 'Moon_9': 2087}
 CLASSES = ('regolith', 'rock', 'crater', 'mountain', 'sky')
 DONE = {'complete', 'reused', 'failed', 'missed'}
 HARD_PROTOCOL = 'pool8002_train6000_hard1500_validation_v1'
+ORIGINAL_ONLY_TRAINING_PROTOCOL = 'pool8002_original_train8002_fulltest_v1'
+RESOURCE_SETTINGS = {'gpu_index', 'gpu_lock', 'minimum_free_mib',
+                     'max_concurrent_evaluations', 'poll_seconds', 'allowed_training_processes',
+                     'evaluation_memory_fraction', 'sharded_gpus'}
 
 
 def now():
@@ -117,9 +124,25 @@ def acquire_lock(path):
     return stream
 
 
+def inference_settings(mode):
+    if mode == 'hflip':
+        return {'tta': 'hflip', 'tta_sizes': None, 'tta_weights': None}
+    if mode == 'multiscale_hflip':
+        return {'tta': mode, 'tta_sizes': [1024, 768], 'tta_weights': [0.5, 0.5]}
+    raise ValueError('Evaluation TTA must be 1024 hflip or equal 1024/768 multiscale_hflip')
+
+
+def tta_arguments(protocol):
+    expected = inference_settings(protocol.get('tta'))
+    if any(protocol.get(k) != v for k, v in expected.items()):
+        raise ValueError('Unsupported immutable evaluation scale/weight settings')
+    if expected['tta'] == 'hflip':
+        return ['--tta', 'hflip']
+    return ['--tta', 'multiscale_hflip', '--tta-sizes', '1024', '768', '--tta-weights', '0.5', '0.5']
+
+
 def settings(config):
-    return {'split': 'test', 'tta': 'multiscale_hflip', 'tta_sizes': [1024, 768],
-            'tta_weights': [0.5, 0.5], 'amp': 'bf16',
+    return {'split': 'test', **inference_settings(config.get('evaluation_tta', 'multiscale_hflip')), 'amp': 'bf16',
             'batch_size': config.get('evaluation_batch_size', 4),
             'workers': config.get('evaluation_workers', 4),
             'test_manifest': config['test_manifest'],
@@ -144,6 +167,10 @@ def load_config(path):
         config.setdefault(key, default)
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError(key + ' must be a positive integer')
+    config.setdefault('max_concurrent_evaluations', 1)
+    if (type(config['max_concurrent_evaluations']) is not int
+            or config['max_concurrent_evaluations'] not in (1, 2)):
+        raise ValueError('max_concurrent_evaluations must be 1 or 2')
     for key in ('periodic_evaluation', 'final_evaluation'):
         config.setdefault(key, True)
         if type(config[key]) is not bool:
@@ -175,19 +202,9 @@ def gpu_available(config):
     if config.get('remote'):
         from remote_evaluate import probe_remote
         return probe_remote(config)
-    def query(arguments):
-        result = subprocess.run(['nvidia-smi', *arguments], check=True, capture_output=True,
-                                text=True, timeout=15)
-        return result.stdout.strip()
-    row = query(['--id=' + str(config['gpu_index']), '--query-gpu=uuid,memory.free',
-                 '--format=csv,noheader,nounits']).split(',')
-    uuid, free = row[0].strip(), int(row[1])
-    if free < config['minimum_free_mib']:
-        return False, f'GPU {config["gpu_index"]}: {free} MiB free', uuid
-    processes = query(['--query-compute-apps=gpu_uuid,pid', '--format=csv,noheader,nounits'])
-    if any(line.split(',')[0].strip() == uuid for line in processes.splitlines()):
-        return False, f'GPU {config["gpu_index"]} has another compute process', uuid
-    return True, f'GPU {config["gpu_index"]}: {free} MiB free', uuid
+    if config.get('sharded_gpus'):
+        return group_available(config)
+    return gpu_slot_available(config)
 
 
 def assert_close(a, b, description):
@@ -245,13 +262,24 @@ def committed_run(run):
 
 
 def committed_fulltest_run(run, summary, configuration):
-    if (configuration.get('protocol') != HARD_PROTOCOL
+    original_only = configuration.get('protocol') == ORIGINAL_ONLY_TRAINING_PROTOCOL
+    expected_train = 8002 if original_only else 6000
+    if (configuration.get('protocol') not in (HARD_PROTOCOL, ORIGINAL_ONLY_TRAINING_PROTOCOL)
             or configuration.get('early_stopping_patience') != 0
             or summary.get('format') != 'lusnar_vit_run_v1' or summary.get('partial') is not False
-            or summary.get('train_images') != 6000
-            or summary.get('data_identity', {}).get('train', {}).get('image_count') != 6000
+            or summary.get('train_images') != expected_train
+            or summary.get('data_identity', {}).get('train', {}).get('image_count') != expected_train
             or summary.get('data_identity', {}).get('val', {}).get('image_count') != 1500):
         raise ValueError('Expected full-budget training with explicit full-test selection')
+    if original_only:
+        from hardval_data import validate_original_only_identity
+        validate_original_only_identity(summary['data_identity']['train'])
+        if (summary.get('selection_policy') != 'full_test_every5'
+                or summary.get('early_stopping_enabled') is not False
+                or summary.get('hard_validation_enabled') is not False
+                or summary.get('checkpoint_selection_uses_test') is not True
+                or summary.get('official_test_used_for_selection') is not True):
+            raise ValueError('Original-only training must disable hard validation and disclose full-test selection')
     completed = summary.get('completed_epochs')
     if type(completed) is not int or not 1 <= completed <= configuration['epochs']:
         raise ValueError('Invalid completed epoch for full-test policy')
@@ -266,6 +294,15 @@ def committed_fulltest_run(run, summary, configuration):
         raise ValueError('Incomplete committed full-test history')
     if summary.get('status') == 'early_stopped':
         raise ValueError('Early stopping is disabled under full-test policy')
+    if original_only:
+        for row in rows.values():
+            if (row.get('selection_policy') != 'full_test_every5'
+                    or row.get('validation_performed') is not False
+                    or row.get('early_stopping_enabled') is not False
+                    or row.get('hard_validation_enabled') is not False
+                    or any(row.get(key) is not None for key in
+                           ('validation_miou', 'validation_weighted_score', 'best_epoch', 'best_miou', 'best_validation_score'))):
+                raise ValueError('Original-only history must contain no hard-validation selection')
     return summary, configuration, rows
 
 
@@ -348,14 +385,30 @@ def check_sources(configuration, source_root=None):
         path = (source_root / relative).resolve()
         if not path.is_relative_to(source_root / 'code') or sha256(path) != expected:
             raise ValueError('Training/evaluation source changed: ' + relative)
-    # An archived trainer is allowed, but actual inference must still use the
-    # exact model/data/loss implementation recorded by that trainer.
+    # Inference dispatch below uses this exact archived implementation. The
+    # mutable main project's model may now belong to a different experiment.
     if source_root != ROOT:
-        actual = {str(p.relative_to(ROOT)): sha256(p) for p in (ROOT / 'code/vitseg').glob('*.py')}
+        actual = {str(p.relative_to(source_root)): sha256(p) for p in (source_root / 'code/vitseg').glob('*.py')}
         expected = {p: digest for p, digest in sources.items()
                     if Path(p).parent == Path('code/vitseg') and p.endswith('.py')}
         if not actual or actual != expected:
-            raise ValueError('Actual evaluator vitseg sources differ from the checkpoint training sources')
+            raise ValueError('Archived evaluator vitseg sources differ from the checkpoint training sources')
+
+
+def training_source_for_run(run, configuration):
+    """Prefer an exact, confined runtime snapshot while the main code evolves."""
+    run = Path(run).resolve()
+    for name in ('runtime_fulltest', 'runtime'):
+        candidate = run / name
+        if not candidate.is_dir() or not candidate.resolve().is_relative_to(run):
+            continue
+        try:
+            check_sources(configuration, source_root=candidate)
+        except (ValueError, OSError):
+            continue
+        return str(candidate)
+    check_sources(configuration)
+    return None
 
 
 def job_training_configuration(job, trigger):
@@ -426,24 +479,43 @@ def validate_snapshot(saved, trigger, configuration, summary):
 
 def validate_metrics(document, trigger):
     hard = trigger.get('checkpoint_selection_uses_test') is True
+    original_only = trigger.get('protocol') == ORIGINAL_ONLY_TRAINING_PROTOCOL
+    if original_only and (not hard or trigger.get('selection_policy') != 'full_test_every5'):
+        raise ValueError('Original-only full test cannot be reported as independent validation')
     if hard:
-        if (trigger.get('protocol') != HARD_PROTOCOL
-                or document.get('protocol') != HARD_PROTOCOL
+        if (trigger.get('protocol') not in (HARD_PROTOCOL, ORIGINAL_ONLY_TRAINING_PROTOCOL)
+                or document.get('protocol') != trigger.get('protocol')
                 or document.get('checkpoint_selection_uses_test') is not True
                 or document.get('official_test_used_for_selection') is not True
                 or document.get('independent_holdout') is not False
                 or document.get('validation_images_included') != 1500
                 or document.get('full_test_coverage') is not True):
             raise ValueError('Full hard-validation test must disclose checkpoint selection overlap')
+    if original_only and (document.get('checkpoint_choice') != 'current_epoch'
+            or document.get('checkpoint_selection_metric') != 'weighted_score'
+            or document.get('hard_validation_executed') is not False
+            or document.get('hard_validation_role') != 'unused_interface_compatibility'):
+        raise ValueError('Original-only test must disclose current-epoch full-test selection without hard validation')
+    expected_scope = ('full5004_used_for_checkpoint_selection' if original_only else
+                      'full5004_including_selection_validation' if hard else 'complete_official_test')
     if (document.get('partial') is not False or document.get('checkpoint_partial_training') is not False
             or document.get('split') != 'test' or document.get('image_count') != 5004
             or document.get('validation_unique_source_count') != 5004
             or document.get('official_test_scope') is not (not hard)
-            or document.get('test_scope') != ('full5004_including_selection_validation' if hard else 'complete_official_test')
+            or document.get('test_scope') != expected_scope
             or document.get('checkpoint_sha256') != trigger['checkpoint_sha256']
             or document.get('checkpoint_epoch') != trigger['checkpoint_epoch']):
         raise ValueError('Incomplete test or wrong checkpoint provenance')
-    if (document.get('tta') != 'multiscale_hflip' or document.get('tta_sizes') != [1024, 768]
+    protocol = trigger['evaluation']
+    tta_arguments(protocol)
+    if protocol['tta'] == 'hflip':
+        if (document.get('tta') != 'hflip' or document.get('tta_mode') != 'hflip'
+                or document.get('tta_sizes') is not None or document.get('tta_weights') is not None
+                or document.get('model_config', {}).get('input_size') != 1024
+                or document.get('tta_views') != ['original', 'horizontal_flip']
+                or document.get('tta_forward_calls_per_batch') != 2):
+            raise ValueError('Test did not use native 1024 original plus horizontal-flip TTA')
+    elif (document.get('tta') != 'multiscale_hflip' or document.get('tta_sizes') != [1024, 768]
             or document.get('tta_input_sizes') != [1024, 768]
             or document.get('tta_scale_weights') != [0.5, 0.5]
             or document.get('tta_view_weights') != [0.25] * 4
@@ -662,7 +734,7 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
     row = rows[boundary]
     current_epoch = configuration.get('selection_policy') == 'full_test_every5'
     expected_epoch, expected_score = (boundary, None) if current_epoch else (row['best_epoch'], row['best_miou'])
-    hard = configuration.get('protocol') == HARD_PROTOCOL
+    hard = configuration.get('protocol') in (HARD_PROTOCOL, ORIGINAL_ONLY_TRAINING_PROTOCOL)
     if not current_epoch and (not hard or row['validation_performed']):
         validate_validation(read_json(run / f'validation_epoch_{boundary:03d}.json'), boundary,
                             row['validation_weighted_score' if hard else 'validation_miou'],
@@ -670,7 +742,7 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
     if not current_epoch:
         validate_validation(read_json(run / f'validation_epoch_{expected_epoch:03d}.json'), expected_epoch,
                             expected_score, summary['data_identity']['val'])
-    check_sources(configuration)
+    training_source_root = training_source_for_run(run, configuration)
     trigger = {'schema': 'vit_periodic_trigger_v1', 'run': str(run), 'trigger_epoch': boundary,
                'trigger_kind': ('final' if final else 'every_three_epochs' if config['every_epochs'] == 3
                                 else f'every_{config["every_epochs"]}_epochs'),
@@ -680,9 +752,11 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
                'validation_identity': summary['data_identity']['val'],
                'evaluation': config['evaluation'], 'checkpoint_selection_uses_test': hard}
     if hard:
-        trigger.update(protocol=HARD_PROTOCOL, best_metric='validation_weighted_score',
+        trigger.update(protocol=configuration['protocol'], best_metric='validation_weighted_score',
                        validation_best_score=expected_score, official_test_used_for_selection=True,
                        independent_holdout=False)
+    if training_source_root is not None:
+        trigger['training_source_root'] = training_source_root
     if current_epoch:
         trigger.update(selection_policy='full_test_every5', checkpoint_choice='current_epoch',
                        best_metric='weighted_score', validation_best_score=None,
@@ -740,11 +814,28 @@ def prepare_job(run, boundary, summary, configuration, rows, config, final=False
 
 
 def evaluator_command(config, job):
-    return [config['python'], '-u', str(ROOT / 'code/evaluate.py'), '--checkpoint', str(job / 'best.pt'),
+    trigger_path = job / 'trigger.json'
+    trigger = read_json(trigger_path) if trigger_path.exists() else {}
+    protocol = trigger['evaluation'] if trigger else settings(config)
+    if config.get('schema') == 'vit_remote_evaluation_v1':
+        runtime = job / 'runtime' if config.get('isolated_runtime') else ROOT
+    else:
+        runtime = Path(trigger.get('training_source_root', ROOT))
+    if sha256(runtime / 'code/evaluate.py') != protocol['evaluate_sha256']:
+        raise ValueError('Selected runtime evaluator differs from the pinned evaluation protocol')
+    if config.get('sharded_gpus'):
+        if protocol['tta'] != 'hflip':
+            raise ValueError('Sharded evaluator requires native horizontal-flip TTA')
+        command = [config['python'], '-u', str(ROOT / 'code/evaluate_sharded.py'),
+                   '--runtime', str(runtime), '--job', str(job), '--gpus', *map(str, config['sharded_gpus']),
+                   '--lock-root', str(Path(config['gpu_lock']).parent)]
+        if config.get('gpu_lock_fds'):
+            command += ['--gpu-lock-fds', *map(str, config['gpu_lock_fds'])]
+        return command
+    return [config['python'], '-u', str(runtime / 'code/evaluate.py'), '--checkpoint', str(job / 'best.pt'),
             '--split', 'test', '--test-manifest', config['test_manifest'], '--device', 'cuda:0',
             '--amp', 'bf16', '--batch-size', str(config.get('evaluation_batch_size', 4)),
-            '--workers', str(config.get('evaluation_workers', 4)), '--tta', 'multiscale_hflip',
-            '--tta-sizes', '1024', '768', '--tta-weights', '0.5', '0.5',
+            '--workers', str(config.get('evaluation_workers', 4)), *tta_arguments(protocol),
             '--output', str(job / 'test_metrics.json')]
 
 
@@ -755,16 +846,22 @@ def worker(job, probe=gpu_available):
     if job_lock is None:
         return 0
     gpu_lock = None
+    gpu_locks = []
     try:
         if read_json(job / 'status.json')['status'] in DONE:
             return 0
         launch = read_json(job / 'launch.json')
         config, trigger = launch['configuration'], read_json(job / 'trigger.json')
         if not config.get('remote'):
-            gpu_lock = acquire_lock(config['gpu_lock'])
-            if gpu_lock is None:
-                set_status(job, 'queued', waiting_reason='GPU evaluation lock is held')
+            if config.get('sharded_gpus'):
+                gpu_locks = acquire_gpu_group(config) or []
+            else:
+                gpu_lock = acquire_gpu_slot(config)
+                gpu_locks = [gpu_lock] if gpu_lock is not None else []
+            if not gpu_locks:
+                set_status(job, 'queued', waiting_reason='GPU evaluation slots or memory are unavailable')
                 return 0
+            config = {**config, 'gpu_lock_fds': [h.fileno() for h in gpu_locks]}
         # Reconnecting to an existing remote task must work while it owns the GPU.
         ready, reason, uuid = (True, 'Remote worker checks its shared GPU lock', None) if config.get('remote') else probe(config)
         if not ready:
@@ -773,7 +870,7 @@ def worker(job, probe=gpu_available):
         if sha256(job / 'best.pt') != trigger['checkpoint_sha256']:
             raise ValueError('Snapshot SHA changed before evaluation')
         job_training_configuration(job, trigger)
-        if settings(config) != trigger['evaluation']:
+        if settings({**config, 'evaluation_tta': trigger['evaluation']['tta']}) != trigger['evaluation']:
             raise ValueError('Evaluator source or test manifest changed after queueing')
         set_status(job, 'running', worker_identity=process_identity(os.getpid()),
                    started_at=now(), physical_gpu=config['gpu_index'], gpu_uuid=uuid)
@@ -790,9 +887,9 @@ def worker(job, probe=gpu_available):
             return 0
         environment = {**os.environ, 'CUDA_VISIBLE_DEVICES': uuid, 'PYTHONUNBUFFERED': '1'}
         with (job / 'test.log').open('a') as output:
-            child = subprocess.Popen(evaluator_command(config, job), cwd=ROOT, env=environment,
+            child = subprocess.Popen(evaluation_command(evaluator_command(config, job), config), cwd=ROOT, env=environment,
                 stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                pass_fds=(gpu_lock.fileno(), job_lock.fileno()))
+                pass_fds=tuple(h.fileno() for h in gpu_locks) + (job_lock.fileno(),))
             set_status(job, 'running', evaluator_identity=process_identity(child.pid))
             returncode = child.wait()
         if returncode:
@@ -804,8 +901,8 @@ def worker(job, probe=gpu_available):
         print(f'{now()} {job}: {error}', flush=True)
         return 1
     finally:
-        if gpu_lock is not None:
-            gpu_lock.close()
+        for handle in gpu_locks:
+            handle.close()
         job_lock.close()
 
 
@@ -817,12 +914,20 @@ class Monitor:
         saved = self.directory / 'configuration.json'
         if saved.exists() and read_json(saved) != config:
             previous = read_json(saved)
-            before = {k: v for k, v in previous.items() if k != 'retain_above_score'}
-            after = {k: v for k, v in config.items() if k != 'retain_above_score'}
+            def fixed_settings(value):
+                fixed = {k: v for k, v in value.items()
+                         if k not in RESOURCE_SETTINGS | {'retain_above_score'}}
+                if isinstance(fixed.get('remote'), dict):
+                    fixed['remote'] = {k: v for k, v in fixed['remote'].items() if k != 'gpu_lock'}
+                return fixed
+            before, after = fixed_settings(previous), fixed_settings(config)
             if before != after:
                 raise ValueError('Monitor configuration changed; use a different state directory')
             validate_retention_threshold(config.get('retain_above_score'))
-            write_json(self.directory / f'configuration_before_retention_{time.time_ns()}.json', previous)
+            retention_only = ({k: v for k, v in previous.items() if k != 'retain_above_score'}
+                              == {k: v for k, v in config.items() if k != 'retain_above_score'})
+            change = 'retention' if retention_only else 'resources'
+            write_json(self.directory / f'configuration_before_{change}_{time.time_ns()}.json', previous)
         write_json(saved, config)
         self.children = []
 
@@ -894,12 +999,14 @@ class Monitor:
                     'threshold': self.config.get('retain_above_score'),
                     'count': len(milestones), 'records': milestones})
         waiting = None
-        if pending and not active:
+        active_runs = {job.parent.parent for job in active}
+        schedulable = [job for job in pending if job.parent.parent not in active_runs]
+        if schedulable and len(active) < self.config.get('max_concurrent_evaluations', 1):
             try:
-                reconnect = [job for job in pending if self.config.get('remote') and (job / 'remote_spec.json').exists()]
+                reconnect = [job for job in schedulable if self.config.get('remote') and (job / 'remote_spec.json').exists()]
                 ready, waiting, _ = (True, 'Reconnect to existing remote task', None) if reconnect else gpu_available(self.config)
                 if ready:
-                    job = min(reconnect or pending, key=lambda p: (read_json(p / 'trigger.json')['trigger_epoch'], str(p)))
+                    job = min(reconnect or schedulable, key=lambda p: (read_json(p / 'trigger.json')['trigger_epoch'], str(p)))
                     launch = {'created_at': now(), 'configuration': self.config,
                               'command': evaluator_command(self.config, job), 'host': socket.gethostname()}
                     if self.config.get('remote'):

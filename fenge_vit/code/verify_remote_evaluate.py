@@ -50,6 +50,24 @@ class RemoteEvaluationFixtures(unittest.TestCase):
         shutil.copyfile(self.job / 'best.pt', job / 'best.pt')
         return job
 
+    def test_isolated_runtime_survives_main_model_updates(self):
+        archived = self.run / 'runtime'
+        shutil.copytree(self.root / 'code', archived / 'code')
+        self.trigger['training_source_root'] = str(archived)
+        m.write_json(self.job / 'trigger.json', self.trigger)
+        spec = r.prepare_spec(self.config, self.job, self.trigger)
+        self.assertTrue(spec['isolated_runtime'])
+        job = Path(r.remote_job_path(self.config, self.job))
+        r.prepare_remote(job, spec)
+        shutil.copytree(archived / 'code', job / 'runtime/code')
+        shutil.copyfile(self.job / 'best.pt', job / 'best.pt')
+        (self.root / 'code/vitseg/data.py').write_text('# newer incompatible main model\n')
+        m.write_json(job / 'fixture_metrics.json', self.fixture.metrics(self.trigger))
+        self.assertEqual(r.remote_worker(job, probe=lambda _: (True, 'fixture free', 'uuid')), 0)
+        self.assertEqual(m.read_json(job / 'remote_execution.json')['status'], 'complete')
+        command = m.evaluator_command(spec, job)
+        self.assertIn(str(job / 'runtime/code/evaluate.py'), command)
+
 
     def test_remote_reconnect_is_scheduled_even_when_gpu_is_busy(self):
         m.write_json(self.job / 'remote_spec.json', {'fixture': 'already submitted'})
@@ -121,7 +139,48 @@ class RemoteEvaluationFixtures(unittest.TestCase):
              patch.object(r, 'local_gpu_probe', side_effect=AssertionError('Local GPU must not be queried')):
             self.assertEqual(m.gpu_available(self.config), (False, 'remote busy', 'remote-uuid'))
         self.assertEqual(ssh.call_args.args[1], ['--probe'])
-        self.assertEqual(ssh.call_args.args[2], {'gpu_index': 3, 'minimum_free_mib': 10000})
+        self.assertEqual(ssh.call_args.args[2], {'gpu_index': 3, 'minimum_free_mib': 10000,
+            'gpu_lock': self.config['remote']['gpu_lock'], 'max_concurrent_evaluations': 1})
+
+    def test_two_slot_remote_probe_and_spec_use_remote_shared_lock(self):
+        self.config['max_concurrent_evaluations'] = 2
+        with patch.object(r, '_ssh', return_value={'ready': True, 'reason': 'slot1', 'gpu_uuid': 'uuid'}) as ssh:
+            self.assertEqual(r.probe_remote(self.config), (True, 'slot1', 'uuid'))
+        payload = ssh.call_args.args[2]
+        self.assertEqual(payload['max_concurrent_evaluations'], 2)
+        self.assertEqual(payload['gpu_lock'], self.config['remote']['gpu_lock'])
+        spec = r.prepare_spec(self.config, self.job, self.trigger)
+        self.assertEqual(spec['max_concurrent_evaluations'], 2)
+        self.assertEqual(spec['gpu_lock'], self.config['remote']['gpu_lock'])
+
+    def test_legacy_single_slot_spec_is_recognized_without_rewriting(self):
+        job = self.remote_job()
+        path = job / 'spec.json'
+        spec = m.read_json(path)
+        spec.pop('max_concurrent_evaluations', None)
+        spec['remote_executor_sha256'] = next(iter(r.LEGACY_SINGLE_SLOT_EXECUTORS))
+        m.write_json(path, spec)
+        before = path.read_bytes()
+        self.assertEqual(r._spec(job), spec)
+        self.assertEqual(path.read_bytes(), before)
+        spec['max_concurrent_evaluations'] = 2
+        m.write_json(path, spec)
+        with self.assertRaisesRegex(ValueError, 'executor source differs'):
+            r._spec(job)
+
+    def test_remote_worker_inherits_selected_slot1_descriptor(self):
+        self.config['max_concurrent_evaluations'] = 2
+        job = self.remote_job()
+        m.write_json(job / 'fixture_metrics.json', self.fixture.metrics(self.trigger))
+        handle = m.acquire_lock(self.config['remote']['gpu_lock'] + '.slot1')
+        descriptor = handle.fileno()
+        original_popen = r.subprocess.Popen
+        with patch.object(m, 'acquire_gpu_slot', return_value=handle) as acquire, \
+             patch.object(r.subprocess, 'Popen', wraps=original_popen) as spawn:
+            self.assertEqual(r.remote_worker(job, probe=lambda _: (True, 'fixture slot1', 'uuid')), 0)
+        self.assertEqual(acquire.call_args.args[0]['max_concurrent_evaluations'], 2)
+        self.assertIn(descriptor, spawn.call_args.kwargs['pass_fds'])
+        self.assertTrue(handle.closed)
 
     def test_ssh_command_quotes_remote_paths_as_single_arguments(self):
         config = copy.deepcopy(self.config)

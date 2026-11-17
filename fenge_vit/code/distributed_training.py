@@ -7,13 +7,15 @@ parameters unused by the masked semantic branch without reducer hook ambiguity.
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
+import hashlib
+import json
 
 import numpy as np
 import torch
 import torch.distributed as dist
 from torch.nn import functional as F
-from torch.utils.data import Sampler
+from torch.utils.data import Sampler, DistributedSampler
 
 from vitseg.metrics import (ConfusionMatrix, autocast_context, predict_semantic_scores,
                             tta_metadata, _complete_official_test)
@@ -91,6 +93,28 @@ class NoPaddingShardSampler(Sampler):
         return len(range(self.rank, len(self.dataset), self.world_size))
 
 
+def audit_padded_sampler(dataset, seed, epoch, world, batch_size):
+    """Expose every unique training image and record deterministic tail padding."""
+    shards = []
+    for rank in range(world):
+        sampler = DistributedSampler(dataset, num_replicas=world, rank=rank,
+            shuffle=True, seed=seed, drop_last=False)
+        sampler.set_epoch(epoch)
+        shards.append(list(sampler))
+    counts = Counter(index for shard in shards for index in shard)
+    if set(counts) != set(range(len(dataset))) or len({len(x) for x in shards}) != 1:
+        raise ValueError('Training sampler omitted images or has unequal rank lengths')
+    return {'epoch': epoch, 'seed': seed, 'world_size': world,
+        'unique_training_images': len(dataset), 'training_exposures': sum(counts.values()),
+        'padding_exposures': sum(counts.values()) - len(dataset), 'omitted_images': 0,
+        'repeated_samples': [{'index': i, 'source_id': dataset.records[i]['source_id'],
+            'sample_id': dataset.records[i]['sample_id'], 'exposures': n}
+            for i, n in sorted(counts.items()) if n > 1],
+        'images_per_rank': [len(x) for x in shards],
+        'microbatches_per_rank': [math.ceil(len(x) / batch_size) for x in shards],
+        'ordered_indices_sha256_per_rank': [hashlib.sha256(json.dumps(x).encode()).hexdigest() for x in shards]}
+
+
 def distributed_set_loss(outputs, targets, criterion):
     """Global Mask2Former objective under averaged gradient synchronization.
 
@@ -102,6 +126,11 @@ def distributed_set_loss(outputs, targets, criterion):
     and the averaged parameter gradients equal the global microbatch objective.
     """
     losses = criterion(outputs, targets)
+    if 'pixel_logits' in outputs:
+        local_count = (targets != criterion.ignore_index).sum()
+        total_count = reduce_sum(local_count)
+        scale = world_info()[1] * local_count / total_count.clamp_min(1)
+        return {key: value * scale for key, value in losses.items()}
     world = world_info()[1]
     queries = outputs['pred_logits'].shape[1]
     valid_images = 0

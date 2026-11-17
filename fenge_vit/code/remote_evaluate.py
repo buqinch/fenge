@@ -22,7 +22,14 @@ import time
 import periodic_evaluate as periodic
 
 ROOT = Path(__file__).resolve().parents[1]
-TRANSPORT_FILES = ('test.log', 'test_metrics.json', 'remote_execution.json', 'remote_worker.log')
+TRANSPORT_FILES = ('test.log', 'test_metrics.json', 'remote_execution.json', 'remote_worker.log',
+                   'sharded_status.json', 'shard_0.log', 'shard_1.log',
+                   'shard_0_metrics.json', 'shard_1_metrics.json')
+# Preserve the immutable specifications already deployed before GPU slot support.
+# This exact release used one slot; arbitrary or modified executors remain rejected.
+LEGACY_SINGLE_SLOT_EXECUTORS = {
+    '8ad7150c0f5bb91f8a2dd5b6d6d4dca24bf322d16a1483d3b0259e8c5dbee707',
+}
 
 
 def validate_remote(config):
@@ -61,22 +68,19 @@ def _ssh(config, arguments, payload=None):
 
 
 def local_gpu_probe(config):
-    def query(arguments):
-        return subprocess.run(['nvidia-smi', *arguments], check=True, capture_output=True,
-                              text=True, timeout=15).stdout.strip()
-    row = query(['--id=' + str(config['gpu_index']), '--query-gpu=uuid,memory.free',
-                 '--format=csv,noheader,nounits']).split(',')
-    uuid, free = row[0].strip(), int(row[1])
-    if free < config['minimum_free_mib']:
-        return False, f'GPU {config["gpu_index"]}: {free} MiB free', uuid
-    processes = query(['--query-compute-apps=gpu_uuid,pid', '--format=csv,noheader,nounits'])
-    if any(line.split(',')[0].strip() == uuid for line in processes.splitlines()):
-        return False, f'GPU {config["gpu_index"]} has another compute process', uuid
-    return True, f'GPU {config["gpu_index"]}: {free} MiB free', uuid
+    if config.get('sharded_gpus'):
+        return periodic.group_available(config)
+    return periodic.gpu_slot_available(config)
 
 
 def probe_remote(config):
-    result = _ssh(config, ['--probe'], {key: config[key] for key in ('gpu_index', 'minimum_free_mib')})
+    remote = validate_remote(config)
+    payload = {key: config[key] for key in ('gpu_index', 'minimum_free_mib')}
+    payload.update(gpu_lock=remote['gpu_lock'],
+                   max_concurrent_evaluations=config.get('max_concurrent_evaluations', 1))
+    if config.get('sharded_gpus'):
+        payload['sharded_gpus'] = config['sharded_gpus']
+    result = _ssh(config, ['--probe'], payload)
     return result['ready'], result['reason'], result['gpu_uuid']
 
 
@@ -99,18 +103,26 @@ def prepare_spec(config, job, trigger):
     training = periodic.read_json(Path(trigger['run']) / 'run_config.json')
     if periodic.fingerprint(training) != trigger['configuration_sha256']:
         raise ValueError('Training configuration changed before remote transfer')
-    periodic.check_sources(training)
+    periodic.check_sources(training, source_root=trigger.get('training_source_root'))
     if periodic.settings(config) != trigger['evaluation']:
         raise ValueError('Evaluation source or manifest changed before remote transfer')
-    return {'schema': 'vit_remote_evaluation_v1', 'remote_project': remote['project'],
+    spec = {'schema': 'vit_remote_evaluation_v1', 'remote_project': remote['project'],
             'python': remote['python'], 'gpu_index': config['gpu_index'],
             'minimum_free_mib': config['minimum_free_mib'], 'gpu_lock': remote['gpu_lock'],
+            'max_concurrent_evaluations': config.get('max_concurrent_evaluations', 1),
             'evaluation_batch_size': config.get('evaluation_batch_size', 4),
             'evaluation_workers': config.get('evaluation_workers', 4),
             'test_manifest': config['test_manifest'], 'training_configuration': training,
             'trigger': trigger, 'evaluation': trigger['evaluation'],
             'remote_executor_sha256': periodic.sha256(Path(__file__)),
             'retain_above_score': config.get('retain_above_score')}
+    spec['evaluation_tta'] = trigger['evaluation']['tta']
+    if trigger.get('training_source_root'):
+        spec['isolated_runtime'] = True
+    if config.get('sharded_gpus'):
+        spec['sharded_gpus'] = config['sharded_gpus']
+        spec['sharded_executor_sha256'] = periodic.sha256(Path(__file__).with_name('evaluate_sharded.py'))
+    return spec
 
 
 def _rsync(config, source, destination):
@@ -134,12 +146,29 @@ def run_remote(config, job, trigger):
     destination = remote_job_path(config, job)
     spec = prepare_spec(config, job, trigger)
     spec_path = job / 'remote_spec.json'
-    if spec_path.exists() and periodic.read_json(spec_path) != spec:
-        raise ValueError('Remote job specification changed after selection')
-    periodic.write_json(spec_path, spec)
+    if spec_path.exists():
+        previous = periodic.read_json(spec_path)
+        # A scheduler upgrade may reconnect to a running/complete legacy worker,
+        # but must not rewrite that worker's immutable spec or inference settings.
+        resource_keys = {'gpu_index', 'gpu_lock', 'minimum_free_mib',
+                         'max_concurrent_evaluations', 'remote_executor_sha256'}
+        if ({k: v for k, v in previous.items() if k not in resource_keys}
+                != {k: v for k, v in spec.items() if k not in resource_keys}):
+            raise ValueError('Remote job specification changed after selection')
+        old_executor = previous.get('remote_executor_sha256')
+        if (old_executor != spec['remote_executor_sha256']
+                and not (old_executor in LEGACY_SINGLE_SLOT_EXECUTORS
+                         and previous.get('max_concurrent_evaluations', 1) == 1)):
+            raise ValueError('Existing remote executor is not a recognized compatible release')
+        spec = previous
+    else:
+        periodic.write_json(spec_path, spec)
     try:
         state = _ssh(config, ['--prepare', destination], spec)
         if state.get('status') not in ('running', 'launching', 'complete', 'failed'):
+            if spec.get('isolated_runtime'):
+                _rsync(config, Path(trigger['training_source_root']) / 'code',
+                       remote['host'] + ':' + str(destination / 'runtime') + '/')
             # rsync publishes by rename; the evaluator never reads a partial transfer.
             _rsync(config, job / 'best.pt', remote['host'] + ':' + str(destination / 'best.pt'))
         state = _ssh(config, ['--ensure', destination])
@@ -197,7 +226,9 @@ def _spec(job):
     spec = periodic.read_json(job / 'spec.json')
     if spec.get('schema') != 'vit_remote_evaluation_v1' or Path(spec['remote_project']).resolve() != ROOT:
         raise ValueError('Wrong remote project or job schema')
-    if spec['remote_executor_sha256'] != periodic.sha256(Path(__file__)):
+    compatible_legacy = (spec.get('remote_executor_sha256') in LEGACY_SINGLE_SLOT_EXECUTORS
+                         and spec.get('max_concurrent_evaluations', 1) == 1)
+    if spec['remote_executor_sha256'] != periodic.sha256(Path(__file__)) and not compatible_legacy:
         raise ValueError('Remote executor source differs from the submitting host')
     if periodic.fingerprint(spec['training_configuration']) != spec['trigger']['configuration_sha256']:
         raise ValueError('Remote training configuration fingerprint mismatch')
@@ -215,6 +246,11 @@ def prepare_remote(job, spec):
         if path.exists() and periodic.read_json(path) != spec:
             raise ValueError('Refusing to replace an existing remote job specification')
         periodic.write_json(path, spec)
+        if spec.get('isolated_runtime'):
+            (job / 'runtime').mkdir(exist_ok=True)
+        if spec.get('sharded_gpus'):
+            periodic.write_json(job / 'trigger.json', spec['trigger'])
+            periodic.write_json(job / 'training_configuration.json', spec['training_configuration'])
         _spec(job)
         return _state(job)
     finally:
@@ -286,6 +322,7 @@ def remote_worker(job, probe=None):
     if worker_lock is None:
         return 0
     gpu_lock = None
+    gpu_locks = []
     try:
         spec = _spec(job)
         if _state(job)['status'] == 'complete':
@@ -294,12 +331,19 @@ def remote_worker(job, probe=None):
                    stage='checking_snapshot_and_sources', started_at=periodic.now())
         if periodic.sha256(job / 'best.pt') != spec['trigger']['checkpoint_sha256']:
             raise ValueError('Remote checkpoint SHA changed before evaluation')
-        periodic.check_sources(spec['training_configuration'])
-        if periodic.settings(spec) != spec['evaluation']:
+        periodic.check_sources(spec['training_configuration'],
+            source_root=job / 'runtime' if spec.get('isolated_runtime') else None)
+        if periodic.settings({**spec, 'evaluation_tta': spec['evaluation']['tta']}) != spec['evaluation']:
             raise ValueError('Remote evaluation source or test manifest differs from the selected protocol')
-        gpu_lock = periodic.acquire_lock(spec['gpu_lock'])
-        if gpu_lock is None:
-            _set_state(job, 'queued', waiting_reason='Shared remote GPU lock is held')
+        if spec.get('sharded_gpus'):
+            if periodic.sha256(Path(__file__).with_name('evaluate_sharded.py')) != spec['sharded_executor_sha256']:
+                raise ValueError('Sharded evaluator source changed after selection')
+            gpu_locks = periodic.acquire_gpu_group(spec) or []
+        else:
+            gpu_lock = periodic.acquire_gpu_slot(spec)
+            gpu_locks = [gpu_lock] if gpu_lock is not None else []
+        if not gpu_locks:
+            _set_state(job, 'queued', waiting_reason='Shared remote GPU slots or memory are unavailable')
             return 75
         ready, reason, uuid = (probe or local_gpu_probe)(spec)
         if not ready:
@@ -318,9 +362,10 @@ def remote_worker(job, probe=None):
         environment = {**os.environ, 'CUDA_VISIBLE_DEVICES': uuid, 'PYTHONUNBUFFERED': '1',
                        'OMP_NUM_THREADS': '2', 'MKL_NUM_THREADS': '2', 'OPENBLAS_NUM_THREADS': '2'}
         with (job / 'test.log').open('a') as output:
-            child = subprocess.Popen(periodic.evaluator_command(spec, job), cwd=ROOT, env=environment,
+            command_config = {**spec, 'gpu_lock_fds': [h.fileno() for h in gpu_locks]}
+            child = subprocess.Popen(periodic.evaluator_command(command_config, job), cwd=ROOT, env=environment,
                 stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
-                pass_fds=(gpu_lock.fileno(), worker_lock.fileno()))
+                pass_fds=tuple(h.fileno() for h in gpu_locks) + (worker_lock.fileno(),))
             _set_state(job, 'running', evaluator_identity=periodic.process_identity(child.pid))
             returncode = child.wait()
         if returncode:
@@ -333,8 +378,8 @@ def remote_worker(job, probe=None):
         _set_state(job, 'failed', failed_at=periodic.now(), reason=f'{type(error).__name__}: {error}')
         return 1
     finally:
-        if gpu_lock is not None:
-            gpu_lock.close()
+        for handle in gpu_locks:
+            handle.close()
         worker_lock.close()
 
 

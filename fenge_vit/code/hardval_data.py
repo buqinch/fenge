@@ -15,12 +15,42 @@ from vitseg.data import (CLASS_NAMES, TRAIN_SCENES, VAL_SCENES, TEST_SCENES,
 
 SCHEMA = 'lusnar_all_sources_hardval_v1'
 PROTOCOL = 'sampled_original_pool_with_fixed_hard_test_validation'
+ORIGINAL_ONLY_PROTOCOL = 'all_original_pool_with_full_test_selection'
+ORIGINAL_ONLY_COMPOSITION = 'all_8002_originals_no_offline_augmentation'
 HARD_COUNTS = {'Moon_2': 188, 'Moon_4': 187, 'Moon_9': 1125}
 
 
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def validate_original_only_identity(identity):
+    """Validate a complete training identity at evaluation/synchronization boundaries."""
+    require(isinstance(identity, dict), 'Missing original-only training identity')
+    expected = {'schema': SCHEMA, 'protocol': ORIGINAL_ONLY_PROTOCOL,
+                'training_composition': ORIGINAL_ONLY_COMPOSITION,
+                'train_source': 'complete_original_pool', 'split': 'train',
+                'partial': False, 'image_count': 8002, 'complete_image_count': 8002,
+                'unique_source_count': 8002, 'hard_validation_enabled': False,
+                'selection_metric': 'weighted_score', 'selection_scope': 'full_Moon_2_4_9'}
+    for key, value in expected.items():
+        require(type(identity.get(key)) is type(value) and identity[key] == value,
+                f'Original-only identity mismatch: {key}')
+    counts = identity.get('split_counts', {})
+    for key, value in {'original_pool': 8002, 'train_original': 8002,
+                       'train_augmented': 0, 'train_total': 8002}.items():
+        require(type(counts.get(key)) is int and counts[key] == value,
+                f'Original-only identity count mismatch: {key}')
+    require(identity.get('train_counts') == {'original': 8002, 'crater': 0, 'mountain_rock': 0}
+            and all(type(v) is int for v in identity['train_counts'].values()),
+            'Original-only identity contains augmented training samples')
+    for key in ('manifest_sha256', 'source_manifest_sha256', 'ordered_samples_sha256',
+                'literal_ordered_samples_sha256', 'families_sha256', 'splits_sha256'):
+        value = identity.get(key)
+        require(isinstance(value, str) and len(value) == 64
+                and all(c in '0123456789abcdef' for c in value),
+                f'Original-only identity missing SHA256: {key}')
 
 
 def canonical_path(root, value):
@@ -48,7 +78,17 @@ class HardValidationDataset(LunarDataset):
         self.manifest = Path(manifest).resolve(); self.split = split; self.input_size = input_size
         self.horizontal_flip = horizontal_flip; self._archives = {}
         fingerprint = sha256_file(self.manifest); source = json.loads(self.manifest.read_text())
-        require(source.get('schema') == SCHEMA and source.get('split_protocol') == PROTOCOL, 'Unexpected hard validation protocol')
+        protocol = source.get('split_protocol')
+        original_only = protocol == ORIGINAL_ONLY_PROTOCOL
+        require(source.get('schema') == SCHEMA and protocol in (PROTOCOL, ORIGINAL_ONLY_PROTOCOL), 'Unexpected hard validation protocol')
+        if original_only:
+            require(source.get('training_composition') == ORIGINAL_ONLY_COMPOSITION,
+                    'Original-only training composition must be explicit')
+            require(source.get('selection_policy') == 'full_test_every5'
+                    and source.get('hard_validation_enabled') is False
+                    and source.get('early_stopping_enabled') is False
+                    and source.get('validation_used_for_checkpoint_selection') is False,
+                    'Original-only data requires full-test selection without hard validation or early stopping')
         require(source.get('class_names') == list(CLASS_NAMES), 'Class order changed')
         require(type(source.get('seed')) is int and source['seed'] >= 0, 'Invalid split seed')
         families, splits = source.get('families'), source.get('splits')
@@ -60,12 +100,14 @@ class HardValidationDataset(LunarDataset):
         ordered = source.get('ordered_samples_sha256')
         require(isinstance(ordered, dict) and set(ordered) == {'train', 'val'} and all(ordered[k] == _canonical_sha256(v) for k,v in splits.items()), 'Ordered sample SHA mismatch')
         source_path, source_sha, original_doc = provenance(source, 'source')
-        aug_path, aug_sha, augmented_doc = provenance(source, 'augmented')
+        aug_path, aug_sha, augmented_doc = (None, None, None) if original_only else provenance(source, 'augmented')
         test_path, test_sha, test_doc = provenance(source, 'test')
         hard_path, hard_sha, hard_doc = provenance(source, 'hard')
-        require(original_doc.get('class_names') == list(CLASS_NAMES) and augmented_doc.get('class_names') == list(CLASS_NAMES), 'Provenance class order changed')
-        require(Path(augmented_doc.get('source_manifest', '')).resolve() == source_path and augmented_doc.get('source_manifest_sha256') == source_sha, 'Augmentation provenance mismatch')
-        require(augmented_doc.get('validation_or_test_used') is False, 'Existing augmentation source manifest was changed')
+        require(original_doc.get('class_names') == list(CLASS_NAMES), 'Provenance class order changed')
+        if not original_only:
+            require(augmented_doc.get('class_names') == list(CLASS_NAMES), 'Provenance class order changed')
+            require(Path(augmented_doc.get('source_manifest', '')).resolve() == source_path and augmented_doc.get('source_manifest_sha256') == source_sha, 'Augmentation provenance mismatch')
+            require(augmented_doc.get('validation_or_test_used') is False, 'Existing augmentation source manifest was changed')
         require(hard_doc.get('schema') == 'lusnar_fixed_hard_test_v1' and hard_doc.get('image_count') == 1500, 'Unexpected fixed hard manifest')
         require(Path(hard_doc.get('full_test_manifest', '')).resolve() == test_path and hard_doc.get('full_test_manifest_sha256') == test_sha, 'Fixed hard/full test provenance mismatch')
         require(hard_doc.get('ordered_records_sha256') == _canonical_sha256(hard_doc['records']), 'Hard validation record SHA mismatch')
@@ -77,11 +119,15 @@ class HardValidationDataset(LunarDataset):
             expected = 'train' if scene in TRAIN_SCENES else 'val' if scene in VAL_SCENES else None
             require(expected is not None and row['split'] == expected and source_id not in originals, 'Original pool identity/split violation')
             image, mask = (canonical_path(source_path.parent, row[k]) for k in ('image','mask'))
+            if original_only:
+                for path in (image, mask):
+                    require(Path(path).is_file() and Path(path).stat().st_size > 0,
+                            f'Original-only source file missing or empty: {path}')
             require(image != mask and image not in image_paths and image not in mask_paths and mask not in image_paths and mask not in mask_paths, 'Duplicate original paths')
             originals[source_id] = {'scene':scene,'sample_id':sid,'source_id':source_id,'source_kind':'original','image':image,'mask':mask,'split':'train'}
             image_paths.add(image); mask_paths.add(mask)
         require(len(originals) == 8002, 'Complete 8002-image original pool is required')
-        for row in augmented_doc['samples']:
+        for row in ([] if original_only else augmented_doc['samples']):
             scene, sid = row['source_scene'], str(row['sample_id']); source_id = f"{scene}/{row['source_sample_id']}"
             require(row.get('split') == 'train' and source_id in originals, 'Augmentation parent is outside the original pool')
             group = row.get('primary_group',row.get('focus_group')); key=(scene,sid)
@@ -120,6 +166,7 @@ class HardValidationDataset(LunarDataset):
                 elif kind=='original':
                     expected=originals.get(row.get('source_id')); original_ids.add(row.get('source_id'))
                 else:
+                    require(not original_only, 'Original-only training cannot contain augmented samples')
                     require(kind=='augmented' and row.get('augmentation_group') in ('crater','mountain_rock'),'Invalid selected training sample kind')
                     expected=augments.get(key); actual_groups[row.get('augmentation_group')]+=1
                 require(expected is not None and all(row.get(k)==v for k,v in expected.items()), 'Literal row differs from source provenance')
@@ -128,22 +175,33 @@ class HardValidationDataset(LunarDataset):
                 if 'mask' in row:
                     require(row['mask'] not in selected_masks,'Duplicate selected mask');selected_masks.add(row['mask'])
         require([r['source_id'] for r in splits['val']]==hard_ids, 'Fixed validation order differs from original hard manifest')
-        require(len(original_ids)==4000 and actual_groups=={'crater':1000,'mountain_rock':1000} and len(splits['train'])==6000, 'Training must contain 4000 originals + 1000 crater + 1000 mountain_rock')
-        expected_counts={'original_pool':8002,'train_original':4000,'train_augmented':2000,'train_total':6000,'val_original':1500,'val_total':1500,'remaining_test':3504,'full_original_test':5004}
+        if original_only:
+            require(original_ids == set(originals) and not actual_groups and len(splits['train']) == 8002,
+                    'Original-only training must contain every one of the 8002 sources exactly once')
+            require(source.get('train_counts') == {'original':8002,'crater':0,'mountain_rock':0}
+                    and all(type(v) is int for v in source['train_counts'].values()),
+                    'Original-only train counts differ from literal samples')
+        else:
+            require(len(original_ids)==4000 and actual_groups=={'crater':1000,'mountain_rock':1000} and len(splits['train'])==6000, 'Training must contain 4000 originals + 1000 crater + 1000 mountain_rock')
+        expected_counts={'original_pool':8002,'train_original':8002 if original_only else 4000,
+            'train_augmented':0 if original_only else 2000,'train_total':8002 if original_only else 6000,
+            'val_original':1500,'val_total':1500,'remaining_test':3504,'full_original_test':5004}
         counts=source.get('counts',{})
         require(all(type(counts.get(k)) is int and counts[k]==v for k,v in expected_counts.items()),'Declared counts differ from literal data')
         for path,sha in ((source_path,source_sha),(aug_path,aug_sha),(test_path,test_sha),(hard_path,hard_sha),(self.manifest,fingerprint)):
+            if path is None:
+                continue
             require(sha256_file(path)==sha, 'A manifest changed during initialization')
         self.records=[dict(r) for r in splits[split]]; self.complete_count=len(self.records)
         if max_samples is not None:self.records=self.records[:max_samples]
         self.partial=len(self.records)!=self.complete_count
-        self.identity={'manifest':str(self.manifest),'manifest_sha256':fingerprint,'schema':SCHEMA,'protocol':PROTOCOL,
+        self.identity={'manifest':str(self.manifest),'manifest_sha256':fingerprint,'schema':SCHEMA,'protocol':protocol,
             'split':split,'custom_split':True,'train_source':'embedded_sampled_original_pool' if split=='train' else None,
             'image_count':len(self.records),'complete_image_count':self.complete_count,'partial':self.partial,
             'unique_source_count':len({r['source_id'] for r in self.records}),
             'ordered_samples_sha256':_canonical_sha256(self.records),'literal_ordered_samples_sha256':ordered[split],
             'families_sha256':source['families_sha256'],'splits_sha256':source['splits_sha256'],'split_counts':counts,
-            'source_manifest':str(source_path),'source_manifest_sha256':source_sha,'augmented_manifest':str(aug_path),'augmented_manifest_sha256':aug_sha,
+            'source_manifest':str(source_path),'source_manifest_sha256':source_sha,'augmented_manifest':str(aug_path) if aug_path is not None else None,'augmented_manifest_sha256':aug_sha,
             'test_manifest':str(test_path),'test_manifest_sha256':test_sha,'hard_manifest':str(hard_path),'hard_manifest_sha256':hard_sha,
             'validation_image_count':1500,'validation_scene_counts':HARD_COUNTS,'sample_scene_counts':dict(Counter(r['scene'] for r in self.records)),
             'selection_metric':'validation_weighted_score','selection_scope':'fixed_hard_validation_from_former_test',
@@ -152,3 +210,12 @@ class HardValidationDataset(LunarDataset):
             'remaining_test_image_count':3504,'remaining_test_independent':False,
             'validation_selected_using_model_predictions':True,'full_original_test_overlaps_validation':True,
             'fresh_training_required':True,'split_seed':source['seed']}
+        if original_only:
+            self.identity.update(training_composition=ORIGINAL_ONLY_COMPOSITION,
+                train_source='complete_original_pool' if split=='train' else None,
+                train_counts=dict(source['train_counts']), selection_metric='weighted_score',
+                selection_scope='full_Moon_2_4_9', hard_validation_enabled=False,
+                validation_used_for_checkpoint_selection=False,
+                validation_role='unused_interface_compatibility')
+            if split == 'train' and not self.partial:
+                validate_original_only_identity(self.identity)

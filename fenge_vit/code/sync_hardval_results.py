@@ -13,6 +13,7 @@ from pathlib import Path
 import sync_remote_results as mirror
 
 PROTOCOL = 'pool8002_train6000_hard1500_validation_v1'
+ORIGINAL_ONLY_TRAINING_PROTOCOL = 'pool8002_original_train8002_fulltest_v1'
 LEGACY_POLICY = 'hard_validation_best'
 FULL_TEST_POLICY = 'full_test_every5'
 
@@ -117,8 +118,13 @@ def validate_boundary(target, files, documents):
                 raise ValueError('Remote run_config differs from the established mirror identity')
             _transition_epoch(document('policy_transition.json'), incoming, previous_config)
     if configuration is None: return None, 'waiting_for_run_config'
-    if configuration.get('protocol') != PROTOCOL or configuration.get('validation_every') != 2:
+    original_only = configuration.get('protocol') == ORIGINAL_ONLY_TRAINING_PROTOCOL
+    if (configuration.get('protocol') not in (PROTOCOL, ORIGINAL_ONLY_TRAINING_PROTOCOL)
+            or configuration.get('validation_every') != 2):
         raise ValueError('This mirror only accepts the explicit hard1500 every-two-epoch protocol')
+    if original_only and (configuration.get('selection_policy') != FULL_TEST_POLICY
+                          or configuration.get('early_stopping_patience') != 0):
+        raise ValueError('Original-only training requires full-test selection with early stopping disabled')
     summary = document('summary.json')
     if summary is None: return None, 'waiting_for_first_epoch_summary'
     completed = summary.get('completed_epochs')
@@ -153,11 +159,18 @@ def validate_boundary(target, files, documents):
         if set(range(1, completed + 1)) - set(by_epoch):
             return None, 'waiting_for_complete_history'
         identity = summary.get('data_identity', {})
-        if (identity.get('train', {}).get('image_count') != 6000
+        if (identity.get('train', {}).get('image_count') != (8002 if original_only else 6000)
                 or identity.get('val', {}).get('image_count') != 1500
                 or not identity['val'].get('hard_manifest_sha256')):
             raise ValueError('Full-test policy must inherit the fixed training and hard-validation identities')
+        if original_only:
+            from hardval_data import validate_original_only_identity
+            validate_original_only_identity(identity['train'])
+            if summary.get('train_images') != 8002 or summary.get('validation_images') != 1500:
+                raise ValueError('Original-only summary counts differ from the fixed data identities')
         transition = document('policy_transition.json')
+        if original_only and transition is not None:
+            raise ValueError('Original-only training starts under full-test policy without a legacy transition')
         boundary = _transition_epoch(transition, configuration) if transition is not None else 0
         legacy_count = min(boundary, completed)
         if not summary_full:
