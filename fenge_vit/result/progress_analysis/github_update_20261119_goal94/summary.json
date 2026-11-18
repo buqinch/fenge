@@ -1,0 +1,171 @@
+{
+  "schema": "lusnar_goal94_publication_v1",
+  "snapshot_at": "2026-11-19T02:02:58+08:00",
+  "run": "b_adapter_upernet_vit_large_random80_4000_1000_1000_lowbackbone_local_gpu4",
+  "result_status": "complete_full_test_of_epoch010_training_continues",
+  "checkpoint_epoch": 10,
+  "weighted_score": 0.9410546957082757,
+  "pooled_miou": 0.9404530273699787,
+  "scene_miou": {
+    "Moon_2": 0.9540773687886837,
+    "Moon_4": 0.961140877581267,
+    "Moon_9": 0.924500268231576
+  },
+  "goal": 0.94,
+  "goal_reached": true,
+  "margin_percentage_points": 0.10546957082757658,
+  "test": {
+    "image_count": 5004,
+    "scene_counts": {
+      "Moon_2": 1597,
+      "Moon_4": 1320,
+      "Moon_9": 2087
+    },
+    "tta": "1024_original_and_hflip_probability_mean",
+    "views": 2,
+    "formula": "(Moon_2_miou + Moon_4_miou + 2 * Moon_9_miou) / 4",
+    "checkpoint_selection": "1601-image validation pooled mIoU",
+    "independent_unseen_holdout": false,
+    "official_platform_result": false,
+    "unique_coverage_verified": true
+  },
+  "model": {
+    "variant": "B-L",
+    "vit": "DINOv3 ViT-L/16",
+    "cnn": "DINOv3 ConvNeXt-Tiny",
+    "interaction": "four-stage bidirectional Adapter",
+    "decoder": "UPerNet",
+    "ocr_correction": false,
+    "detail_correction": false,
+    "rgb_masking": false
+  },
+  "data": {
+    "original_pool": 8002,
+    "legal_train_original_sources": 6401,
+    "validation_originals": 1601,
+    "training_counts": {
+      "original": 4000,
+      "crater_augmentation": 1000,
+      "mountain_rock_augmentation": 1000
+    },
+    "training_total": 6000,
+    "unique_training_parents": 4561,
+    "training_scenes": [
+      "Moon_1",
+      "Moon_3",
+      "Moon_5",
+      "Moon_6",
+      "Moon_7",
+      "Moon_8"
+    ],
+    "test_scenes_in_training_or_validation": false,
+    "selection_manifest_sha256": "cc84cca17b89f88ee514918f65dfd88d8682e7c673275ea7db5a45803716cdfd"
+  },
+  "training": {
+    "initialization": "original_pretrained",
+    "input_size": 1024,
+    "backbone_lr": 2e-06,
+    "head_lr": 0.0001,
+    "microbatch": 4,
+    "accumulation": 2,
+    "effective_batch": 8,
+    "freeze_epochs": 3,
+    "updates_per_epoch": 750,
+    "epoch010_updates": 7500,
+    "optimizer": "AdamW",
+    "weight_decay": 0.01,
+    "poly_power": 0.9,
+    "schedule_epochs": 30,
+    "requested_stop_epoch": 20,
+    "early_stopping": false,
+    "validation_tta": "1024_and_768_equal_weight_original_and_hflip",
+    "checkpoint_epoch010_validation_miou": 0.9786400121383204
+  },
+  "checkpoint": {
+    "retained_path": "/home/lzc/workspace/fenge_vit/result/b_adapter_upernet_vit_large_random80_4000_1000_1000_lowbackbone_local_gpu4/goal94_guard/epoch_010/checkpoint.pt",
+    "sha256": "de0bafef9de01fe21fb4f316f2eb497c4c9601cdbad34f38cc29bf3047e955fa",
+    "bytes": 4381992452,
+    "contains_optimizer_state": true,
+    "uploaded_to_git": false,
+    "actual_hash_reverified": true
+  },
+  "comparisons": [
+    {
+      "label": "同组6000张，骨干2e-6",
+      "training": "4000＋1000＋1000",
+      "checkpoint_epoch": 5,
+      "weighted_score": 0.9377517841602399,
+      "source": "comparisons/same_recipe_epoch005.json",
+      "scene_miou": {
+        "Moon_2": 0.9503567823681358,
+        "Moon_4": 0.9571352978356276,
+        "Moon_9": 0.9217575282185981
+      }
+    },
+    {
+      "label": "历史原UPerNet，骨干5e-6",
+      "training": "6401原图",
+      "checkpoint_epoch": 14,
+      "weighted_score": 0.938405210007829,
+      "source": "comparisons/original6401_lr5e6_epoch014.json",
+      "scene_miou": {
+        "Moon_2": 0.9538250669782237,
+        "Moon_4": 0.961529497320126,
+        "Moon_9": 0.9191331378664831
+      }
+    },
+    {
+      "label": "两阶段UPerNet，骨干5e-6",
+      "training": "前5轮4000，后5轮6000",
+      "checkpoint_epoch": 10,
+      "weighted_score": 0.9393480054913717,
+      "source": "comparisons/curriculum_lr5e6_epoch010.json",
+      "scene_miou": {
+        "Moon_2": 0.952944037618653,
+        "Moon_4": 0.9585451342375503,
+        "Moon_9": 0.9229514250546416
+      }
+    },
+    {
+      "label": "原UPerNet，骨干2e-6，训练结束验证BEST",
+      "training": "6401原图",
+      "checkpoint_epoch": 20,
+      "weighted_score": 0.9360101488488856,
+      "source": "comparisons/original6401_lr2e6_epoch020.json",
+      "scene_miou": {
+        "Moon_2": 0.9543629304355801,
+        "Moon_4": 0.961403775897781,
+        "Moon_9": 0.9141369445310905
+      }
+    },
+    {
+      "label": "区域校正，骨干2e-6，训练结束验证BEST",
+      "training": "6401原图",
+      "checkpoint_epoch": 20,
+      "weighted_score": 0.934607552437132,
+      "source": "comparisons/ocr6401_lr2e6_epoch020.json",
+      "scene_miou": {
+        "Moon_2": 0.9533114591013832,
+        "Moon_4": 0.9606838814711175,
+        "Moon_9": 0.9122174345880136
+      }
+    },
+    {
+      "label": "细节修正，骨干2e-6，训练结束验证BEST",
+      "training": "6401原图",
+      "checkpoint_epoch": 19,
+      "weighted_score": 0.9357704342172284,
+      "source": "comparisons/detail6401_lr2e6_epoch019.json",
+      "scene_miou": {
+        "Moon_2": 0.9555569341496835,
+        "Moon_4": 0.9625458877775742,
+        "Moon_9": 0.912489457470828
+      }
+    }
+  ],
+  "limitations": [
+    "Single seed; no confidence interval or significance test",
+    "Test scenes have informed historical model and recipe selection",
+    "Changes in data coverage, augmentation, update budget, and execution prevent single-factor attribution"
+  ]
+}

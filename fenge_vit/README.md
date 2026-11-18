@@ -1,43 +1,28 @@
 # LuSNAR：DINOv3 ViT-L＋ConvNeXt-Tiny，Mask2Former／UPerNet
 
-## 最新结果与进度（2026-11-17）
+## 当前最高完整测试：94.1055%（2026-11-19更新）
 
-快照时间：**2026-11-17T21:46:30+08:00**。下表均为完整Moon_2／4／9共5004张、**1024＋水平翻转（2视图）**，已由逐场景整数混淆矩阵独立复算。
+**已达到S≥94.00%的项目目标。** 当前最高为 **B-L＋原UPerNet，第10轮，94.1055%**；DINOv3 ViT-L/16＋ConvNeXt-Tiny＋四阶段双向Adapter，单模型、**1024原图＋水平翻转（2视图）**。
 
-|方案|实际权重轮次|Moon_2 mIoU|Moon_4 mIoU|Moon_9 mIoU|加权 S|
-|---|---:|---:|---:|---:|---:|
-|[UPerNet，骨干5e-6](result/b_adapter_upernet_vit_large_random80_original6401_103_2gpu/periodic_test/epoch_015/test_hflip_1024_metrics.json)|14|95.3825%|96.1529%|91.9133%|**93.8405%**|
-|[UPerNet，骨干5e-6](result/b_adapter_upernet_vit_large_random80_original6401_103_2gpu/periodic_test/epoch_020/test_metrics.json)|20|95.4966%|96.3846%|91.5763%|**93.7585%**|
-|[UPerNet，骨干2e-6](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/periodic_test/epoch_005/test_metrics.json)|5|95.1797%|95.8072%|91.9826%|**93.7380%**|
-|[UPerNet，骨干2e-6](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/periodic_test/epoch_010/test_metrics.json)|10|95.2623%|95.9977%|91.6130%|**93.6215%**|
-|[UPerNet，骨干2e-6](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/periodic_test/epoch_015/test_metrics.json)|15|95.2658%|96.0726%|91.6135%|**93.6414%**|
-|[UPerNet＋区域语义校正，骨干2e-6](result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/periodic_test/epoch_005/test_metrics.json)|5|95.2311%|95.5648%|91.5757%|**93.4868%**|
-|[UPerNet＋细节修正，骨干2e-6](result/b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu/periodic_test/epoch_005/test_metrics.json)|5|95.1773%|95.7804%|91.6470%|**93.5629%**|
-|[Mask2Former，骨干2e-6](result/b_adapter_vit_large_random80_original6401_lowbackbone_103_2gpu/periodic_test/epoch_020/test_metrics.json)|20|93.8135%|94.0150%|91.3975%|**92.6559%**|
+|场景|张数|mIoU|月壤 IoU|岩石 IoU|撞击坑 IoU|山体 IoU|天空 IoU|
+|---|---:|---:|---:|---:|---:|---:|---:|
+|Moon_2|1597|95.4077%|99.5148%|91.2103%|88.9833%|97.3995%|99.9308%|
+|Moon_4|1320|96.1141%|99.5182%|90.8527%|91.4146%|98.8527%|99.9322%|
+|Moon_9|2087|92.4500%|98.8164%|87.3705%|80.1718%|96.1262%|99.7653%|
 
-当前6401／1601协议的最高已测记录仍为骨干5e-6 UPerNet第14轮的 **93.8405%**，位于第15轮周期评测目录；其最终验证BEST为第20轮，完整S为93.7585%。**最终目标为S≥94.00%，尚未达到；当前最高记录距目标0.1595个百分点。**
+完整5004张，`S=(mIoU_2+mIoU_4+2×mIoU_9)/4=0.9410546957082757`；顶层合并像素`miou`为94.0453%，与S定义不同。逐类别指标、精确率、召回率和S已由整数混淆矩阵独立复算，固定权重实际SHA256再次核对通过。
 
-低学习率UPerNet第5／10／15轮完整S为 **93.7380%／93.6215%／93.6414%**。第15轮比第10轮提高0.0198个百分点，仍低于第5轮0.0966个百分点。Moon_9坑IoU从第5轮79.8481%降至第15轮76.7606%，召回率从88.3995%降至82.9664%；验证分数上涨尚未转化为测试总分上涨。
+训练为**4000原图＋1000坑增强＋1000山岩增强，共6000张**；来自Moon_1／3／5／6／7／8的合法6401训练来源，验证仍为固定1601原图，来源家族零交叉。从原始DINOv3预训练初始化，骨干基础学习率2e-6、Adapter／解码头1e-4，前三轮冻结骨干；本地GPU4单卡batch4×累积2，有效batch8。没有OCR校正、细节修正或C组遮挡。每轮按1601验证mIoU选BEST，每5轮完整测试该BEST；验证使用1024／768四视图，测试使用1024两视图。训练仍在继续，计划在20轮保存后结束，沿用原30轮poly学习率计划。
 
-两种修正头均从原始DINOv3 ViT-L＋ConvNeXt预训练开始，分别与原UPerNet同轮对照。第5轮区域校正S为 **93.4868%**，细节修正为 **93.5629%**，较原UPerNet第5轮分别低0.2512、0.1751个百分点。细节修正提高了Moon_2／4岩石IoU，但Moon_9的坑、岩石和山体IoU均下降。当前未观察到整体收益；首次第5轮结果不证明方法普遍无效，不能用它们与已完成20轮的模型单独归因模块收益。
+同组第5→10轮S由93.7752%升至94.1055%；此前6401原图、5e-6 UPerNet第14轮为93.8405%；103两阶段5e-6第10轮为93.9348%。这些是同测试视角的记录，数据组成和训练轨迹不同，不能据差值单独归因增强或学习率。Moon_9坑IoU仍为80.1718%、岩石为87.3705%，仍有漏检和误检；94分不表示每类都达到94%。
 
-当前数据为Moon_1／3／5／6／7／8的 **6401张原图训练＋1601张固定验证**，不加离线增强。每轮按验证集累计混淆矩阵mIoU选BEST，每5轮及训练结束后完整测试当时的验证BEST；完成第20轮保存后停止，自动早停关闭，学习率保留启动时的30轮poly计划。验证使用1024／768等权水平翻转，完整测试使用1024原图＋水平翻转。
+**测试集已反复用于开发和方案选择，以上是本地已查看测试集的成绩，不等同于官方平台或独立留出成绩。** 本次没有多种子重复或显著性检验。固定第10轮权重独立保留，GitHub不上传二进制权重和图像。
 
-完整测试的Moon_2／4／9分别为1597／1320／2087张，`S=(mIoU_2+mIoU_4+2×mIoU_9)/4`。`weighted_score`为这个加权S；JSON中的`miou`为合并像素混淆矩阵后的mIoU，不能替代S。测试场景已反复用于历史开发和方案选择，以上为已查看测试集上的开发结果。
+[完整模型／数据／逐类结果／权重位置／复核命令](result/progress_analysis/github_update_20261119_goal94/report_zh.md) · [原始测试JSON](result/progress_analysis/github_update_20261119_goal94/test_epoch010_metrics.json) · [逐类CSV](result/progress_analysis/github_update_20261119_goal94/metrics.csv) · [配置及机器可读汇总](result/progress_analysis/github_update_20261119_goal94/summary.json)
 
-|训练中实验|位置|已完成轮次／目标|日志进度|验证最佳 mIoU|最近完整轮平均 loss|
-|---|---|---:|---|---:|---:|
-|[UPerNet，骨干2e-6](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/summary.json)|本机 GPU 3／4|16／20|第17轮 525／801批次|98.3360%（第16轮）|0.007107|
-|[UPerNet＋区域语义校正，骨干2e-6](result/b_adapter_upernet_ocr_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 4／5|6／20|第7轮 600／801批次|97.7476%（第6轮）|0.010488|
-|[UPerNet＋细节修正，骨干2e-6](result/b_adapter_upernet_detail_vit_large_random80_original6401_lowbackbone_103_2gpu/summary.json)|103 GPU 6／7|6／20|第7轮 300／801批次|97.6148%（第5轮）|0.010425|
+![当前最高模型的场景类别指标及训练变化](result/progress_analysis/github_update_20261119_goal94/results_overview.png)
 
-本轮第15轮基线、两组第5轮完整评测均已完成。后续评测在103物理GPU4／5／6／7上四卡分片，每卡batch=1；每卡最多一个训练与一个评测，完整任务之间排队。合并各场景整数混淆矩阵后计算S。远程传输的临时评测权重在结果回传校验后删除，训练BEST、last和final按原规则保留。
-
-本地低学习率UPerNet此前第9轮遇到NAS I/O错误，已从完整第8轮恢复并切换到逐文件SHA256核验的本地只读缓存，划分和样本身份不变。[恢复记录](result/b_adapter_upernet_vit_large_random80_original6401_lowbackbone_local_2gpu/resume_20261117T074423Z_local_cache/report_zh.md)。
-
-[完整结果与逐类别IoU](result/progress_analysis/github_update_20261117_evening/report_zh.md) · [机器可读快照](result/progress_analysis/github_update_20261117_evening/summary.json) · [两种校正头设计与检查](UPERNET_CORRECTION_EXPERIMENTS_20261117.md)
-
-以下历史快照的状态、候选计划和评测协议仅代表记录当时；当前安排以上述快照为准。
+[2026-11-17历史快照](result/progress_analysis/github_update_20261117_evening/report_zh.md)。以下历史章节只代表记录当时的状态和协议。
 
 ## 历史A-L／B-L／C-L结果（2026-11-15）
 
