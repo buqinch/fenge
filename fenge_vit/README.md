@@ -1,28 +1,37 @@
 # LuSNAR：DINOv3 ViT-L＋ConvNeXt-Tiny，Mask2Former／UPerNet
 
-## 当前最高完整测试：94.1055%（2026-11-19更新）
+## 最新结果（2026-11-19）
 
-**已达到S≥94.00%的项目目标。** 当前最高为 **B-L＋原UPerNet，第10轮，94.1055%**；DINOv3 ViT-L/16＋ConvNeXt-Tiny＋四阶段双向Adapter，单模型、**1024原图＋水平翻转（2视图）**。
+**当前已测最高为 B-L＋原UPerNet，第15轮：94.3246%。** 从原始DINOv3 ViT-L/16＋ConvNeXt-Tiny预训练开始，双向Adapter，单模型、**1024原图＋水平翻转（2视图）**。
 
-|场景|张数|mIoU|月壤 IoU|岩石 IoU|撞击坑 IoU|山体 IoU|天空 IoU|
-|---|---:|---:|---:|---:|---:|---:|---:|
-|Moon_2|1597|95.4077%|99.5148%|91.2103%|88.9833%|97.3995%|99.9308%|
-|Moon_4|1320|96.1141%|99.5182%|90.8527%|91.4146%|98.8527%|99.9322%|
-|Moon_9|2087|92.4500%|98.8164%|87.3705%|80.1718%|96.1262%|99.7653%|
+|方案|实际权重轮次|Moon_2|Moon_4|Moon_9|加权S|
+|---|---:|---:|---:|---:|---:|
+|4000＋1000＋1000，已测最高|15|95.5818%|96.3108%|92.7028%|**94.3246%**|
+|同组训练结束的验证BEST|19|95.6456%|96.3119%|92.5581%|**94.2684%**|
+|两阶段5e-6，已测最高|15|95.6011%|96.0573%|92.6119%|**94.2205%**|
+|两阶段5e-6，训练结束的验证BEST|20|95.4519%|96.0130%|92.4305%|**94.0815%**|
 
-完整5004张，`S=(mIoU_2+mIoU_4+2×mIoU_9)/4=0.9410546957082757`；顶层合并像素`miou`为94.0453%，与S定义不同。逐类别指标、精确率、召回率和S已由整数混淆矩阵独立复算，固定权重实际SHA256再次核对通过。
+最高模型的五类IoU：
 
-训练为**4000原图＋1000坑增强＋1000山岩增强，共6000张**；来自Moon_1／3／5／6／7／8的合法6401训练来源，验证仍为固定1601原图，来源家族零交叉。从原始DINOv3预训练初始化，骨干基础学习率2e-6、Adapter／解码头1e-4，前三轮冻结骨干；本地GPU4单卡batch4×累积2，有效batch8。没有OCR校正、细节修正或C组遮挡。每轮按1601验证mIoU选BEST，每5轮完整测试该BEST；验证使用1024／768四视图，测试使用1024两视图。训练仍在继续，计划在20轮保存后结束，沿用原30轮poly学习率计划。
+|场景|月壤 IoU|岩石 IoU|撞击坑 IoU|山体 IoU|天空 IoU|
+|---|---:|---:|---:|---:|---:|
+|Moon_2|99.5306%|91.6901%|89.2410%|97.5167%|99.9308%|
+|Moon_4|99.5402%|91.3952%|91.7447%|98.9446%|99.9293%|
+|Moon_9|98.8540%|87.9710%|80.4862%|96.4164%|99.7865%|
 
-同组第5→10轮S由93.7752%升至94.1055%；此前6401原图、5e-6 UPerNet第14轮为93.8405%；103两阶段5e-6第10轮为93.9348%。这些是同测试视角的记录，数据组成和训练轨迹不同，不能据差值单独归因增强或学习率。Moon_9坑IoU仍为80.1718%、岩石为87.3705%，仍有漏检和误检；94分不表示每类都达到94%。
+完整测试5004张，`S=(mIoU_2+mIoU_4+2×mIoU_9)/4`；逐类指标与S已由整数混淆矩阵复算。训练结束时按1601验证集选出的第19轮BEST为94.2684%，距已测最高仅0.0561个百分点。**第20轮评测使用第19轮BEST，第20轮最终权重本身尚未另测。**
 
-**测试集已反复用于开发和方案选择，以上是本地已查看测试集的成绩，不等同于官方平台或独立留出成绩。** 本次没有多种子重复或显著性检验。固定第10轮权重独立保留，GitHub不上传二进制权重和图像。
+训练数据为固定**4000原图＋1000坑增强＋1000山岩增强**，来源为Moon_1／3／5／6／7／8合法训练池，固定1601原图验证，来源家族零交叉。骨干基础学习率2e-6、Adapter／解码头1e-4；前三轮冻结骨干；单卡batch4×累计2，有效batch8。本组已完成20轮，保留原30轮poly衰减曲线。验证使用1024／768等权翻转，测试使用1024翻转。
 
-[完整模型／数据／逐类结果／权重位置／复核命令](result/progress_analysis/github_update_20261119_goal94/report_zh.md) · [原始测试JSON](result/progress_analysis/github_update_20261119_goal94/test_epoch010_metrics.json) · [逐类CSV](result/progress_analysis/github_update_20261119_goal94/metrics.csv) · [配置及机器可读汇总](result/progress_analysis/github_update_20261119_goal94/summary.json)
+**正在训练：3000原图＋1500坑增强＋1500山岩增强**，同一原UPerNet、2e-6，在103的4／5双卡训练20轮；本快照尚无完整测试成绩。它是独立数据配比对照，尚不能替代已验证的4000＋1000＋1000基线。
 
-![当前最高模型的场景类别指标及训练变化](result/progress_analysis/github_update_20261119_goal94/results_overview.png)
+重复的最终评测已停止，改为复用相同权重与推理协议的已完成结果。每5轮评测验证BEST，相同结果只计算一次。15轮与20轮完整衰减对照已生成配置，尚未启动；训练复现与对照说明见下方文档。
 
-[2026-11-17历史快照](result/progress_analysis/github_update_20261117_evening/report_zh.md)。以下历史章节只代表记录当时的状态和协议。
+[最新完整报告](result/progress_analysis/github_update_20261119_final/report_zh.md) · [最高分JSON](result/progress_analysis/github_update_20261119_final/local_epoch015_metrics.json) · [最终验证BEST JSON](result/progress_analysis/github_update_20261119_final/local_epoch020_metrics.json) · [训练建议](result/progress_analysis/github_update_20261119_final/training_plan_zh.md) · [逐类CSV](result/progress_analysis/github_update_20261119_final/metrics.csv)
+
+![训练与测试趋势](result/progress_analysis/github_update_20261119_final/training_test_trends.png)
+
+测试集已反复参与开发比较，以上是本地已查看测试集成绩，不等同于官方平台或独立留出成绩；尚无多种子显著性结论。[此前94.1055%快照](result/progress_analysis/github_update_20261119_goal94/report_zh.md)。历史章节仅代表记录当时状态。
 
 ## 历史A-L／B-L／C-L结果（2026-11-15）
 
@@ -74,7 +83,7 @@ C-L前3轮冻结期不遮挡；解冻后约25%的优化器更新追加一个遮�
 
 ## 历史训练与评测（2026-11-15协议）
 
-同一6000训练清单：从Moon_1／3／5／6／7／8的8002张原图池选4000原图，再加1000坑增强、1000山岩增强。两卡每卡batch4、累积1，总batch8；原始预训练开始，30轮，前3轮冻结，骨干LR5e-6、新层LR1e-4，BF16与激活重计算。源码和数据身份绑定在各`run_config.json`。当前三组均已切换为`selection_policy=full_test_every5`、`early_stopping_patience=0`，每5轮完整评测在103物理GPU3串行执行。
+同一6000训练清单：从Moon_1／3／5／6／7／8的8002张原图池选4000原图，再加1000坑增强、1000山岩增强。两卡每卡batch4、累积1，总batch8；原始预训练开始，30轮，前3轮冻结，骨干LR5e-6、新层LR1e-4，BF16与激活重计算。源码和数据身份绑定在各`run_config.json`。当前三组均已切换为`selection_policy=full_test_every5`、`early_stopping_patience=0`，每5轮完整评测在103物理GPU3执行；从2026-11-15起同卡最多两组并行。
 
 - A-L：[训练配置](config/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu.json) · [实际运行配置](result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/run_config.json) · [保留的全量最优记录](result/a_fusion_vit_large_pool8002_train6000_hardval1500_103_2gpu/best_full_test.json)
 - B-L：[训练配置](config/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu.json) · [实际运行配置](result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/run_config.json) · [保留的全量最优记录](result/b_adapter_vit_large_pool8002_train6000_hardval1500_103_2gpu/best_full_test.json)
@@ -285,4 +294,4 @@ python code/benchmark_memory.py --variant B --device cuda:0 \
 
 ## 本地工作区清理（2026-11-14）
 
-旧低分运行、调试权重、重复快照及其专用启动配置已清理；较好结果、必要对照、运行中的任务、数据和预训练权重保留。旧指标与配置的清理归档保留在实验服务器。
+旧低分运行、调试权重、重复快照及其专用启动配置已清理；较好结果、必要对照、运行中的任务、数据和预训练权重保留。旧指标与配置见[清理记录](../fenge/result/retired_experiments/cleanup_20261114/README.md)。

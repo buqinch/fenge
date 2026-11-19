@@ -203,6 +203,57 @@ class PeriodicFixtures(unittest.TestCase):
         self.assertEqual(m.read_json(later / 'status.json')['reused_from'], str(job))
         self.assertFalse((later / 'best.pt').exists())
 
+    def test_final_queued_before_periodic_finishes_reuses_at_dispatch(self):
+        run = self.publish()
+        self.config['runs'] = [str(run)]
+        summary = m.read_json(run / 'summary.json')
+        summary['status'] = 'complete'
+        m.write_json(run / 'summary.json', summary)
+        monitor = m.Monitor(self.config)
+        with patch.object(m, 'gpu_available', return_value=(False, 'fixture busy', None)):
+            monitor.tick()
+        first, final = run / 'periodic_test/epoch_003', run / 'periodic_test/final_epoch_003'
+        self.assertEqual(m.read_json(final / 'status.json')['status'], 'queued')
+        trigger = m.read_json(first / 'trigger.json')
+        m.write_json(first / 'test_metrics.json', self.metrics(trigger))
+        m.complete_job(first, trigger)
+        with patch.object(m.subprocess, 'Popen') as launch:
+            report = monitor.tick()
+        launch.assert_not_called()
+        self.assertFalse(report['errors'])
+        state = m.read_json(final / 'status.json')
+        self.assertEqual(state['status'], 'reused')
+        self.assertEqual(state['reused_from'], str(first))
+        self.assertEqual(m.sha256(first / 'test_metrics.json'), m.sha256(final / 'test_metrics.json'))
+        self.assertFalse((final / 'best.pt').exists())
+
+    def test_queued_reuse_requires_same_weights_and_protocol(self):
+        run = self.publish()
+        first = self.prepare(run)
+        summary, configuration, rows = m.committed_run(run)
+        final = m.prepare_job(run, 3, summary, configuration, rows, self.config, final=True)
+        trigger = m.read_json(first / 'trigger.json')
+        m.write_json(first / 'test_metrics.json', self.metrics(trigger))
+        m.complete_job(first, trigger)
+        original = m.read_json(final / 'trigger.json')
+        for field in ('checkpoint_sha256', 'evaluation', 'configuration_sha256'):
+            changed = copy.deepcopy(original)
+            if field == 'evaluation':
+                changed[field]['tta'] = ('hflip' if original[field]['tta'] != 'hflip'
+                                         else 'multiscale_hflip')
+            else:
+                changed[field] = 'different'
+            m.write_json(final / 'trigger.json', changed)
+            self.assertIsNone(m.reuse_completed_result(final))
+            self.assertFalse((final / 'test_metrics.json').exists())
+        m.write_json(final / 'trigger.json', original)
+        broken = self.metrics(trigger)
+        broken['image_count'] = 1
+        m.write_json(first / 'test_metrics.json', broken)
+        with self.assertRaises(ValueError):
+            m.reuse_completed_result(final)
+        self.assertFalse((final / 'test_metrics.json').exists())
+
     def test_score_retention_requires_strictly_greater_than_threshold(self):
         # The fixture score is exactly 1.0, so equality cannot be obscured by
         # floating-point rounding in an invented 0.92 confusion matrix.

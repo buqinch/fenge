@@ -726,6 +726,28 @@ def complete_job(job, trigger, reused_from=None, retain_above_score=None):
     return state
 
 
+def reuse_completed_result(job, retain_above_score=None):
+    """Recheck queued snapshots after another job finishes, before GPU dispatch."""
+    trigger = read_json(job / 'trigger.json')
+    if not trigger.get('checkpoint_sha256'):
+        return None
+    comparable = ('checkpoint_sha256', 'checkpoint_epoch', 'configuration_sha256',
+                  'validation_identity', 'evaluation')
+    for path in sorted(job.parent.glob('*/status.json')):
+        source = path.parent
+        if source == job or read_json(path).get('status') not in ('complete', 'reused'):
+            continue
+        other = read_json(source / 'trigger.json')
+        if not all(other.get(key) == trigger.get(key) for key in comparable):
+            continue
+        document = read_json(source / 'test_metrics.json')
+        validate_metrics(document, trigger)
+        write_json(job / 'test_metrics.json', document)
+        return complete_job(job, trigger, reused_from=str(source),
+                            retain_above_score=retain_above_score)
+    return None
+
+
 def prepare_job(run, boundary, summary, configuration, rows, config, final=False):
     job = run / 'periodic_test' / (f'final_epoch_{boundary:03d}' if final else f'epoch_{boundary:03d}')
     if (job / 'status.json').exists():
@@ -974,7 +996,14 @@ class Monitor:
                                 set_status(job, 'failed', reason='Worker/evaluator disappeared: ' + str(error))
                         state = read_json(path)
                 if state['status'] == 'queued':
-                    pending.append(job)
+                    try:
+                        reused = reuse_completed_result(job, self.config.get('retain_above_score'))
+                        if reused is None:
+                            pending.append(job)
+                        else:
+                            state = reused
+                    except Exception as error:
+                        errors[str(job)] = f'Result reuse: {type(error).__name__}: {error}'
                 if state['status'] in ('complete', 'reused'):
                     try:
                         trigger = read_json(job / 'trigger.json')

@@ -1,0 +1,25 @@
+{
+  "status": "prepared_not_started",
+  "data": "fixed4000+1000+1000",
+  "validation_count": 1601,
+  "initialization": "original_pretrained",
+  "selection": "fixed_validation_miou_best",
+  "early_stopping": false,
+  "tests_every_epochs": 5,
+  "test_tta": "1024+hflip",
+  "deduplicate": "same_checkpoint_sha256_and_protocol",
+  "arms": [
+    {
+      "epochs": 15,
+      "updates": 11250,
+      "config": "/home/lzc/workspace/fenge_vit/config/b_adapter_upernet_vit_large_random80_4000_1000_1000_lr2e6_poly15_candidate.json"
+    },
+    {
+      "epochs": 20,
+      "updates": 15000,
+      "config": "/home/lzc/workspace/fenge_vit/config/b_adapter_upernet_vit_large_random80_4000_1000_1000_lr2e6_poly20_candidate.json"
+    }
+  ],
+  "comparison_scope": "training_budget_and_matching_polynomial_schedule",
+  "existing_training_modified": false
+}
